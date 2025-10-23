@@ -7,6 +7,12 @@
 Object.assign(VideoTranscriber.prototype, {
     // 视频预览功能
     async previewVideo() {
+        // 如果正在生成笔记,禁止预览
+        if (window.transcriptionInProgress) {
+            console.log('正在生成笔记中,禁止预览');
+            return;
+        }
+        
         // 防止重复点击
         if (window.previewingInProgress) {
             console.log('正在预览中，忽略重复点击');
