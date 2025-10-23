@@ -1,7 +1,7 @@
 [project]
 name = "vinote"
-version = "2.0.0"
-description = "AI驱动的视频笔记生成系统"
+version = "1.0.0"
+description = "视记AI · 让每个视频成为你的知识资产"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

@@ -194,6 +194,12 @@ function handleDownloadClick() { if (app) app.handleDownloadClick(); }
 
 // QA页面专用函数
 async function previewVideoForQA() {
+    // 如果正在预处理,禁止预览
+    if (qaState.taskId) {
+        console.log('正在预处理中,禁止预览');
+        return;
+    }
+    
     // 🔥 防止重复点击
     if (window.qaPreviewingInProgress) {
         console.log('正在预览中，忽略重复点击');
@@ -398,6 +404,14 @@ async function preprocessVideoForQA() {
         const btnProgress = document.getElementById('qaPreprocessBtnProgress');
         const btnContent = preprocessBtn.querySelector('.btn-content');
         
+        // 🔥 禁用预览按钮,防止预处理时点击预览
+        const qaPreviewBtn = document.getElementById('qaPreviewBtn');
+        if (qaPreviewBtn) {
+            qaPreviewBtn.disabled = true;
+            qaPreviewBtn.style.opacity = '0.5';
+            qaPreviewBtn.style.cursor = 'not-allowed';
+        }
+        
         // 🔥 更新按钮为处理中状态（显示取消按钮）
         if (preprocessBtn) {
             preprocessBtn.disabled = false; // 保持可点击用于取消
@@ -493,6 +507,14 @@ async function cancelQAPreprocess() {
                         <span id="qaPreprocessPercent" style="margin-left: 8px; font-size: 0.9em; opacity: 0; transition: opacity 0.3s;">0%</span>
                     `;
                 }
+            }
+            
+            // 恢复预览按钮
+            const qaPreviewBtn = document.getElementById('qaPreviewBtn');
+            if (qaPreviewBtn) {
+                qaPreviewBtn.disabled = false;
+                qaPreviewBtn.style.opacity = '1';
+                qaPreviewBtn.style.cursor = 'pointer';
             }
             
             // 清空任务ID
@@ -659,6 +681,14 @@ function onQAPreprocessError(data) {
             <span>开始预处理</span>
             <span id="qaPreprocessPercent" style="margin-left: 8px; font-size: 0.9em; opacity: 0; transition: opacity 0.3s;">0%</span>
         `;
+    }
+    
+    // 🔥 恢复预览按钮
+    const qaPreviewBtn = document.getElementById('qaPreviewBtn');
+    if (qaPreviewBtn) {
+        qaPreviewBtn.disabled = false;
+        qaPreviewBtn.style.opacity = '1';
+        qaPreviewBtn.style.cursor = 'pointer';
     }
     
     // 🔥 清空任务ID，防止重复弹窗

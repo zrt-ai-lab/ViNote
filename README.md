@@ -1,10 +1,11 @@
-# ViNote = Video + Note + AI
 
 <div align="center">
 
 ![ViNote Logo](static/product-logo.png)
 
-让每个视频成为你的知识资产
+**ViNote = Video + Note**
+
+视记AI · 让每个视频成为你的知识资产
 
 **Video to Everything：笔记、问答、文章、字幕、卡片、导图，一应俱全**
 
@@ -17,7 +18,11 @@
 
 ---
 
+![overview_zh.png](overview_zh.png)
+
 ## ✨ 核心特性
+
+
 
 ### 🎯 智能视频处理
 - **多平台支持**: YouTube, Bilibili等主流视频平台
