@@ -1,10 +1,11 @@
-# ViNote = Video + Note + AI
 
 <div align="center">
 
 ![ViNote Logo](static/product-logo.png)
 
-Turn Every Video into Your Knowledge Asset
+**ViNote = Video + Note**
+
+ViNote AI · Turn Every Video into Your Knowledge Asset
 
 **Video to Everything: Notes, Q&A, Articles, Subtitles, Cards, Mind Maps - All in One**
 
@@ -19,6 +20,8 @@ Turn Every Video into Your Knowledge Asset
 
 ---
 
+
+![overview_en.png](overview_en.png)
 ## ✨ Core Features
 
 ### 🎯 Intelligent Video Processing
