@@ -769,34 +769,163 @@ async def cancel_download(download_id: str):
         raise HTTPException(status_code=500, detail=f"取消失败: {str(e)}")
 
 @app.post("/api/transcribe-only")
-async def transcribe_only(url: str = Form(...)):
+async def transcribe_only(
+    url: Optional[str] = Form(None),
+    file_path: Optional[str] = Form(None)
+):
     """
     仅转录视频音频（用于视频问答预处理）
-    - 只下载音频 + 转录
+    - 支持在线URL和本地路径两种模式
+    - 只下载音频/读取本地文件 + 转录
     - 不生成摘要、不优化文本、不翻译
     - 速度更快，资源消耗更少
     """
     try:
+        # 验证参数
+        if not url and not file_path:
+            raise HTTPException(status_code=400, detail="url或file_path参数必需")
+        
+        if url and file_path:
+            raise HTTPException(status_code=400, detail="url和file_path不能同时提供")
+        
         task_id = str(uuid.uuid4())
         
-        tasks[task_id] = {
-            "status": "processing",
-            "progress": 0,
-            "message": "开始转录视频...",
-            "transcript": None,
-            "error": None,
-            "url": url
-        }
-        save_tasks(tasks)
-        
-        task = asyncio.create_task(transcribe_only_task(task_id, url))
-        active_tasks[task_id] = task
+        # 确定处理模式
+        if file_path:
+            # 本地路径模式
+            if not os.path.exists(file_path):
+                raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
+            
+            if not os.path.isfile(file_path):
+                raise HTTPException(status_code=400, detail="路径不是有效的文件")
+            
+            tasks[task_id] = {
+                "status": "processing",
+                "progress": 0,
+                "message": "开始转录本地文件...",
+                "transcript": None,
+                "error": None,
+                "source": "local_path",
+                "file_path": file_path
+            }
+            save_tasks(tasks)
+            
+            task = asyncio.create_task(transcribe_local_file_task(task_id, file_path))
+            active_tasks[task_id] = task
+        else:
+            # URL模式
+            tasks[task_id] = {
+                "status": "processing",
+                "progress": 0,
+                "message": "开始转录视频...",
+                "transcript": None,
+                "error": None,
+                "url": url
+            }
+            save_tasks(tasks)
+            
+            task = asyncio.create_task(transcribe_only_task(task_id, url))
+            active_tasks[task_id] = task
         
         return {"task_id": task_id, "message": "转录任务已创建"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"创建转录任务时出错: {str(e)}")
         raise HTTPException(status_code=500, detail=f"创建任务失败: {str(e)}")
+
+async def transcribe_local_file_task(task_id: str, file_path: str):
+    """仅转录本地文件任务 - 轻量级版本（问答专用）"""
+    from backend.services.audio_transcriber import AudioTranscriber
+    import subprocess
+    
+    try:
+        audio_transcriber = AudioTranscriber()
+        
+        # 获取文件名作为标题
+        video_title = Path(file_path).stem
+        
+        # 判断是否为视频文件
+        video_exts = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
+        is_video = Path(file_path).suffix.lower() in video_exts
+        
+        # 1. 提取/准备音频 (0-40%)
+        tasks[task_id].update({
+            "progress": 5,
+            "message": "正在提取音频..." if is_video else "正在准备音频..."
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        if is_video:
+            # 从视频提取音频到临时文件
+            audio_path = str(TEMP_DIR / f"{task_id}.wav")
+            cmd = [
+                'ffmpeg', '-i', file_path,
+                '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '16000', '-ac', '1',
+                '-y', audio_path
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+        else:
+            # 直接使用音频文件
+            audio_path = file_path
+        
+        tasks[task_id].update({
+            "progress": 40,
+            "message": "正在转录音频..."
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        # 2. 转录音频 (40-100%)
+        transcript = await audio_transcriber.transcribe_audio(audio_path)
+        
+        # 清理临时音频文件(如果是从视频提取的)
+        if is_video and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except:
+                pass
+        
+        # 完成
+        tasks[task_id].update({
+            "status": "completed",
+            "progress": 100,
+            "message": "",
+            "transcript": transcript,
+            "video_title": video_title
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+            
+    except asyncio.CancelledError:
+        logger.info(f"本地文件转录任务 {task_id} 被取消")
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+        if task_id in tasks:
+            tasks[task_id].update({
+                "status": "cancelled",
+                "error": "用户取消任务",
+                "message": "❌ 任务已取消"
+            })
+            save_tasks(tasks)
+            await broadcast_task_update(task_id, tasks[task_id])
+    except Exception as e:
+        logger.error(f"本地文件转录任务 {task_id} 失败: {str(e)}")
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+        tasks[task_id].update({
+            "status": "error",
+            "error": str(e),
+            "message": f"转录失败: {str(e)}"
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
 
 async def transcribe_only_task(task_id: str, url: str):
     """仅转录任务 - 轻量级版本（问答专用）"""
@@ -929,6 +1058,228 @@ async def video_qa_stream(request: Request):
     except Exception as e:
         logger.error(f"视频问答失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"问答失败: {str(e)}")
+
+@app.post("/api/process-local-path")
+async def process_local_path(request: Request):
+    """
+    处理本地文件路径（本地视频/音频转录）
+    不需要下载,直接读取本地文件进行处理
+    """
+    try:
+        data = await request.json()
+        file_path = data.get('file_path', '').strip()
+        summary_language = data.get('language', 'zh')
+        
+        if not file_path:
+            raise HTTPException(status_code=400, detail="文件路径不能为空")
+        
+        # 验证文件是否存在
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
+        
+        # 验证是否为文件
+        if not os.path.isfile(file_path):
+            raise HTTPException(status_code=400, detail="路径不是有效的文件")
+        
+        # 验证文件格式
+        valid_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv',
+                          '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'}
+        file_ext = Path(file_path).suffix.lower()
+        
+        if file_ext not in valid_extensions:
+            raise HTTPException(status_code=400, detail=f"不支持的文件格式: {file_ext}")
+        
+        # 生成任务ID
+        task_id = str(uuid.uuid4())
+        
+        # 初始化任务状态
+        tasks[task_id] = {
+            "status": "processing",
+            "progress": 0,
+            "message": "开始处理本地文件...",
+            "script": None,
+            "summary": None,
+            "error": None,
+            "source": "local_path",
+            "file_path": file_path
+        }
+        save_tasks(tasks)
+        
+        # 创建后台任务
+        task = asyncio.create_task(process_local_path_task(task_id, file_path, summary_language))
+        active_tasks[task_id] = task
+        
+        return {"task_id": task_id, "message": "本地文件处理任务已创建"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"处理本地路径时出错: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+
+async def process_local_path_task(task_id: str, file_path: str, summary_language: str):
+    """
+    处理本地文件的后台任务
+    """
+    from backend.services.audio_transcriber import AudioTranscriber
+    from backend.services.text_optimizer import TextOptimizer
+    from backend.services.content_summarizer import ContentSummarizer
+    from backend.services.text_translator import TextTranslator
+    import subprocess
+    
+    try:
+        # 获取文件名作为标题
+        video_title = Path(file_path).stem
+        
+        # 判断是否为视频文件
+        video_exts = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
+        is_video = Path(file_path).suffix.lower() in video_exts
+        
+        # 1. 提取/准备音频 (0-20%)
+        tasks[task_id].update({
+            "progress": 5,
+            "message": "正在提取音频..." if is_video else "正在准备音频..."
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        if is_video:
+            # 从视频提取音频到临时文件
+            audio_path = str(TEMP_DIR / f"{task_id}.wav")
+            cmd = [
+                'ffmpeg', '-i', file_path,
+                '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '16000', '-ac', '1',
+                '-y', audio_path
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+        else:
+            # 直接使用音频文件
+            audio_path = file_path
+        
+        tasks[task_id].update({"progress": 20})
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        # 2. 转录音频 (20-50%)
+        tasks[task_id].update({
+            "progress": 25,
+            "message": "正在转录音频..."
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        audio_transcriber = AudioTranscriber()
+        raw_transcript = await audio_transcriber.transcribe_audio(audio_path)
+        
+        # 清理临时音频文件(如果是从视频提取的)
+        if is_video and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except:
+                pass
+        
+        tasks[task_id].update({"progress": 50})
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        # 3. 优化文本 (50-70%)
+        tasks[task_id].update({
+            "progress": 55,
+            "message": "正在优化文本..."
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        text_optimizer = TextOptimizer()
+        optimized_transcript = await text_optimizer.optimize_transcript(raw_transcript)
+        
+        tasks[task_id].update({"progress": 70})
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        # 4. 生成摘要 (70-90%)
+        tasks[task_id].update({
+            "progress": 75,
+            "message": "正在生成摘要..."
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        content_summarizer = ContentSummarizer()
+        summary = await content_summarizer.summarize(optimized_transcript, summary_language)
+        
+        tasks[task_id].update({"progress": 90})
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        # 5. 保存结果文件
+        short_id = task_id.replace("-", "")[:6]
+        safe_title = _sanitize_title_for_filename(video_title)
+        
+        # 保存文件
+        transcript_filename = f"{short_id}_{safe_title}_笔记.md"
+        summary_filename = f"{short_id}_{safe_title}_摘要.md"
+        raw_transcript_filename = f"{short_id}_{safe_title}_原文.md"
+        
+        transcript_path = TEMP_DIR / transcript_filename
+        summary_path = TEMP_DIR / summary_filename
+        raw_transcript_path = TEMP_DIR / raw_transcript_filename
+        
+        async with aiofiles.open(transcript_path, 'w', encoding='utf-8') as f:
+            await f.write(optimized_transcript)
+        
+        async with aiofiles.open(summary_path, 'w', encoding='utf-8') as f:
+            await f.write(summary)
+        
+        async with aiofiles.open(raw_transcript_path, 'w', encoding='utf-8') as f:
+            await f.write(raw_transcript)
+        
+        # 6. 完成
+        tasks[task_id].update({
+            "status": "completed",
+            "progress": 100,
+            "message": "🎉 处理完成！",
+            "video_title": video_title,
+            "script": optimized_transcript,
+            "summary": summary,
+            "raw_script": raw_transcript,
+            "script_path": str(transcript_path),
+            "summary_path": str(summary_path),
+            "short_id": short_id,
+            "safe_title": safe_title,
+            "summary_language": summary_language,
+            "raw_script_filename": raw_transcript_filename
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+            
+    except asyncio.CancelledError:
+        logger.info(f"本地文件处理任务 {task_id} 被取消")
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+        if task_id in tasks:
+            tasks[task_id].update({
+                "status": "cancelled",
+                "error": "用户取消任务",
+                "message": "❌ 任务已取消"
+            })
+            save_tasks(tasks)
+            await broadcast_task_update(task_id, tasks[task_id])
+    except Exception as e:
+        logger.error(f"本地文件处理任务 {task_id} 失败: {str(e)}")
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+        tasks[task_id].update({
+            "status": "error",
+            "error": str(e),
+            "message": f"处理失败: {str(e)}"
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
 
 if __name__ == "__main__":
     import uvicorn

@@ -1027,6 +1027,9 @@
             color: var(--text-primary);
             line-height: 1.3;
             text-align: center;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
         }
 
         .video-description {
@@ -2704,8 +2707,22 @@
                 </p>
             </header>
 
-            <!-- 视频输入 -->
+            <!-- 输入模式切换 -->
             <div class="card">
+                <div class="input-mode-toggle" style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(28, 28, 28, 0.6); padding: 6px; border-radius: 12px;">
+                    <button type="button" class="mode-btn active" id="qaUrlModeBtn" onclick="switchQAInputMode('url')" style="flex: 1; padding: 10px 16px; border: none; background: rgba(255, 255, 255, 0.1); color: white; border-radius: 8px; cursor: pointer; transition: all 0.3s; font-family: inherit; font-size: 0.85rem; font-weight: 600;">
+                        <i class="fas fa-link"></i>
+                        <span data-zh="在线URL" data-en="Online URL">在线URL</span>
+                    </button>
+                    <button type="button" class="mode-btn" id="qaPathModeBtn" onclick="switchQAInputMode('path')" style="flex: 1; padding: 10px 16px; border: none; background: transparent; color: var(--text-secondary); border-radius: 8px; cursor: pointer; transition: all 0.3s; font-family: inherit; font-size: 0.85rem; font-weight: 600;">
+                        <i class="fas fa-folder"></i>
+                        <span data-zh="本地路径" data-en="Local Path">本地路径</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- URL视频输入 -->
+            <div class="card" id="qaUrlInputSection">
                 <div class="form-group">
                     <label for="qaVideoUrl" data-zh="视频链接" data-en="Video URL">视频链接</label>
                     <input 
@@ -2725,6 +2742,38 @@
                 </div>
             </div>
 
+            <!-- 本地路径输入 -->
+            <div class="card" id="qaLocalPathSection" style="display: none;">
+                <div class="form-group">
+                    <label for="qaLocalVideoPath" data-zh="本地文件路径" data-en="Local File Path">本地文件路径</label>
+                    <input 
+                        type="text" 
+                        id="qaLocalVideoPath" 
+                        class="form-control" 
+                        placeholder="请输入本地视频文件的绝对路径..."
+                        data-zh-placeholder="请输入本地视频文件的绝对路径..."
+                        data-en-placeholder="Enter local video file absolute path..."
+                        style="font-family: 'Monaco', 'Menlo', monospace; font-size: 14px;"
+                    >
+                    <button type="button" id="qaLocalPreviewBtn" class="btn btn-secondary btn-full" onclick="previewLocalVideoForQA()" style="margin-top: 16px;">
+                        <span class="btn-content">
+                            <i class="fas fa-eye"></i>
+                            <span data-zh="预览" data-en="Preview">预览</span>
+                        </span>
+                    </button>
+                    <div style="background: rgba(76, 140, 245, 0.05); padding: 12px; border-radius: 8px; border-left: 3px solid var(--accent-blue); margin-top: 12px; font-size: 0.85rem;">
+                        <p style="margin: 0 0 8px 0; font-weight: 600; color: var(--text-primary);">
+                            <i class="fas fa-info-circle" style="color: var(--accent-blue);"></i>
+                            <span data-zh="示例路径:" data-en="Example paths:">示例路径:</span>
+                        </p>
+                        <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary); line-height: 1.6;">
+                            <li><strong>Mac/Linux:</strong> /Users/zhangsan/Videos/lecture.mp4</li>
+                            <li><strong>Windows:</strong> C:\Users\zhangsan\Videos\lecture.mp4</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <!-- 初始空状态 -->
             <div id="qaEmptyState" class="empty-state" style="min-height: 300px;">
                 <i class="fas fa-video"></i>
@@ -2735,7 +2784,7 @@
             <!-- 视频预览区 -->
             <div id="qaVideoPreview" class="video-preview" style="display: none;">
                 <!-- 预处理按钮（带进度条）- 移到顶部 -->
-                <button id="qaPreprocessBtn" class="btn btn-secondary btn-full btn-with-progress" onclick="preprocessVideoForQA()" disabled style="margin-bottom: 20px; position: relative; overflow: hidden;">
+                <button id="qaPreprocessBtn" class="btn btn-secondary btn-full btn-with-progress" onclick="preprocessVideo()" disabled style="margin-bottom: 20px; position: relative; overflow: hidden;">
                     <div class="btn-progress-bg" id="qaPreprocessBtnProgress" style="position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: linear-gradient(90deg, rgba(76, 140, 245, 0.4) 0%, rgba(90, 156, 247, 0.6) 100%); transition: width 0.3s ease; z-index: 0;"></div>
                     <span class="btn-content" style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
                         <i class="fas fa-cog"></i>
@@ -2849,8 +2898,22 @@
                 </p>
             </header>
 
-            <!-- 主输入区域 -->
+            <!-- 输入模式切换 -->
             <div class="card">
+                <div class="input-mode-toggle" style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(28, 28, 28, 0.6); padding: 6px; border-radius: 12px;">
+                    <button type="button" class="mode-btn active" id="urlModeBtn" onclick="switchInputMode('url')" style="flex: 1; padding: 10px 16px; border: none; background: rgba(255, 255, 255, 0.1); color: white; border-radius: 8px; cursor: pointer; transition: all 0.3s; font-family: inherit; font-size: 0.85rem; font-weight: 600;">
+                        <i class="fas fa-link"></i>
+                        <span data-zh="在线URL" data-en="Online URL">在线URL</span>
+                    </button>
+                    <button type="button" class="mode-btn" id="pathModeBtn" onclick="switchInputMode('path')" style="flex: 1; padding: 10px 16px; border: none; background: transparent; color: var(--text-secondary); border-radius: 8px; cursor: pointer; transition: all 0.3s; font-family: inherit; font-size: 0.85rem; font-weight: 600;">
+                        <i class="fas fa-folder"></i>
+                        <span data-zh="本地路径" data-en="Local Path">本地路径</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- URL输入区域 -->
+            <div class="card" id="urlInputSection">
                 <form id="videoForm">
                     <div class="form-group">
                         <label for="videoUrl" data-zh="视频链接" data-en="Video URL">视频链接</label>
@@ -2861,7 +2924,6 @@
                             placeholder="请输入YouTube或B站视频链接..."
                             data-zh-placeholder="请输入YouTube或B站视频链接..."
                             data-en-placeholder="Enter YouTube or Bilibili video URL..."
-                            required
                         >
                         <button type="button" id="previewBtn" class="btn btn-secondary btn-full" onclick="previewVideo()" style="margin-top: 16px;">
                             <span class="btn-content">
@@ -2905,6 +2967,69 @@
                         </span>
                     </button>
                 </form>
+            </div>
+
+            <!-- 本地路径输入区域 -->
+            <div class="card" id="localPathSection" style="display: none;">
+                <div class="form-group">
+                    <label for="localVideoPath" data-zh="本地文件路径" data-en="Local File Path">本地文件路径</label>
+                    <input 
+                        type="text" 
+                        id="localVideoPath" 
+                        class="form-control" 
+                        placeholder="请输入本地视频文件的绝对路径..."
+                        data-zh-placeholder="请输入本地视频文件的绝对路径..."
+                        data-en-placeholder="Enter local video file absolute path..."
+                        style="font-family: 'Monaco', 'Menlo', monospace; font-size: 14px;"
+                    >
+                    <button type="button" id="localPreviewBtn" class="btn btn-secondary btn-full" onclick="previewLocalVideo()" style="margin-top: 16px;">
+                        <span class="btn-content">
+                            <i class="fas fa-eye"></i>
+                            <span data-zh="预览" data-en="Preview">预览</span>
+                        </span>
+                    </button>
+                    <div style="background: rgba(76, 140, 245, 0.05); padding: 12px; border-radius: 8px; border-left: 3px solid var(--accent-blue); margin-top: 12px; font-size: 0.85rem;">
+                        <p style="margin: 0 0 8px 0; font-weight: 600; color: var(--text-primary);">
+                            <i class="fas fa-info-circle" style="color: var(--accent-blue);"></i>
+                            <span data-zh="示例路径:" data-en="Example paths:">示例路径:</span>
+                        </p>
+                        <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary); line-height: 1.6;">
+                            <li><strong>Mac/Linux:</strong> /Users/zhangsan/Videos/lecture.mp4</li>
+                            <li><strong>Windows:</strong> C:\Users\zhangsan\Videos\lecture.mp4</li>
+                            <li><strong>Docker挂载:</strong> /app/videos/lecture.mp4</li>
+                        </ul>
+                        <p style="margin: 8px 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                            <i class="fas fa-check-circle"></i>
+                            <span data-zh="支持格式: MP4, AVI, MOV, MKV, MP3, WAV 等" data-en="Supported formats: MP4, AVI, MOV, MKV, MP3, WAV, etc.">支持格式: MP4, AVI, MOV, MKV, MP3, WAV 等</span>
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="localSummaryLanguage" data-zh="摘要语言" data-en="Summary Language">摘要语言</label>
+                    <select id="localSummaryLanguage" class="form-control">
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                        <option value="ko">한국어</option>
+                        <option value="es">Español</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                        <option value="it">Italiano</option>
+                        <option value="pt">Português</option>
+                        <option value="ru">Русский</option>
+                        <option value="ar">العربية</option>
+                    </select>
+                </div>
+
+                <button type="button" id="localTranscribeBtn" class="btn btn-secondary btn-full btn-with-progress" onclick="processLocalVideo()" disabled>
+                    <div class="btn-progress-bg" id="localTranscribeBtnProgress"></div>
+                    <span class="btn-content">
+                        <i class="fas fa-magic"></i>
+                        <span data-zh="生成笔记" data-en="Generate Notes">生成笔记</span>
+                        <span id="localTranscribePercent" style="margin-left: 8px; font-size: 0.9em; display: none;">0%</span>
+                    </span>
+                </button>
             </div>
         </div>
 
@@ -3211,6 +3336,8 @@
     <script src="/static/js/modules/results.js"></script>
     <script src="/static/js/modules/videoDownload.js"></script>
     <script src="/static/js/modules/ui.js"></script>
+    <script src="/static/js/modules/localPath.js"></script>
+    <script src="/static/js/modules/qaLocalPath.js"></script>
     
     <!-- 3. 工具函数 -->
     <script src="/static/js/utils/helpers.js"></script>
