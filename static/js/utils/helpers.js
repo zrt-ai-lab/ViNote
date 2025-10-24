@@ -24,7 +24,9 @@ let qaState = {
 
 // 页面路由函数
 function enterWorkspace(pageType = 'notes') {
+    // 🔥 清除所有缓存和状态
     clearPageStateCache();
+    clearAllWorkspaceStates();
     const targetPageId = workspacePages[pageType];
     const targetPage = document.getElementById(targetPageId);
     if (!targetPage) {
@@ -578,8 +580,8 @@ function updateQAProgress(data) {
     }
 }
 
-// 预处理完成
-function onQAPreprocessCompleted(data) {
+// 预处理完成 - 全局函数,供URL和本地路径模式共用
+window.onQAPreprocessCompleted = function(data) {
     if (qaState.eventSource) {
         qaState.eventSource.close();
         qaState.eventSource = null;
@@ -972,6 +974,38 @@ function clearPageStateCache() {
     } catch (error) {
         console.error('清除缓存失败:', error);
     }
+}
+
+// 🔥 清除所有工作区状态
+function clearAllWorkspaceStates() {
+    // 清除QA状态
+    qaState = {
+        videoInfo: null,
+        transcript: null,
+        taskId: null,
+        eventSource: null,
+        conversationHistory: []
+    };
+    
+    // 关闭任何活跃的SSE连接
+    if (qaState.eventSource) {
+        qaState.eventSource.close();
+        qaState.eventSource = null;
+    }
+    
+    // 清除全局标志
+    window.qaPreviewingInProgress = false;
+    window.qaCurrentTaskId = null;
+    window.qaTranscript = null;
+    
+    // 清除笔记页面状态
+    if (app) {
+        app.currentVideoInfo = null;
+        app.currentTaskId = null;
+        app.currentDownloadId = null;
+    }
+    
+    console.log('✅ 所有工作区状态已清除');
 }
 
 console.log('✅ 工具函数模块已加载');

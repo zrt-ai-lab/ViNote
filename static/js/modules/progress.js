@@ -118,16 +118,25 @@ Object.assign(VideoTranscriber.prototype, {
     },
 
     updateTranscribeButtonState(state, progress = 0) {
+        // 支持URL模式和本地路径模式的按钮
         const transcribeBtn = document.getElementById('transcribeBtn');
-        const progressBg = document.getElementById('transcribeBtnProgress');
-        const btnContent = transcribeBtn ? transcribeBtn.querySelector('.btn-content') : null;
-        const percentElem = document.getElementById('transcribePercent');
+        const localTranscribeBtn = document.getElementById('localTranscribeBtn');
         
-        if (!transcribeBtn) return;
+        // 获取当前激活的按钮
+        const activeBtn = transcribeBtn && transcribeBtn.offsetParent !== null ? transcribeBtn : localTranscribeBtn;
+        if (!activeBtn) return;
+        
+        // 获取对应的进度条和百分比元素
+        const isLocalMode = activeBtn.id === 'localTranscribeBtn';
+        const progressBg = document.getElementById(isLocalMode ? 'localTranscribeBtnProgress' : 'transcribeBtnProgress');
+        const btnContent = activeBtn.querySelector('.btn-content');
+        const percentElem = document.getElementById(isLocalMode ? 'localTranscribePercent' : 'transcribePercent');
+        
+        const percentId = isLocalMode ? 'localTranscribePercent' : 'transcribePercent';
         
         if (state === 'processing') {
-            transcribeBtn.classList.add('btn-downloading');
-            transcribeBtn.disabled = false;
+            activeBtn.classList.add('btn-downloading');
+            activeBtn.disabled = false;
             if (progressBg) progressBg.style.width = `${progress}%`;
             if (percentElem) {
                 percentElem.style.opacity = '1';
@@ -137,24 +146,24 @@ Object.assign(VideoTranscriber.prototype, {
                 btnContent.innerHTML = `
                     <i class="fas fa-times"></i>
                     <span>取消生成</span>
-                    <span id="transcribePercent" style="margin-left: 8px; font-size: 0.9em; opacity: 1; transition: opacity 0.3s;">${Math.round(progress)}%</span>
+                    <span id="${percentId}" style="margin-left: 8px; font-size: 0.9em; opacity: 1; transition: opacity 0.3s;">${Math.round(progress)}%</span>
                 `;
             }
         } else if (state === 'completed') {
-            transcribeBtn.classList.remove('btn-downloading');
-            transcribeBtn.disabled = true;
+            activeBtn.classList.remove('btn-downloading');
+            activeBtn.disabled = true;
             if (progressBg) progressBg.style.width = '100%';
             if (percentElem) percentElem.style.opacity = '0';
             if (btnContent) {
                 btnContent.innerHTML = `
                     <i class="fas fa-check"></i>
                     <span>生成完成</span>
-                    <span id="transcribePercent" style="margin-left: 8px; font-size: 0.9em; opacity: 0; transition: opacity 0.3s;">0%</span>
+                    <span id="${percentId}" style="margin-left: 8px; font-size: 0.9em; opacity: 0; transition: opacity 0.3s;">0%</span>
                 `;
             }
         } else {
-            transcribeBtn.classList.remove('btn-downloading');
-            transcribeBtn.disabled = false;
+            activeBtn.classList.remove('btn-downloading');
+            activeBtn.disabled = false;
             if (progressBg) progressBg.style.width = '0%';
             if (percentElem) {
                 percentElem.style.opacity = '0';
@@ -164,7 +173,7 @@ Object.assign(VideoTranscriber.prototype, {
                 btnContent.innerHTML = `
                     <i class="fas fa-magic"></i>
                     <span>生成笔记</span>
-                    <span id="transcribePercent" style="margin-left: 8px; font-size: 0.9em; opacity: 0; transition: opacity 0.3s;">0%</span>
+                    <span id="${percentId}" style="margin-left: 8px; font-size: 0.9em; opacity: 0; transition: opacity 0.3s;">0%</span>
                 `;
             }
         }
