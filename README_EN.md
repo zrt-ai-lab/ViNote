@@ -39,7 +39,7 @@ ViNote AI · Turn Every Video into Your Knowledge Asset
 ### 🤖 Video Q&A
 - **Intelligent Q&A**: AI Q&A system based on video content
 - **Context Understanding**: Deep comprehension of video content
-- **Streaming Output**: Real-time responses for enhanced user experience
+
 
 ### 🎬 Video Download
 - **Multi-Format Support**: Support for various video formats and resolutions
@@ -351,15 +351,7 @@ Main endpoints:
 - ✅ Multi-language translation support
 - ✅ Video Q&A system
 - ✅ Video download functionality
-- ✅ Real-time progress push (SSE)
-- ✅ Task status persistence
 
-#### Technical Features
-- ✅ Docker containerized deployment
-- ✅ uv package manager integration
-- ✅ Rate limiting and security protection
-- ✅ RESTful API design
-- ✅ Health check mechanism
 
 ### 🚧 Upcoming Modules (4/6)
 
@@ -367,29 +359,22 @@ Main endpoints:
 - 🔲 Video content to article
 - 🔲 Multi-platform publishing (WeChat, Zhihu, Xiaohongshu, etc.)
 - 🔲 Custom publishing templates
-- 🔲 SEO optimization suggestions
-- 🔲 Rich text editor
+
 
 #### Module 4️⃣: Real-Time Subtitle Download
 - 🔲 Extract video subtitles
 - 🔲 Multi-format support (SRT, VTT, ASS, etc.)
-- 🔲 Subtitle timeline adjustment
-- 🔲 Bilingual subtitle generation
-- 🔲 Subtitle translation
+
 
 #### Module 5️⃣: Knowledge Card Generation
 - 🔲 Automatically extract knowledge points
-- 🔲 Generate study cards (Anki format)
-- 🔲 Spaced repetition algorithm
-- 🔲 Card categorization management
-- 🔲 Learning progress tracking
+- 🔲 Generate study cards
+
 
 #### Module 6️⃣: Mind Map Generation
 - 🔲 Automatically generate mind maps
 - 🔲 Multiple mind map styles
-- 🔲 Export as image/PDF
-- 🔲 Online editing functionality
-- 🔲 Knowledge system construction
+
 
 ---
 
