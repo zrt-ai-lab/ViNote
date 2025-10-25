@@ -107,7 +107,7 @@ Object.assign(VideoTranscriber.prototype, {
         let playerHTML = '';
         
         // 添加播放器iframe（如果支持）
-        if (videoInfo.embed_url && this.isEmbeddable(videoInfo.webpage_url)) {
+        if (videoInfo.embed_url) {
             console.log('添加嵌入播放器:', videoInfo.embed_url);
             playerHTML = `<iframe src="${videoInfo.embed_url}" frameborder="0" allowfullscreen style="width: 100%; height: 400px; border-radius: 12px;"></iframe>`;
         } else {
