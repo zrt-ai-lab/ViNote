@@ -5,116 +5,117 @@
 
 **ViNote = Video + Note**
 
-视记AI · 让每个视频成为你的知识资产
+ViNote AI · Turn Every Video into Your Knowledge Asset
 
-**Video to Everything：笔记、问答、文章、字幕、卡片、导图，一应俱全**
+**Video to Everything: Notes, Q&A, Articles, Subtitles, Cards, Mind Maps - All in One**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+English | [中文文档](README_ZH.md)
+
 </div>
 
 ---
 
-![overview_zh.png](overview_zh.png)
 
-## ✨ 核心特性
+![overview_en.png](overview_en.png)
+## ✨ Core Features
+
+### 🎯 Intelligent Video Processing
+- **Multi-Platform Support**: YouTube, Bilibili, and other major video platforms
+- **Local Video Support**: Support for local video file path input (MP4, AVI, MOV, MKV, etc.)
+- **High-Quality Transcription**: Local audio transcription based on Faster-Whisper
+- **Smart Optimization**: AI-driven text optimization and formatting
+- **Multi-Language Support**: Automatic language detection and translation
+
+### 📝 Note Generation
+- **Structured Output**: Automatically generate outlines, key points, and summaries
+- **Markdown Format**: Perfect compatibility with all note-taking apps
+- **Real-Time Progress**: SSE real-time progress updates
+- **Batch Processing**: Support for concurrent multi-task processing
+
+### 🤖 Video Q&A
+- **Intelligent Q&A**: AI Q&A system based on video content
+- **Context Understanding**: Deep comprehension of video content
 
 
-
-### 🎯 智能视频处理
-- **多平台支持**: YouTube, Bilibili等主流视频平台
-- **本地视频支持**: 支持本地视频文件路径输入（MP4, AVI, MOV, MKV等格式）
-- **高质量转录**: 基于 Faster-Whisper 的本地音频转录
-- **智能优化**: AI驱动的文本优化和格式化
-- **多语言支持**: 自动检测语言并支持翻译
-
-### 📝 笔记生成
-- **结构化输出**: 自动生成大纲、要点和总结
-- **Markdown格式**: 完美支持各类笔记软件
-- **实时进度**: SSE实时推送处理进度
-
-### 🤖 视频问答
-- **智能问答**: 基于视频内容的AI问答系统
-- **上下文理解**: 深度理解视频内容
-- **流式输出**: 实时响应，提升用户体验
-
-### 🎬 视频下载
-- **多格式支持**: 支持多种视频格式和分辨率
-- **预览功能**: 下载前预览视频信息
-- **进度跟踪**: 实时显示下载进度
+### 🎬 Video Download
+- **Multi-Format Support**: Support for various video formats and resolutions
+- **Preview Feature**: Preview video information before downloading
+- **Progress Tracking**: Real-time download progress display
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 方式一：Docker 部署（推荐）
+### Method 1: Docker Deployment (Recommended)
 
-#### 前置要求
+#### Prerequisites
 - Docker 20.10+
 - Docker Compose 2.0+
 
-#### 部署步骤
+#### Deployment Steps
 
-1. **克隆项目**
+1. **Clone the Project**
 ```bash
 git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 ```
 
-2. **配置环境变量**
+2. **Configure Environment Variables**
 ```bash
-# 复制环境配置文件
+# Copy environment configuration file
 cp .env.example .env
 
-# 编辑 .env 文件，填入你的 OpenAI API Key
+# Edit .env file and add your OpenAI API Key
 # OPENAI_API_KEY=your-api-key-here
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # OPENAI_MODEL=gpt-4o
 ```
 
-3. **启动服务**
+3. **Start Services**
 ```bash
-# 构建并启动
+# Build and start
 docker-compose up -d
 
-# 查看日志
+# View logs
 docker-compose logs -f
 
-# 停止服务
+# Stop services
 docker-compose down
 ```
 
-> 💡 **镜像加速提示**：
+> 💡 **Image Acceleration Tip**:
 > 
-> 本项目的 Dockerfile 已配置使用清华大学镜像源加速软件包下载：
-> - Debian 软件源：`mirrors.tuna.tsinghua.edu.cn`
+> The Dockerfile is configured to use Tsinghua University mirrors for faster package downloads:
+> - Debian package sources: `mirrors.tuna.tsinghua.edu.cn`
 > 
-> 这将大大提升国内用户的构建速度。如果你想使用其他镜像源（如阿里云、中科大等），可以修改 Dockerfile 中的镜像地址。
+> This will significantly improve build speed for users in China. If you want to use other mirrors (like Alibaba Cloud, USTC, etc.), you can modify the mirror addresses in the Dockerfile.
 
-4. **访问应用**
-打开浏览器访问: http://localhost:8000
+4. **Access Application**
+Open your browser and visit: http://localhost:8000
 
 ---
 
-### 方式二：本地开发
+### Method 2: Local Development
 
-#### 前置要求
+#### Prerequisites
 - Python 3.10+
-- FFmpeg（音视频处理）
-- uv 包管理器
+- FFmpeg (for audio/video processing)
+- uv package manager
 
-#### 安装步骤
+#### Installation Steps
 
-1. **克隆项目**
+1. **Clone the Project**
 ```bash
 git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 ```
 
-2. **安装 uv 包管理器**
+2. **Install uv Package Manager**
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -123,7 +124,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-3. **安装 FFmpeg**
+3. **Install FFmpeg**
 ```bash
 # macOS
 brew install ffmpeg
@@ -132,361 +133,365 @@ brew install ffmpeg
 sudo apt-get update && sudo apt-get install ffmpeg
 
 # Windows
-# 从 https://ffmpeg.org/download.html 下载并安装
+# Download and install from https://ffmpeg.org/download.html
 ```
 
-4. **安装依赖**
+4. **Install Dependencies**
 ```bash
-# 使用 uv 安装依赖（会自动创建 .venv 虚拟环境）
+# Install dependencies using uv (will automatically create .venv virtual environment)
 uv pip install -e .
 
-# 或使用 uv sync（推荐）
+# Or use uv sync (recommended)
 uv sync
 ```
 
-5. **配置环境变量**
+5. **Configure Environment Variables**
 ```bash
 cp .env.example .env
-# 编辑 .env 文件，填入你的配置
+# Edit .env file with your configuration
 ```
 
-6. **启动服务**
+6. **Start Services**
 
-有两种方式启动服务：
+Two ways to start the service:
 
-**方式 1：使用 uv run（推荐，无需激活虚拟环境）**
+**Method 1: Using uv run (Recommended, no need to activate virtual environment)**
 ```bash
-# 开发模式（自动重载）
+# Development mode (with auto-reload)
 uv run uvicorn backend.main:app --reload --port 8000
 
-# 生产模式
+# Production mode
 uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-**方式 2：激活虚拟环境后运行**
+**Method 2: Activate virtual environment first**
 ```bash
-# 先激活虚拟环境
+# Activate virtual environment
 source .venv/bin/activate  # macOS/Linux
-# 或
+# or
 .venv\Scripts\activate     # Windows
 
-# 然后启动服务
+# Then start the service
 uvicorn backend.main:app --reload --port 8000
 ```
 
-7. **访问应用**
-打开浏览器访问: http://localhost:8000
+7. **Access Application**
+Open your browser and visit: http://localhost:8000
 
 ---
 
-## 📖 使用指南
+## 📖 User Guide
 
-### 视频转笔记
+### Video to Notes
 
-#### 方式一：在线视频URL
-1. 打开应用首页，选择"AI视频笔记"
-2. 在"在线URL"模式下，粘贴视频链接（支持 YouTube, Bilibili 等）
-3. 点击"预览"查看视频信息
-4. 选择摘要语言（中文/英文/日语等11种语言）
-5. 点击"生成笔记"
-6. 等待处理完成（可查看实时进度）
-7. 下载生成的 Markdown 笔记
+#### Method 1: Online Video URL
+1. Open the application homepage and select "AI Video Notes"
+2. In "Online URL" mode, paste video link (supports YouTube, Bilibili, etc.)
+3. Click "Preview" to view video information
+4. Select summary language (Chinese/English/Japanese and 11 languages)
+5. Click "Generate Notes"
+6. Wait for completion (view real-time progress)
+7. Download generated Markdown notes
 
-#### 方式二：本地视频文件
-1. 打开应用首页，选择"AI视频笔记"
-2. 切换到"本地路径"模式
-3. 输入本地视频文件的绝对路径，例如：
+#### Method 2: Local Video File
+1. Open the application homepage and select "AI Video Notes"
+2. Switch to "Local Path" mode
+3. Enter the absolute path of your local video file, for example:
    - Mac/Linux: `/Users/zhangsan/Videos/lecture.mp4`
    - Windows: `C:\Users\zhangsan\Videos\lecture.mp4`
-   - Docker: `/app/videos/lecture.mp4`（需要挂载目录）
-4. 点击"预览"验证文件
-5. 选择摘要语言
-6. 点击"生成笔记"
-7. 等待处理完成并下载笔记
+   - Docker: `/app/videos/lecture.mp4` (requires mounted directory)
+4. Click "Preview" to verify the file
+5. Select summary language
+6. Click "Generate Notes"
+7. Wait for completion and download notes
 
-> 💡 **支持的视频格式**：MP4, AVI, MOV, MKV, MP3, WAV 等
+> 💡 **Supported Video Formats**: MP4, AVI, MOV, MKV, MP3, WAV, etc.
 
-### 视频问答
+### Video Q&A
 
-#### 方式一：在线视频URL
-1. 打开应用首页，选择"AI视频问答"
-2. 在"在线URL"模式下，粘贴视频链接（支持 YouTube, Bilibili 等）
-3. 点击"预览"查看视频信息
-4. 点击"开始预处理"按钮
-5. 等待AI预处理完成（提取音频并转录）
-6. 在输入框中输入您的问题
-7. AI将基于视频内容实时回答
+#### Method 1: Online Video URL
+1. Open the application homepage and select "AI Video Q&A"
+2. In "Online URL" mode, paste video link (supports YouTube, Bilibili, etc.)
+3. Click "Preview" to view video information
+4. Click "Start Preprocessing" button
+5. Wait for AI preprocessing to complete (extract audio and transcribe)
+6. Enter your question in the input box
+7. AI will answer in real-time based on video content
 
-#### 方式二：本地视频文件
-1. 打开应用首页，选择"AI视频问答"
-2. 切换到"本地路径"模式
-3. 输入本地视频文件的绝对路径
-4. 点击"预览"验证文件
-5. 点击"开始预处理"按钮
-6. 等待AI预处理完成
-7. 在输入框中输入问题，AI实时回答
+#### Method 2: Local Video File
+1. Open the application homepage and select "AI Video Q&A"
+2. Switch to "Local Path" mode
+3. Enter the absolute path of your local video file
+4. Click "Preview" to verify the file
+5. Click "Start Preprocessing" button
+6. Wait for AI preprocessing to complete
+7. Enter questions in the input box, AI answers in real-time
 
-> 💡 **提示**：预处理完成后，您可以针对视频内容提出任意问题，AI会基于完整的视频内容给出准确回答
+> 💡 **Tip**: After preprocessing is complete, you can ask any questions about the video content, and AI will provide accurate answers based on the complete video content
 
-### 视频下载
+### Video Download
 
-1. 选择"视频下载"标签
-2. 粘贴视频链接并点击"预览"
-3. 选择想要的视频质量
-4. 点击"开始下载"
-5. 下载完成后保存文件
+1. Select "Video Download" tab
+2. Paste video link and click "Preview"
+3. Choose desired video quality
+4. Click "Start Download"
+5. Save file after download completes
 
 ---
 
-## 🏗️ 项目架构
+## 🏗️ Project Architecture
 
 ```
 vinote/
-├── backend/              # 后端代码
-│   ├── config/          # 配置管理
-│   │   ├── ai_config.py      # AI模型配置
-│   │   └── settings.py       # 应用设置
-│   ├── core/            # 核心功能
-│   │   └── ai_client.py      # AI客户端单例
-│   ├── models/          # 数据模型
-│   │   └── schemas.py        # Pydantic模型
-│   ├── services/        # 业务逻辑层
-│   │   ├── note_generator.py        # 笔记生成
-│   │   ├── content_summarizer.py    # 内容摘要
-│   │   ├── text_optimizer.py        # 文本优化
-│   │   ├── text_translator.py       # 文本翻译
-│   │   ├── audio_transcriber.py     # 音频转录
-│   │   ├── video_downloader.py      # 视频下载
-│   │   ├── video_preview_service.py # 视频预览
-│   │   ├── video_download_service.py # 下载服务
-│   │   └── video_qa_service.py      # 视频问答
-│   ├── utils/           # 工具函数
-│   │   ├── file_handler.py   # 文件处理
-│   │   └── text_processor.py # 文本处理
-│   └── main.py          # FastAPI应用入口
-├── static/              # 前端静态文件
-│   ├── index.html       # 主页面
-│   ├── app.js          # 前端逻辑
-│   └── *.png/jpg       # 图片资源
-├── temp/               # 临时文件目录
-│   ├── downloads/      # 下载文件
-│   └── backups/        # 任务备份
-├── .env.example        # 环境变量示例
-├── pyproject.toml      # 项目配置（uv）
-├── Dockerfile          # Docker镜像配置
-├── docker-compose.yml  # Docker编排配置
-└── README.md          # 项目文档
+├── backend/              # Backend code
+│   ├── config/          # Configuration management
+│   │   ├── ai_config.py      # AI model configuration
+│   │   └── settings.py       # Application settings
+│   ├── core/            # Core functionality
+│   │   └── ai_client.py      # AI client singleton
+│   ├── models/          # Data models
+│   │   └── schemas.py        # Pydantic models
+│   ├── services/        # Business logic layer
+│   │   ├── note_generator.py        # Note generation
+│   │   ├── content_summarizer.py    # Content summarization
+│   │   ├── text_optimizer.py        # Text optimization
+│   │   ├── text_translator.py       # Text translation
+│   │   ├── audio_transcriber.py     # Audio transcription
+│   │   ├── video_downloader.py      # Video download
+│   │   ├── video_preview_service.py # Video preview
+│   │   ├── video_download_service.py # Download service
+│   │   └── video_qa_service.py      # Video Q&A
+│   ├── utils/           # Utility functions
+│   │   ├── file_handler.py   # File handling
+│   │   └── text_processor.py # Text processing
+│   └── main.py          # FastAPI application entry
+├── static/              # Frontend static files
+│   ├── index.html       # Main page
+│   ├── app.js          # Frontend logic
+│   └── *.png/jpg       # Image resources
+├── temp/               # Temporary files directory
+│   ├── downloads/      # Downloaded files
+│   └── backups/        # Task backups
+├── .env.example        # Environment variables example
+├── pyproject.toml      # Project configuration (uv)
+├── Dockerfile          # Docker image configuration
+├── docker-compose.yml  # Docker compose configuration
+└── README.md          # Project documentation
 ```
 
 ---
 
-## 🔧 配置说明
+## 🔧 Configuration
 
-### 环境变量
+### Environment Variables
 
-| 变量名 | 说明 | 默认值                         | 必需 |
-|--------|------|-----------------------------|------|
-| `OPENAI_API_KEY` | OpenAI API密钥 | -                           | ✅ |
-| `OPENAI_BASE_URL` | OpenAI API地址 | `https://api.openai.com/v1` | ✅ |
-| `OPENAI_MODEL` | 使用的模型 | `gpt-4o`                    | ✅ |
-| `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base`                      | ✅ |
-| `APP_HOST` | 服务监听地址 | `0.0.0.0`                   | ❌ |
-| `APP_PORT` | 服务端口 | `8001`                      | ❌ |
-### Whisper 模型选择
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `OPENAI_API_KEY` | OpenAI API Key | - | ✅ |
+| `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` | ✅ |
+| `OPENAI_MODEL` | Model to use | `gpt-4o` | ✅ |
+| `WHISPER_MODEL_SIZE` | Whisper model size | `base` | ✅ |
+| `APP_HOST` | Service listening address | `0.0.0.0` | ❌ |
+| `APP_PORT` | Service port | `8001` | ❌ |
 
-| 模型 | 参数量 | GPU 显存需求 (fp16) | CPU 内存需求 (int8) | 相对速度 | 质量 | 推荐场景 |
-|------|--------|---------------------|---------------------|----------|------|----------|
-| `tiny` | 39M | ~1GB | ~600MB | ⚡⚡⚡⚡⚡ | ⭐⭐ | 快速测试、实时转录 |
-| `base` | 74M | ~1GB | ~800MB | ⚡⚡⚡⚡ | ⭐⭐⭐ | 平衡首选 ✅ |
-| `small` | 244M | ~2GB | ~1.5GB (1477MB) | ⚡⚡⚡ | ⭐⭐⭐⭐ | 中等质量 |
-| `medium` | 769M | ~3-4GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐ | 高质量 |
-| `large-v1` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 (旧版) |
-| `large-v2` | 1550M | ~4.5GB (4525MB) | ~2.9GB (2926MB int8) | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 |
-| `large-v3` / `large` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 (推荐) |
-| `turbo` / `large-v3-turbo` | ~809M | ~3GB | ~2GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | 高质量快速版 |
-| `distil-small.en` | ~166M | ~1.5GB | ~1GB | ⚡⚡⚡⚡ | ⭐⭐⭐ | 英文快速转录 |
-| `distil-medium.en` | ~394M | ~2.5GB | ~1.8GB | ⚡⚡⚡ | ⭐⭐⭐⭐ | 英文中等质量 |
-| `distil-large-v2` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | 蒸馏版高质量 |
-| `distil-large-v3` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | 蒸馏版最新 | 
+### Whisper Model Selection
+
+| Model | Parameters | GPU VRAM (fp16) | CPU RAM (int8) | Speed | Quality | Use Case |
+|-------|------------|-----------------|----------------|--------|---------|----------|
+| `tiny` | 39M | ~1GB | ~600MB | ⚡⚡⚡⚡⚡ | ⭐⭐ | Quick testing, real-time transcription |
+| `base` | 74M | ~1GB | ~800MB | ⚡⚡⚡⚡ | ⭐⭐⭐ | Balanced choice ✅ |
+| `small` | 244M | ~2GB | ~1.5GB | ⚡⚡⚡ | ⭐⭐⭐⭐ | Medium quality |
+| `medium` | 769M | ~3-4GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐ | High quality |
+| `large-v1` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality (legacy) |
+| `large-v2` | 1550M | ~4.5GB | ~2.9GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality |
+| `large-v3` / `large` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality (recommended) |
+| `turbo` / `large-v3-turbo` | ~809M | ~3GB | ~2GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | High quality fast version |
+| `distil-small.en` | ~166M | ~1.5GB | ~1GB | ⚡⚡⚡⚡ | ⭐⭐⭐ | English fast transcription |
+| `distil-medium.en` | ~394M | ~2.5GB | ~1.8GB | ⚡⚡⚡ | ⭐⭐⭐⭐ | English medium quality |
+| `distil-large-v2` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Distilled high quality |
+| `distil-large-v3` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Distilled latest |
 
 ---
 
-## 🛠️ 开发指南
+## 🛠️ Development Guide
 
-### uv 包管理器命令
+### uv Package Manager Commands
 
 ```bash
-# 安装依赖
+# Install dependencies
 uv sync
 
-# 添加新依赖
+# Add new dependency
 uv add package-name
 
-# 添加开发依赖
+# Add development dependency
 uv add --dev package-name
 
-# 更新依赖
+# Update dependencies
 uv lock --upgrade
 
-# 运行脚本
+# Run script
 uv run python script.py
 ```
 
-### Docker 命令
+### Docker Commands
 
 ```bash
-# 构建镜像
+# Build image
 docker-compose build
 
-# 启动服务
+# Start services
 docker-compose up -d
 
-# 查看日志
+# View logs
 docker-compose logs -f vinote
 
-# 进入容器
+# Enter container
 docker-compose exec vinote bash
 
-# 停止服务
+# Stop services
 docker-compose down
 
-# 完全清理（包括卷）
+# Complete cleanup (including volumes)
 docker-compose down -v
 ```
 
-### API 端点
+### API Endpoints
 
-完整 API 文档: http://localhost:8000/docs
+Complete API documentation: http://localhost:8000/docs
 
-主要端点:
-- `POST /api/process-video` - 处理视频生成笔记
-- `GET /api/task-status/{task_id}` - 查询任务状态
-- `GET /api/task-stream/{task_id}` - SSE任务进度流
-- `POST /api/video-qa-stream` - 视频问答流式接口
-- `GET /api/preview-video` - 预览视频信息
-- `POST /api/start-download` - 开始下载视频
-- `GET /api/download/{filename}` - 下载生成的文件
-
-
+Main endpoints:
+- `POST /api/process-video` - Process video to generate notes
+- `GET /api/task-status/{task_id}` - Query task status
+- `GET /api/task-stream/{task_id}` - SSE task progress stream
+- `POST /api/video-qa-stream` - Video Q&A streaming interface
+- `GET /api/preview-video` - Preview video information
+- `POST /api/start-download` - Start video download
+- `GET /api/download/{filename}` - Download generated files
 
 ---
 
-## 📋 版本更新
+## 📋 Version History
 
 ### v1.1 (2025-01-27)
-#### 🎉 新功能
-- ✅ **本地视频支持**：支持通过绝对路径输入本地视频文件
-  - 支持格式：MP4, AVI, MOV, MKV, MP3, WAV等
-  - 支持Mac/Linux/Windows路径
-  - Docker环境支持目录挂载
-- ✅ **视频笔记本地模式**：可直接处理本地视频生成笔记
-- ✅ **视频问答本地模式**：可基于本地视频内容进行智能问答
+#### 🎉 New Features
+- ✅ **Local Video Support**: Support for local video file input via absolute path
+  - Supported formats: MP4, AVI, MOV, MKV, MP3, WAV, etc.
+  - Support for Mac/Linux/Windows paths
+  - Docker environment supports directory mounting
+- ✅ **Video Notes Local Mode**: Process local videos directly to generate notes
+- ✅ **Video Q&A Local Mode**: Intelligent Q&A based on local video content
 
-#### 🔧 改进
-- 优化了路径验证逻辑
-- 改进了用户界面体验
-- 完善了文档说明
+#### 🔧 Improvements
+- Optimized path validation logic
+- Improved user interface experience
+- Enhanced documentation
 
 ### v1.0 (2025-01-20)
-#### 🎉 初始版本
-- ✅ 在线视频下载和转录
-- ✅ AI驱动的笔记生成
-- ✅ 视频问答系统
-- ✅ 视频下载功能
-- ✅ 多语言支持
-- ✅ 实时进度跟踪
+#### 🎉 Initial Release
+- ✅ Online video download and transcription
+- ✅ AI-driven note generation
+- ✅ Video Q&A system
+- ✅ Video download functionality
+- ✅ Multi-language support
+- ✅ Real-time progress tracking
 
 ---
 
-## 🗺️ 开发路线图
+## 🗺️ Roadmap
 
-### ✅ 已完成功能
+### ✅ Completed Features
 
-#### 核心功能
-- ✅ 视频音频下载和转录
-- ✅ AI驱动的笔记生成
-- ✅ 文本智能优化
-- ✅ 多语言翻译支持
-- ✅ 视频问答系统
-- ✅ 视频下载功能
+#### Core Features
+- ✅ Video audio download and transcription
+- ✅ AI-driven note generation
+- ✅ Intelligent text optimization
+- ✅ Multi-language translation support
+- ✅ Video Q&A system
+- ✅ Video download functionality
 
 
-### 🚧 待开发模块（4/6）
+### 🚧 Upcoming Modules (4/6)
 
-#### 模块 3️⃣：一键创作发布
-- 🔲 视频内容转文章
-- 🔲 多平台发布（公众号、知乎、小红书等）
-- 🔲 自定义发布模板
-- 🔲 图文混排编辑器
+#### Module 3️⃣: One-Click Content Publishing
+- 🔲 Video content to article
+- 🔲 Multi-platform publishing (WeChat, Zhihu, Xiaohongshu, etc.)
+- 🔲 Custom publishing templates
 
-#### 模块 4️⃣：实时字幕下载
-- 🔲 提取视频字幕
-- 🔲 多格式支持（SRT、VTT、ASS等）
 
-#### 模块 5️⃣：知识卡片生成
-- 🔲 自动提取知识点
-- 🔲 生成学习卡片
+#### Module 4️⃣: Real-Time Subtitle Download
+- 🔲 Extract video subtitles
+- 🔲 Multi-format support (SRT, VTT, ASS, etc.)
 
-#### 模块 6️⃣：思维导图生成
-- 🔲 自动生成思维导图
-- 🔲 多种导图样式
-- 🔲 导出为图片/PDF
+
+#### Module 5️⃣: Knowledge Card Generation
+- 🔲 Automatically extract knowledge points
+- 🔲 Generate study cards
+
+
+#### Module 6️⃣: Mind Map Generation
+- 🔲 Automatically generate mind maps
+- 🔲 Multiple mind map styles
+
 
 ---
 
-## 🤝 贡献指南
+## 🤝 Contributing
 
-欢迎贡献代码！请遵循以下步骤：
+Contributions are welcome! Please follow these steps:
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+1. Fork this repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-### 贡献建议
-- 📋 查看 [开发路线图](#🗺️-开发路线图) 选择待开发功能
-- 🐛 修复 Issues 中的 Bug
-- 📝 改进文档和示例
-- ✨ 提出新功能建议
-
----
-
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+### Contribution Suggestions
+- 📋 Check the [Roadmap](#🗺️-roadmap) to select features to develop
+- 🐛 Fix bugs in Issues
+- 📝 Improve documentation and examples
+- ✨ Propose new feature ideas
 
 ---
 
-## 🙏 致谢
+## 📄 License
 
-本项目基于以下优秀的开源项目和服务构建：
-
-### 核心依赖
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - 强大的视频下载工具，支持数百个视频平台
-- **[Faster-Whisper](https://github.com/SYSTRAN/faster-whisper)** - 高效的 Whisper 实现，提供出色的转录性能
-- **[FastAPI](https://github.com/tiangolo/fastapi)** - 现代化的 Python Web 框架，高性能且易用
-- **[OpenAI API](https://openai.com/)** - 强大的 AI 文本处理能力
-
-### 灵感来源
-- **[AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)** - 一款开源的 AI 视频转录和摘要工具，为本项目提供了重要的设计灵感
-
-
-感谢所有开源项目的贡献者们！💖
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
 
 ---
 
-## 💬 联系方式
+## 🙏 Acknowledgments
 
-- 问题反馈: [GitHub Issues](https://github.com/zrt-ai-lab/ViNote/issues)
-- 邮箱: 864410260@qq.com
+This project is built upon the following excellent open-source projects and services:
+
+### Core Dependencies
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - Powerful video download tool supporting hundreds of video platforms
+- **[Faster-Whisper](https://github.com/SYSTRAN/faster-whisper)** - Efficient Whisper implementation with excellent transcription performance
+- **[FastAPI](https://github.com/tiangolo/fastapi)** - Modern Python web framework, high-performance and easy to use
+- **[OpenAI API](https://openai.com/)** - Powerful AI text processing capabilities
+
+### Inspiration
+- **[AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)** - An open-source AI video transcription and summarization tool that provided important design inspiration for this project
+
+### Other Tools
+- **[uv](https://github.com/astral-sh/uv)** - Blazingly fast Python package manager
+- **[Docker](https://www.docker.com/)** - Containerized deployment platform
+- **[Pydantic](https://github.com/pydantic/pydantic)** - Data validation and configuration management
+
+Thanks to all open-source contributors! 💖
+
+---
+
+## 💬 Contact
+
+- Issue Feedback: [GitHub Issues](https://github.com/zrt-ai-lab/ViNote/issues)
+- Email: 864410260@qq.com
 
 ---
 
 <div align="center">
 
-**如果这个项目对你有帮助，请给个 ⭐️ Star 支持一下！**
+**If this project helps you, please give it a ⭐️ Star!**
 
 Made with ❤️ by ViNote Team
 
