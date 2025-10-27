@@ -26,6 +26,7 @@ ViNote AI · Turn Every Video into Your Knowledge Asset
 
 ### 🎯 Intelligent Video Processing
 - **Multi-Platform Support**: YouTube, Bilibili, and other major video platforms
+- **Local Video Support**: Support for local video file path input (MP4, AVI, MOV, MKV, etc.)
 - **High-Quality Transcription**: Local audio transcription based on Faster-Whisper
 - **Smart Optimization**: AI-driven text optimization and formatting
 - **Multi-Language Support**: Automatic language detection and translation
@@ -183,20 +184,50 @@ Open your browser and visit: http://localhost:8000
 
 ### Video to Notes
 
-1. Open the application homepage
-2. Paste video link (supports YouTube, Bilibili, etc.)
-3. Select summary language (Chinese/English)
-4. Click "Start Processing"
-5. Wait for completion (view real-time progress)
-6. Download generated Markdown notes
+#### Method 1: Online Video URL
+1. Open the application homepage and select "AI Video Notes"
+2. In "Online URL" mode, paste video link (supports YouTube, Bilibili, etc.)
+3. Click "Preview" to view video information
+4. Select summary language (Chinese/English/Japanese and 11 languages)
+5. Click "Generate Notes"
+6. Wait for completion (view real-time progress)
+7. Download generated Markdown notes
+
+#### Method 2: Local Video File
+1. Open the application homepage and select "AI Video Notes"
+2. Switch to "Local Path" mode
+3. Enter the absolute path of your local video file, for example:
+   - Mac/Linux: `/Users/zhangsan/Videos/lecture.mp4`
+   - Windows: `C:\Users\zhangsan\Videos\lecture.mp4`
+   - Docker: `/app/videos/lecture.mp4` (requires mounted directory)
+4. Click "Preview" to verify the file
+5. Select summary language
+6. Click "Generate Notes"
+7. Wait for completion and download notes
+
+> 💡 **Supported Video Formats**: MP4, AVI, MOV, MKV, MP3, WAV, etc.
 
 ### Video Q&A
 
-1. Select "Video Q&A" tab in main interface
-2. Paste video link and click "Load Video"
-3. Wait for transcription to complete
-4. Ask questions in the input box
-5. AI will answer in real-time based on video content
+#### Method 1: Online Video URL
+1. Open the application homepage and select "AI Video Q&A"
+2. In "Online URL" mode, paste video link (supports YouTube, Bilibili, etc.)
+3. Click "Preview" to view video information
+4. Click "Start Preprocessing" button
+5. Wait for AI preprocessing to complete (extract audio and transcribe)
+6. Enter your question in the input box
+7. AI will answer in real-time based on video content
+
+#### Method 2: Local Video File
+1. Open the application homepage and select "AI Video Q&A"
+2. Switch to "Local Path" mode
+3. Enter the absolute path of your local video file
+4. Click "Preview" to verify the file
+5. Click "Start Preprocessing" button
+6. Wait for AI preprocessing to complete
+7. Enter questions in the input box, AI answers in real-time
+
+> 💡 **Tip**: After preprocessing is complete, you can ask any questions about the video content, and AI will provide accurate answers based on the complete video content
 
 ### Video Download
 
@@ -337,6 +368,33 @@ Main endpoints:
 - `GET /api/preview-video` - Preview video information
 - `POST /api/start-download` - Start video download
 - `GET /api/download/{filename}` - Download generated files
+
+---
+
+## 📋 Version History
+
+### v1.1 (2025-01-27)
+#### 🎉 New Features
+- ✅ **Local Video Support**: Support for local video file input via absolute path
+  - Supported formats: MP4, AVI, MOV, MKV, MP3, WAV, etc.
+  - Support for Mac/Linux/Windows paths
+  - Docker environment supports directory mounting
+- ✅ **Video Notes Local Mode**: Process local videos directly to generate notes
+- ✅ **Video Q&A Local Mode**: Intelligent Q&A based on local video content
+
+#### 🔧 Improvements
+- Optimized path validation logic
+- Improved user interface experience
+- Enhanced documentation
+
+### v1.0 (2025-01-20)
+#### 🎉 Initial Release
+- ✅ Online video download and transcription
+- ✅ AI-driven note generation
+- ✅ Video Q&A system
+- ✅ Video download functionality
+- ✅ Multi-language support
+- ✅ Real-time progress tracking
 
 ---
 
