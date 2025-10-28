@@ -39,6 +39,7 @@ logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
 
 app = FastAPI(title="AI视频转录器", version="1.0.0")
 
+
 # CORS中间件配置
 app.add_middleware(
     CORSMiddleware,
@@ -175,6 +176,64 @@ async def startup_event():
     # 启动SSE连接清理任务
     asyncio.create_task(cleanup_stale_sse_connections())
     logger.info("SSE连接清理任务已启动")
+    
+    # 检查OpenAI连接性
+    await check_openai_connection()
+
+async def check_openai_connection():
+    """检查OpenAI API连接性"""
+    from backend.core.ai_client import get_openai_client
+    from backend.config.ai_config import get_openai_config
+    
+    config = get_openai_config()
+    
+    # 检查配置
+    if not config.is_configured:
+        logger.warning("⚠️  OpenAI API 未配置")
+        logger.warning("   请在 .env 文件中设置 OPENAI_API_KEY")
+        logger.warning("   AI功能（文本优化、摘要生成、翻译等）将不可用")
+        return
+    
+    logger.info("正在检查 OpenAI API 连接...")
+    logger.info(f"   Base URL: {config.base_url}")
+    logger.info(f"   Model: {config.model}")
+    
+    try:
+        client = get_openai_client()
+        if client is None:
+            logger.error("❌ OpenAI 客户端初始化失败")
+            return
+        
+        # 测试连接 - 发送一个简单的请求
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=config.model,
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=5,
+            timeout=10
+        )
+        
+        logger.info("✅ OpenAI API 连接成功！")
+        logger.info(f"   响应模型: {response.model}")
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error("❌ OpenAI API 连接失败")
+        
+        # 详细的错误提示
+        if "API key" in error_msg or "Unauthorized" in error_msg:
+            logger.error("   错误原因: API Key 无效或未授权")
+            logger.error("   请检查 .env 文件中的 OPENAI_API_KEY 是否正确")
+        elif "timeout" in error_msg.lower():
+            logger.error("   错误原因: 连接超时")
+            logger.error("   请检查网络连接或 OPENAI_BASE_URL 配置")
+        elif "Connection" in error_msg or "connect" in error_msg.lower():
+            logger.error("   错误原因: 无法连接到服务器")
+            logger.error(f"   请检查 Base URL: {config.base_url}")
+        else:
+            logger.error(f"   错误详情: {error_msg}")
+        
+        logger.warning("   AI功能将不可用，但基础转录功能仍可正常使用")
 
 # 获取项目根目录
 PROJECT_ROOT = Path(__file__).parent.parent
