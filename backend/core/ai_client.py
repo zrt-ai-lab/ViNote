@@ -4,7 +4,7 @@ AI客户端单例管理
 """
 from typing import Optional
 import logging
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from faster_whisper import WhisperModel
 
 import sys
@@ -49,10 +49,11 @@ class WhisperModelSingleton:
 class OpenAIClientSingleton:
     """OpenAI客户端单例"""
     _instance: Optional[OpenAI] = None
+    _async_instance: Optional[AsyncOpenAI] = None
     
     @classmethod
     def get_instance(cls) -> Optional[OpenAI]:
-        """获取OpenAI客户端实例"""
+        """获取OpenAI客户端实例（同步）"""
         if cls._instance is None:
             config = get_openai_config()
             
@@ -75,9 +76,34 @@ class OpenAIClientSingleton:
         return cls._instance
     
     @classmethod
+    def get_async_instance(cls) -> Optional[AsyncOpenAI]:
+        """获取OpenAI异步客户端实例"""
+        if cls._async_instance is None:
+            config = get_openai_config()
+            
+            if not config.is_configured:
+                logger.warning("OpenAI API未配置，某些功能将不可用")
+                return None
+            
+            try:
+                cls._async_instance = AsyncOpenAI(
+                    api_key=config.api_key,
+                    base_url=config.base_url,
+                    timeout=config.timeout,
+                    max_retries=config.max_retries
+                )
+                logger.info(f"OpenAI异步客户端初始化成功 (base_url: {config.base_url})")
+            except Exception as e:
+                logger.error(f"OpenAI异步客户端初始化失败: {e}")
+                return None
+        
+        return cls._async_instance
+    
+    @classmethod
     def clear_instance(cls):
         """清除实例（用于测试或重新加载）"""
         cls._instance = None
+        cls._async_instance = None
     
     @classmethod
     def is_available(cls) -> bool:
@@ -92,8 +118,13 @@ def get_whisper_model() -> WhisperModel:
 
 
 def get_openai_client() -> Optional[OpenAI]:
-    """获取OpenAI客户端"""
+    """获取OpenAI客户端（同步）"""
     return OpenAIClientSingleton.get_instance()
+
+
+def get_async_openai_client() -> Optional[AsyncOpenAI]:
+    """获取OpenAI异步客户端"""
+    return OpenAIClientSingleton.get_async_instance()
 
 
 def is_openai_available() -> bool:

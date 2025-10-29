@@ -6,6 +6,8 @@
     <title>ViNote - AI视频笔记</title>
     <link rel="icon" type="image/jpeg" href="/static/zlab.jpeg" style="border-radius: 50%;">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 搜索Agent专用样式 -->
+    <link rel="stylesheet" href="/static/css/search-agent.css">
     <!-- Markdown渲染库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -2557,6 +2559,602 @@
                 font-size: 0.75rem;
             }
         }
+
+        /* ========== 全局侧边栏样式 ========== */
+        
+        .global-sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background: linear-gradient(180deg, rgba(15, 15, 15, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-primary);
+            z-index: 999;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .global-sidebar.collapsed {
+            transform: translateX(-280px);
+        }
+        
+        .sidebar-toggle {
+            position: absolute;
+            right: -45px;
+            top: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(28, 28, 28, 0.95);
+            border: 1px solid var(--border-primary);
+            border-radius: 0 12px 12px 0;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            z-index: 1000;
+        }
+        
+        .sidebar-toggle:hover {
+            background: rgba(36, 36, 36, 0.95);
+            color: var(--accent-blue);
+            box-shadow: 0 4px 16px rgba(76, 140, 245, 0.2);
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 16px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        .sidebar-content::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .sidebar-logo {
+            text-align: center;
+            margin-bottom: 32px;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-primary);
+        }
+        
+        .sidebar-logo img {
+            max-width: 160px;
+            height: auto;
+            filter: drop-shadow(0 4px 12px rgba(76, 140, 245, 0.2));
+        }
+        
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 12px;
+            transition: var(--transition);
+            font-size: 0.95rem;
+            font-weight: 500;
+            position: relative;
+        }
+        
+        .nav-item i {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        
+        .nav-item span:not(.nav-badge) {
+            flex: 1;
+        }
+        
+        .nav-item:hover:not(.disabled) {
+            background: rgba(76, 140, 245, 0.1);
+            color: var(--accent-blue);
+            transform: translateX(4px);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(135deg, rgba(76, 140, 245, 0.15) 0%, rgba(90, 156, 247, 0.15) 100%);
+            color: var(--accent-blue);
+            box-shadow: 0 4px 12px rgba(76, 140, 245, 0.15);
+        }
+        
+        .nav-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .nav-badge {
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            background: rgba(76, 140, 245, 0.2);
+            color: var(--accent-blue);
+        }
+        
+        .nav-badge.soon {
+            background: rgba(251, 146, 60, 0.2);
+            color: var(--accent-orange);
+        }
+        
+        /* 首页新布局样式 */
+        
+        .landing-page-new {
+            margin-left: 280px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .global-sidebar.collapsed ~ .landing-page-new {
+            margin-left: 0;
+        }
+        
+        .home-container {
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .welcome-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ffffff 0%, #4c8cf5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+            line-height: 1.3;
+            filter: drop-shadow(0 0 30px rgba(76, 140, 245, 0.2));
+        }
+        
+        .welcome-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        
+        .home-chat-container {
+            background: transparent;
+            backdrop-filter: none;
+            border: 2px solid rgba(76, 140, 245, 0.2);
+            border-radius: var(--border-radius-lg);
+            padding: 32px;
+            box-shadow: none;
+            margin-bottom: 32px;
+            animation: breatheBorder 4s ease-in-out infinite;
+        }
+        
+        @keyframes breatheBorder {
+            0%, 100% {
+                border-color: rgba(76, 140, 245, 0.2);
+                box-shadow: 0 0 20px rgba(76, 140, 245, 0.1);
+            }
+            50% {
+                border-color: rgba(76, 140, 245, 0.4);
+                box-shadow: 0 0 40px rgba(76, 140, 245, 0.2);
+            }
+        }
+        
+        .home-messages {
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            margin-bottom: 24px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        .home-messages::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .home-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .home-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .home-messages::-webkit-scrollbar-thumb {
+            background: rgba(76, 140, 245, 0.3);
+            border-radius: 3px;
+        }
+        
+        .home-welcome-message {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .welcome-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, rgba(76, 140, 245, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: var(--accent-blue);
+            box-shadow: 0 8px 24px rgba(76, 140, 245, 0.3);
+        }
+        
+        .home-welcome-message h3 {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+        
+        .home-welcome-message p {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+        
+        .quick-examples {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .example-btn {
+            background: rgba(28, 28, 28, 0.6);
+            border: 1px solid rgba(76, 140, 245, 0.2);
+            color: var(--text-secondary);
+            padding: 12px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        
+        .example-btn i {
+            color: var(--accent-blue);
+            font-size: 16px;
+        }
+        
+        .example-btn:hover {
+            background: rgba(76, 140, 245, 0.1);
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 140, 245, 0.2);
+        }
+        
+        .home-input-area {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+        }
+        
+        .home-textarea {
+            flex: 1;
+            padding: 16px 20px;
+            background: rgba(26, 26, 26, 0.6);
+            border: 1px solid rgba(76, 140, 245, 0.15);
+            border-radius: 16px;
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: inherit;
+            resize: none;
+            transition: var(--transition);
+            min-height: 56px;
+            max-height: 150px;
+        }
+        
+        .home-textarea:focus {
+            outline: none;
+            background: rgba(28, 28, 28, 0.8);
+            border-color: rgba(76, 140, 245, 0.4);
+            box-shadow: 0 0 0 4px rgba(76, 140, 245, 0.08);
+        }
+        
+        .home-textarea::placeholder {
+            color: var(--text-muted);
+        }
+        
+        .home-send-btn {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, rgba(20, 20, 20, 0.95) 0%, rgba(30, 30, 30, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            min-height: 56px;
+        }
+        
+        .home-send-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(40, 40, 40, 0.95) 100%);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        .home-features-hint {
+            text-align: center;
+            padding: 20px;
+            background: rgba(76, 140, 245, 0.05);
+            border: 1px solid rgba(76, 140, 245, 0.15);
+            border-radius: 12px;
+        }
+        
+        .home-features-hint p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .home-features-hint i {
+            color: var(--accent-blue);
+        }
+        
+        /* 响应式 - 侧边栏和首页 */
+        @media (max-width: 1024px) {
+            .global-sidebar {
+                transform: translateX(-280px);
+            }
+            
+            .global-sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .landing-page-new {
+                margin-left: 0;
+            }
+            
+            .quick-examples {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .welcome-title {
+                font-size: 1.8rem;
+            }
+            
+            .home-input-area {
+                flex-direction: column;
+            }
+            
+            .home-send-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* ========== AI视频搜索Agent专用样式 ========== */
+        
+        /* 视频卡片样式 */
+        .video-card {
+            background: rgba(28, 28, 28, 0.8);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--border-radius);
+            padding: 16px;
+            margin: 12px 0;
+            display: flex;
+            gap: 16px;
+            transition: var(--transition);
+        }
+
+        .video-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateX(4px);
+            box-shadow: 0 4px 16px rgba(76, 140, 245, 0.2);
+        }
+
+        .video-thumbnail {
+            width: 160px;
+            height: 90px;
+            border-radius: 8px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .video-info-compact {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .video-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .video-meta-compact {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .video-meta-compact span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .video-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-select-video {
+            background: var(--gradient-accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+
+        .btn-select-video:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 140, 245, 0.3);
+        }
+
+        .btn-select-video:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 内联进度显示 */
+        .inline-progress {
+            background: rgba(36, 36, 36, 0.6);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+
+        .inline-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .inline-progress-fill {
+            height: 100%;
+            background: var(--gradient-accent);
+            transition: width 0.3s ease;
+        }
+
+        .inline-progress-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .inline-progress-percent {
+            font-size: 0.85rem;
+            color: var(--accent-blue);
+            font-weight: 600;
+            text-align: right;
+            margin-top: 4px;
+        }
+
+        /* 笔记结果卡片 */
+        .notes-result-card {
+            background: rgba(28, 28, 28, 0.9);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin: 12px 0;
+        }
+
+        .notes-result-card h3 {
+            font-size: 1.1rem;
+            color: var(--accent-green);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notes-preview {
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 12px 0;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .download-buttons-inline {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        /* 错误消息样式 */
+        .message-error {
+            color: var(--accent-red);
+            background: rgba(248, 113, 113, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-red);
+        }
+
+        /* 响应式 - 搜索Agent */
+        @media (max-width: 768px) {
+            .video-card {
+                flex-direction: column;
+            }
+            
+            .video-thumbnail {
+                width: 100%;
+                height: auto;
+            }
+            
+            .download-buttons-inline {
+                flex-direction: column;
+            }
+            
+            .download-buttons-inline .btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2596,8 +3194,138 @@
         </button>
     </div>
 
-    <!-- 首页视图 -->
-    <div id="landingPage" class="landing-page">
+    <!-- 全局侧边栏导航 -->
+    <div id="globalSidebar" class="global-sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+            <i class="fas fa-bars"></i>
+        </button>
+        
+        <div class="sidebar-content">
+            <!-- Logo -->
+            <div class="sidebar-logo">
+                <img src="/static/product-logo.png" alt="ViNote">
+            </div>
+            
+            <!-- 导航菜单 -->
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" onclick="showHomePage(event)">
+                    <i class="fas fa-home"></i>
+                    <span data-zh="首页" data-en="Home">首页</span>
+                </a>
+                <a href="#" class="nav-item" onclick="enterWorkspace('notes', event)">
+                    <i class="fas fa-magic"></i>
+                    <span data-zh="AI视频笔记" data-en="AI Notes">AI视频笔记</span>
+                    <span class="nav-badge">NEW</span>
+                </a>
+                <a href="#" class="nav-item" onclick="enterWorkspace('qa', event)">
+                    <i class="fas fa-comments"></i>
+                    <span data-zh="AI视频问答" data-en="Video Q&A">AI视频问答</span>
+                    <span class="nav-badge">NEW</span>
+                </a>
+                <a href="#" class="nav-item" onclick="enterWorkspace('search-agent', event)">
+                    <i class="fas fa-search"></i>
+                    <span data-zh="ViNoter超级智搜" data-en="ViNoter Super Search">ViNoter超级智搜</span>
+                    <span class="nav-badge">HOT</span>
+                </a>
+                <a href="#" class="nav-item disabled">
+                    <i class="fas fa-pen-fancy"></i>
+                    <span data-zh="一键创作发布" data-en="Publishing">一键创作发布</span>
+                    <span class="nav-badge soon">SOON</span>
+                </a>
+                <a href="#" class="nav-item disabled">
+                    <i class="fas fa-closed-captioning"></i>
+                    <span data-zh="实时字幕下载" data-en="Subtitles">实时字幕下载</span>
+                    <span class="nav-badge soon">SOON</span>
+                </a>
+                <a href="#" class="nav-item disabled">
+                    <i class="fas fa-layer-group"></i>
+                    <span data-zh="知识卡片生成" data-en="Cards">知识卡片生成</span>
+                    <span class="nav-badge soon">SOON</span>
+                </a>
+                <a href="#" class="nav-item disabled">
+                    <i class="fas fa-project-diagram"></i>
+                    <span data-zh="思维导图生成" data-en="Mind Map">思维导图生成</span>
+                    <span class="nav-badge soon">SOON</span>
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- 首页视图 - 全局对话界面 -->
+    <div id="landingPage" class="landing-page-new">
+        <div class="home-container">
+            <!-- 欢迎区域 -->
+            <div class="welcome-section">
+                <h1 class="welcome-title">
+                    <span data-zh="视记AI · 让每一个视频都成为知识宝藏" data-en="ViNote AI · Transform Every Video into Knowledge Treasure">
+                        视记AI · 让每一个视频都成为知识宝藏
+                    </span>
+                </h1>
+                <p class="welcome-subtitle">
+                    <span data-zh="智能搜索视频，自动生成笔记，开启高效学习之旅" data-en="Smart search, auto notes, start efficient learning">
+                        智能搜索视频，自动生成笔记，开启高效学习之旅
+                    </span>
+                </p>
+            </div>
+            
+            <!-- 全局对话框 -->
+            <div class="home-chat-container">
+                <!-- 消息显示区 -->
+                <div class="home-messages" id="homeMessages">
+                    <!-- 初始欢迎消息 -->
+                    <div class="home-welcome-message">
+                        <div class="welcome-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <h3 data-zh="ViNoter · 超级视频智能体" data-en="ViNoter · Super Video Agent">ViNoter · 超级视频智能体</h3>
+                        <p data-zh="搜索全网优质视频，自动生成笔记和摘要，与视频内容智能对话" data-en="Search videos, auto notes & smart chat">
+                            搜索全网优质视频，自动生成笔记和摘要，与视频内容智能对话
+                        </p>
+                        
+                        <!-- 快捷示例 -->
+                        <div class="quick-examples">
+                            <button class="example-btn" onclick="fillHomeInput('在B站搜索Python编程')">
+                                <i class="fab fa-bilibili"></i>
+                                <span>在B站搜索Python编程</span>
+                            </button>
+                            <button class="example-btn" onclick="fillHomeInput('在YouTube搜索机器学习')">
+                                <i class="fab fa-youtube"></i>
+                                <span>在YouTube搜索机器学习</span>
+                            </button>
+                            <button class="example-btn" onclick="fillHomeInput('我想学习英语口语')">
+                                <i class="fas fa-graduation-cap"></i>
+                                <span>我想学习英语口语</span>
+                            </button>
+                            <button class="example-btn" onclick="fillHomeInput('帮我查询优秀公开课')">
+                                <i class="fas fa-chalkboard-teacher"></i>
+                                <span>帮我查询优秀公开课</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 输入区 -->
+                <div class="home-input-area">
+                    <textarea 
+                        id="homeInput" 
+                        class="home-textarea"
+                        placeholder="输入你想学习的内容，例如: 我想学习Python编程..."
+                        data-zh-placeholder="输入你想学习的内容，例如: 我想学习Python编程..."
+                        data-en-placeholder="Enter what you want to learn, e.g.: I want to learn Python..."
+                        rows="1"
+                    ></textarea>
+                    <button class="home-send-btn" id="homeSendBtn" onclick="handleHomeSearch()">
+                        <i class="fas fa-paper-plane"></i>
+                        <span data-zh="搜索" data-en="Search">搜索</span>
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- 旧版首页（备用）-->
+    <div id="oldLandingPage" class="landing-page" style="display: none;">
         <div class="features-showcase-fullscreen">
             <!-- 产品名称和标识 - 重新设计大气版 -->
             <div style="margin-bottom: 120px; text-align: center; margin-top: -40px;">
@@ -2639,6 +3367,17 @@
                     <div class="feature-title" data-zh="AI视频问答" data-en="Video Q&A">AI视频问答</div>
                     <div class="feature-description" data-zh="与视频对话，秒懂核心内容" data-en="Chat with video, instant understanding">
                         与视频对话，秒懂核心内容
+                    </div>
+                </div>
+                
+                <div class="feature-card feature-card-ready" onclick="enterWorkspace('search-agent')" style="cursor: pointer;">
+                    <div class="feature-icon">
+                        <div class="feature-status" data-zh="NEW" data-en="NEW">NEW</div>
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <div class="feature-title" data-zh="AI视频搜索" data-en="AI Video Search">AI视频搜索</div>
+                    <div class="feature-description" data-zh="智能搜索视频，自动生成笔记" data-en="Smart search & auto notes">
+                        智能搜索视频，自动生成笔记
                     </div>
                 </div>
                 
@@ -3325,11 +4064,137 @@
     <!-- 成功消息区域 -->
     <div id="successMessage" class="success-message" style="display: none;"></div>
 
+    <!-- AI视频搜索Agent工作页面 -->
+    <div id="searchAgentWorkspace" class="main-container" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100vh; z-index: 10;">
+        <!-- 左侧面板: ViNoter功能简介 -->
+        <div class="left-panel">
+            <button class="back-to-home-btn" onclick="backToLanding()">
+                <i class="fas fa-arrow-left"></i>
+                <span data-zh="返回首页" data-en="Back to Home">返回首页</span>
+            </button>
+            
+            <header class="header">
+                <h1 data-zh="ViNoter超级智搜" data-en="ViNoter Super Search">ViNoter超级智搜</h1>
+                <p data-zh="智能搜索并自动生成笔记" data-en="Smart search & auto notes">智能搜索并自动生成笔记</p>
+            </header>
+            
+            <!-- ViNoter能力简介 -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(76, 140, 245, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%); border: 1px solid rgba(76, 140, 245, 0.2);">
+                <h3 style="font-size: 1rem; color: var(--accent-blue); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-robot"></i>
+                    <span data-zh="ViNoter 能为您做什么" data-en="What ViNoter Can Do">ViNoter 能为您做什么</span>
+                </h3>
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="display: flex; gap: 12px; align-items: start;">
+                        <div style="width: 36px; height: 36px; background: rgba(76, 140, 245, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-search" style="color: var(--accent-blue); font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;" data-zh="🎯 智能视频搜索" data-en="🎯 Smart Video Search">🎯 智能视频搜索</div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;" data-zh="覆盖B站、YouTube等主流平台，精准找到您想要的学习视频" data-en="Cover mainstream platforms, find learning videos accurately">覆盖B站、YouTube等主流平台，精准找到您想要的学习视频</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; align-items: start;">
+                        <div style="width: 36px; height: 36px; background: rgba(34, 197, 94, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-file-alt" style="color: var(--accent-green); font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;" data-zh="📝 自动生成笔记" data-en="📝 Auto Generate Notes">📝 自动生成笔记</div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;" data-zh="AI提取视频核心内容，生成结构化笔记和摘要，告别手动记录" data-en="AI extracts core content, generates structured notes">AI提取视频核心内容，生成结构化笔记和摘要，告别手动记录</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; align-items: start;">
+                        <div style="width: 36px; height: 36px; background: rgba(251, 146, 60, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-comments" style="color: var(--accent-orange); font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;" data-zh="💬 智能对话交互" data-en="💬 Smart Chat">💬 智能对话交互</div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;" data-zh="自然语言描述需求，AI理解意图并自动执行，就像和朋友聊天一样简单" data-en="Natural language interaction, AI understands and executes">自然语言描述需求，AI理解意图并自动执行，就像和朋友聊天一样简单</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; align-items: start;">
+                        <div style="width: 36px; height: 36px; background: rgba(6, 182, 212, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-download" style="color: var(--accent-cyan); font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;" data-zh="💾 一键保存导出" data-en="💾 One-Click Export">💾 一键保存导出</div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;" data-zh="完整笔记、精华摘要、原文转录，多种格式随心下载" data-en="Notes, summaries, transcripts in multiple formats">完整笔记、精华摘要、原文转录，多种格式随心下载</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 使用提示 -->
+            <div class="card" style="background: rgba(76, 140, 245, 0.05); border: 1px solid rgba(76, 140, 245, 0.15);">
+                <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fas fa-lightbulb" style="font-size: 14px;"></i>
+                    <span data-zh="💡 快速上手" data-en="💡 Quick Start">💡 快速上手</span>
+                </h3>
+                <ol style="margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: 0.85rem; line-height: 1.8;">
+                    <li data-zh="告诉我您想学习的内容" data-en="Tell me what you want to learn">告诉我您想学习的内容</li>
+                    <li data-zh="我会搜索并展示相关视频" data-en="I'll search and show videos">我会搜索并展示相关视频</li>
+                    <li data-zh="点击「生成笔记」开始处理" data-en="Click 'Generate Notes' to start">点击「生成笔记」开始处理</li>
+                    <li data-zh="下载笔记，开始高效学习" data-en="Download notes, start learning">下载笔记，开始高效学习</li>
+                </ol>
+            </div>
+        </div>
+        
+        <!-- 右侧面板: 对话区域 -->
+        <div class="right-panel" style="padding: 0; background: var(--bg-secondary); display: grid; grid-template-rows: auto 1fr auto;">
+            <!-- 对话头部 -->
+            <div style="padding: 24px 32px; border-bottom: 1px solid var(--border-primary); background: var(--bg-primary);">
+                <h2 style="font-size: 1.3rem; color: var(--text-primary); margin-bottom: 8px;">
+                    <i class="fas fa-robot" style="color: var(--accent-cyan); margin-right: 10px;"></i>
+                    <span data-zh="智能对话" data-en="Smart Chat">智能对话</span>
+                </h2>
+                <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">
+                    <span data-zh="搜索视频 → 选择处理 → 获取笔记" data-en="Search → Select → Get Notes">搜索视频 → 选择处理 → 获取笔记</span>
+                </p>
+            </div>
+            
+            <!-- 消息滚动区域 -->
+            <div id="agentMessagesContainer" class="messages-container" style="overflow-y: auto; padding: 24px 32px;">
+                <!-- 消息将动态添加 -->
+            </div>
+            
+            <!-- 输入区域 -->
+            <div style="padding: 20px 32px 24px; background: var(--bg-secondary); border-top: 1px solid var(--border-primary);">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <textarea 
+                        id="agentInput" 
+                        class="form-control"
+                        placeholder="输入您的需求，例如: 我想学习Python编程..."
+                        data-zh-placeholder="输入您的需求，例如: 我想学习Python编程..."
+                        data-en-placeholder="Enter your needs, e.g.: I want to learn Python..."
+                        rows="3"
+                        style="resize: none; border-radius: 12px; flex: 1; font-size: 15px; padding: 14px 18px;"
+                    ></textarea>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="agentSendBtn" class="btn btn-secondary" onclick="sendAgentMessage()" style="min-width: 70px; border-radius: 10px; padding: 10px 16px; white-space: nowrap; font-size: 13px; height: 40px;">
+                            <i class="fas fa-paper-plane" style="font-size: 12px;"></i>
+                            <span data-zh="发送" data-en="Send">发送</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearAgentConversation()" style="min-width: 70px; border-radius: 10px; padding: 10px 16px; white-space: nowrap; font-size: 13px; height: 40px;">
+                            <i class="fas fa-broom" style="font-size: 12px;"></i>
+                            <span data-zh="清空" data-en="Clear">清空</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 模块化JavaScript文件 -->
-    <!-- 1. 核心类 -->
+    <!-- 1. 工具函数（最先加载，其他模块依赖）-->
+    <script src="/static/js/utils/helpers.js"></script>
+    
+    <!-- 2. 核心类 -->
     <script src="/static/js/core/VideoTranscriber.js"></script>
     
-    <!-- 2. 功能模块 -->
+    <!-- 3. 功能模块 -->
     <script src="/static/js/modules/videoPreview.js"></script>
     <script src="/static/js/modules/transcription.js"></script>
     <script src="/static/js/modules/progress.js"></script>
@@ -3338,9 +4203,7 @@
     <script src="/static/js/modules/ui.js"></script>
     <script src="/static/js/modules/localPath.js"></script>
     <script src="/static/js/modules/qaLocalPath.js"></script>
-    
-    <!-- 3. 工具函数 -->
-    <script src="/static/js/utils/helpers.js"></script>
+    <script src="/static/js/modules/searchAgent.js"></script>
     
     <!-- 4. 主入口 -->
     <script src="/static/js/app.js"></script>

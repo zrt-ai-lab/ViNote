@@ -26,7 +26,8 @@ class AudioTranscriber:
         audio_path: str,
         language: Optional[str] = None,
         video_title: str = "",
-        video_url: str = ""
+        video_url: str = "",
+        cancel_check: Optional[callable] = None
     ) -> str:
         """
         转录音频文件

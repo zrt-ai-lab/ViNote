@@ -13,6 +13,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 创建应用实例
     app = new VideoTranscriber();
     
+    // 检查并初始化搜索Agent模块
+    if (typeof initSearchAgent === 'function') {
+        console.log('✅ 搜索Agent模块已加载');
+    } else {
+        console.warn('⚠️ 搜索Agent模块未加载');
+    }
+    
+    // 首页默认展开侧边栏，移除collapsed类
+    const sidebar = document.getElementById('globalSidebar');
+    if (sidebar) {
+        sidebar.classList.remove('collapsed');
+    }
+    
     // 恢复页面状态（如果有缓存）
     restorePageState();
     

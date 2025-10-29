@@ -121,14 +121,16 @@ Requirements:
 
         logger.info(f"正在生成{language_name}摘要...")
         
-        response = self.client.chat.completions.create(
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create,
             model=self.config.model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             max_tokens=3500,
-            temperature=0.3
+            temperature=0.3,
+            timeout=60.0
         )
         
         summary = response.choices[0].message.content
@@ -167,14 +169,16 @@ Output preferences: Focus on natural paragraphs, use minimal bullet points if ne
 Avoid using any subheadings or decorative separators, output content only."""
 
             try:
-                response = self.client.chat.completions.create(
+                response = await asyncio.to_thread(
+                    self.client.chat.completions.create,
                     model=self.config.model,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
                     max_tokens=1000,
-                    temperature=0.3
+                    temperature=0.3,
+                    timeout=60.0
                 )
                 
                 chunk_summary = response.choices[0].message.content
