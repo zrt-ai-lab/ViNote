@@ -59,6 +59,9 @@ class Settings:
     # ========== 任务配置 ==========
     TASK_BACKUP_COUNT: int = 3
     
+    # ========== ANP服务配置 ==========
+    ANP_SERVER_URL: str = os.getenv("ANP_SERVER_URL", "http://localhost:8000/ad.json")
+    
     def __init__(self):
         """初始化时创建必要的目录"""
         self.TEMP_DIR.mkdir(exist_ok=True)

@@ -23,6 +23,7 @@ from backend.services.note_generator import NoteGenerator
 from backend.services.video_preview_service import VideoPreviewService
 from backend.services.video_download_service import VideoDownloadService
 from backend.services.video_qa_service import VideoQAService
+from backend.services.video_search_agent import VideoSearchAgent
 
 # 配置日志 - 优化输出格式
 logging.basicConfig(
@@ -190,6 +191,7 @@ TEMP_DIR.mkdir(exist_ok=True)
 video_preview_service = VideoPreviewService()
 video_download_service = VideoDownloadService(TEMP_DIR / "downloads")
 video_qa_service = VideoQAService()
+video_search_agent = VideoSearchAgent()
 
 # 存储任务状态 - 使用文件持久化
 import json
@@ -1281,6 +1283,193 @@ async def process_local_path_task(task_id: str, file_path: str, summary_language
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
+@app.post("/api/search-agent-chat")
+async def search_agent_chat(request: Request):
+    """
+    视频搜索Agent聊天接口 - 流式响应
+    支持智能视频搜索和对话
+    """
+    try:
+        data = await request.json()
+        message = data.get('message', '').strip()
+        session_id = data.get('session_id', 'default')
+        
+        if not message:
+            raise HTTPException(status_code=400, detail="消息不能为空")
+        
+        if not video_search_agent.is_available():
+            raise HTTPException(status_code=503, detail="AI服务暂时不可用，请稍后重试")
+        
+        logger.info(f"处理Agent消息: {message[:50]}...")
+        
+        async def event_generator():
+            try:
+                async for event in video_search_agent.process_message(message, session_id):
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.error(f"Agent聊天异常: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
+        
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"搜索Agent聊天失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+
+@app.post("/api/search-agent-generate-notes")
+async def search_agent_generate_notes(request: Request):
+    """
+    为选中的视频生成笔记 - 流式响应
+    在搜索Agent中选择视频后调用此接口生成笔记
+    """
+    try:
+        data = await request.json()
+        video_url = data.get('video_url', '').strip()
+        summary_language = data.get('summary_language', 'zh')
+        
+        if not video_url:
+            raise HTTPException(status_code=400, detail="视频URL不能为空")
+        
+        # 生成任务ID
+        generation_id = str(uuid.uuid4())
+        logger.info(f"为视频生成笔记: {video_url}, 任务ID: {generation_id}")
+        
+        async def event_generator():
+            try:
+                # 首先发送任务ID
+                yield f"data: {json.dumps({'type': 'generation_id', 'generation_id': generation_id}, ensure_ascii=False)}\n\n"
+                
+                # 流式生成笔记
+                async for event in video_search_agent.generate_notes_for_video(
+                    video_url=video_url,
+                    temp_dir=TEMP_DIR,
+                    summary_language=summary_language,
+                    generation_id=generation_id
+                ):
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.error(f"生成笔记异常: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
+        
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"生成笔记失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+
+@app.delete("/api/search-agent-cancel-generation/{generation_id}")
+async def cancel_note_generation(generation_id: str):
+    """
+    取消笔记生成任务
+    """
+    try:
+        success = video_search_agent.cancel_generation(generation_id)
+        if success:
+            logger.info(f"笔记生成任务已取消: {generation_id}")
+            return {"message": "任务已取消", "generation_id": generation_id}
+        else:
+            raise HTTPException(status_code=404, detail="任务不存在或已完成")
+    except Exception as e:
+        logger.error(f"取消笔记生成失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"取消失败: {str(e)}")
+
+@app.post("/api/search-agent-clear-session")
+async def search_agent_clear_session(request: Request):
+    """
+    清空指定会话的对话历史
+    """
+    try:
+        data = await request.json()
+        session_id = data.get('session_id', 'default')
+        
+        video_search_agent.clear_conversation(session_id)
+        logger.info(f"已清空会话: {session_id}")
+        
+        return {"message": "会话已清空", "session_id": session_id}
+        
+    except Exception as e:
+        logger.error(f"清空会话失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
+
+@app.get("/api/proxy-image")
+async def proxy_image(url: str):
+    """
+    图片代理接口 - 解决B站等平台的防盗链问题
+    """
+    try:
+        import httpx
+        from urllib.parse import unquote
+        
+        # URL解码
+        image_url = unquote(url)
+        
+        # 验证URL格式
+        if not image_url.startswith(('http://', 'https://')):
+            raise HTTPException(status_code=400, detail="无效的图片URL")
+        
+        # 设置请求头，伪装成正常浏览器访问
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': 'https://www.bilibili.com/',  # B站防盗链关键
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        }
+        
+        # 根据URL设置不同的Referer
+        if 'bilibili.com' in image_url or 'hdslb.com' in image_url:
+            headers['Referer'] = 'https://www.bilibili.com/'
+        elif 'youtube.com' in image_url or 'ytimg.com' in image_url:
+            headers['Referer'] = 'https://www.youtube.com/'
+        
+        # 请求图片
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            response = await client.get(image_url, headers=headers)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="获取图片失败")
+            
+            # 获取内容类型
+            content_type = response.headers.get('content-type', 'image/jpeg')
+            
+            # 返回图片内容
+            return StreamingResponse(
+                iter([response.content]),
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "public, max-age=86400",  # 缓存24小时
+                    "Access-Control-Allow-Origin": "*"
+                }
+            )
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="图片请求超时")
+    except httpx.HTTPError as e:
+        logger.error(f"代理图片请求失败: {e}")
+        raise HTTPException(status_code=500, detail=f"代理请求失败: {str(e)}")
+    except Exception as e:
+        logger.error(f"代理图片失败: {e}")
+        raise HTTPException(status_code=500, detail=f"代理失败: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8999)

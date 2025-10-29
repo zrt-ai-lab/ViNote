@@ -41,6 +41,11 @@ English | [中文文档](README_ZH.md)
 - **Intelligent Q&A**: AI Q&A system based on video content
 - **Context Understanding**: Deep comprehension of video content
 
+### 🔍 AI Video Search (ViNoter Super Search) 🔥
+- **Cross-Platform Search**: Built on [Apple's ANP Protocol](https://github.com/apple/live-caller-id-lookup-example), supports Bilibili, YouTube video search
+- **Intelligent Conversation**: Natural language interaction, automatically understands user intent
+- **Auto Note Generation**: Automatically generates notes after selecting videos
+- **Streaming Progress**: Real-time progress display with SSE
 
 ### 🎬 Video Download
 - **Multi-Format Support**: Support for various video formats and resolutions
