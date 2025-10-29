@@ -436,6 +436,73 @@ docker-compose down -v
 
 ---
 
+## 🔬 ANP视频搜索Demo
+
+ViNote集成了基于**ANP（Agent Network Protocol）**的视频搜索Demo系统，展示了去中心化身份认证和智能Agent通信的能力。
+
+### 什么是ANP？
+
+ANP（Agent Network Protocol）是一个基于DID（去中心化身份）的Agent网络协议，支持：
+- 🔐 **去中心化身份认证**：基于DID标准的安全认证
+- 🤖 **智能Agent通信**：支持多Agent协作和工具调用
+- 🌐 **分布式架构**：无需中心化服务器
+
+### 快速体验ANP Demo
+
+#### 第一步：生成密钥
+
+```bash
+cd backend/anp
+python gen_did_keys.py
+```
+
+这将生成服务端和客户端的DID文档及密钥。
+
+#### 第二步：启动服务（按顺序）
+
+**终端 1 - 客户端DID服务器:**
+```bash
+cd backend/anp
+python client_did_server.py
+```
+
+**终端 2 - 视频搜索服务端:**
+```bash
+cd backend/anp
+python video_search_agent.py
+```
+
+**终端 3 - 智能客户端:**
+```bash
+cd backend/anp
+python search_client.py
+```
+
+#### 第三步：使用Demo
+
+在客户端终端输入自然语言查询：
+```
+您: 帮我在b站上搜索Python教程
+```
+
+系统会自动：
+1. 🤔 解析您的意图
+2. 🔍 调用对应的搜索接口
+3. 📊 返回总结结果
+
+### ANP集成配置
+
+ViNote主应用已集成ANP视频搜索功能，您可以通过环境变量配置ANP服务器地址：
+
+```bash
+# .env 文件
+ANP_SERVER_URL=http://localhost:8000/ad.json
+```
+
+详细的ANP文档和示例代码请查看 [`backend/anp/README.md`](backend/anp/README.md)。
+
+---
+
 ## 🤝 贡献指南
 
 欢迎贡献代码！请遵循以下步骤：
