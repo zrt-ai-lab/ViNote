@@ -73,15 +73,19 @@ git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 ```
 
-2. **Configure Environment Variables**
+2. **Configure Environment Variables and Cookies**
 ```bash
 # Copy environment configuration file
 cp .env.example .env
-
 # Edit .env file and add your OpenAI API Key
 # OPENAI_API_KEY=your-api-key-here
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # OPENAI_MODEL=gpt-4o
+
+# Copy cookies configuration (optional, required for Bilibili)
+cp cookies.txt.example bilibili_cookies.txt
+# Edit bilibili_cookies.txt if you need to download Bilibili videos
+# See "🍪 Cookies Configuration" section below for details
 ```
 
 3. **Start Services**
@@ -97,7 +101,7 @@ docker-compose down
 ```
 
 4. **Access Application**
-Open your browser and visit: http://localhost:8000
+Open your browser and visit: http://localhost:8999
 
 ---
 
@@ -146,23 +150,56 @@ uv pip install -e .
 uv sync
 ```
 
-5. **Configure Environment Variables**
+5. **Configure Environment Variables and Cookies**
 ```bash
+# Copy environment configuration file
 cp .env.example .env
 # Edit .env file with your configuration
+
+# Copy cookies configuration (optional, required for Bilibili)
+cp cookies.txt.example bilibili_cookies.txt
+# Edit bilibili_cookies.txt if you need to download Bilibili videos
+# See "🍪 Cookies Configuration" section below for details
 ```
 
-6. **Start Services**
+6. **Generate ANP DID Keys** (Required for ViNoter Super Agent, first time only)
+```bash
+cd backend/anp
+python gen_did_keys.py
+cd ../..
+```
 
-Two ways to start the service:
+7. **Start Services** (3 terminals required for full ViNoter functionality)
+
+> 💡 **For ViNoter Super Agent**: You need to start 3 services in separate terminals:
+> 
+> **Terminal 1 - DID Authentication Server:**
+> ```bash
+> cd backend/anp
+> python client_did_server.py
+> ```
+> 
+> **Terminal 2 - Video Search Server:**
+> ```bash
+> cd backend/anp
+> python search_server_agent.py
+> ```
+> 
+> **Terminal 3 - ViNote Main Application:**
+> ```bash
+> # From project root directory
+> uv run uvicorn backend.main:app --reload --port 8999
+> ```
+
+**For basic usage (without ViNoter Super Agent), two ways to start the service:**
 
 **Method 1: Using uv run (Recommended, no need to activate virtual environment)**
 ```bash
 # Development mode (with auto-reload)
-uv run uvicorn backend.main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload --port 8999
 
 # Production mode
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8999 --workers 4
 ```
 
 **Method 2: Activate virtual environment first**
@@ -173,11 +210,11 @@ source .venv/bin/activate  # macOS/Linux
 .venv\Scripts\activate     # Windows
 
 # Then start the service
-uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8999
 ```
 
-7. **Access Application**
-Open your browser and visit: http://localhost:8000
+8. **Access Application**
+Open your browser and visit: http://localhost:8999
 
 ---
 
@@ -215,7 +252,7 @@ python search_server_agent.py
 ```bash
 # Return to project root directory
 cd ../..
-uv run uvicorn backend.main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload --port 8999
 ```
 
 #### How to Use
@@ -649,7 +686,7 @@ ViNote main application has integrated ANP video search functionality. You can c
 
 ```bash
 # .env file
-ANP_SERVER_URL=http://localhost:8000/ad.json
+ANP_SERVER_URL=http://localhost:8999/ad.json
 ```
 
 For detailed ANP documentation and example code, see:

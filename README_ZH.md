@@ -74,15 +74,19 @@ git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 ```
 
-2. **配置环境变量**
+2. **配置环境变量和 Cookies**
 ```bash
 # 复制环境配置文件
 cp .env.example .env
-
 # 编辑 .env 文件，填入你的 OpenAI API Key
 # OPENAI_API_KEY=your-api-key-here
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # OPENAI_MODEL=gpt-4o
+
+# 复制 cookies 配置（可选，B站需要）
+cp cookies.txt.example bilibili_cookies.txt
+# 如果需要下载B站视频，请编辑 bilibili_cookies.txt
+# 详见下方"🍪 Cookies 配置"章节
 ```
 
 3. **启动服务**
@@ -98,7 +102,7 @@ docker-compose down
 ```
 
 4. **访问应用**
-打开浏览器访问: http://localhost:8000
+打开浏览器访问: http://localhost:8999
 
 ---
 
@@ -147,23 +151,56 @@ uv pip install -e .
 uv sync
 ```
 
-5. **配置环境变量**
+5. **配置环境变量和 Cookies**
 ```bash
+# 复制环境配置文件
 cp .env.example .env
 # 编辑 .env 文件，填入你的配置
+
+# 复制 cookies 配置（可选，B站需要）
+cp cookies.txt.example bilibili_cookies.txt
+# 如果需要下载B站视频，请编辑 bilibili_cookies.txt
+# 详见下方"🍪 Cookies 配置"章节
 ```
 
-6. **启动服务**
+6. **生成 ANP DID 密钥**（使用 ViNoter 超级智能体必需，首次使用,项目默认已经生成，这步可以跳过。）
+```bash
+cd backend/anp
+python gen_did_keys.py
+cd ../..
+```
 
-有两种方式启动服务：
+7. **启动服务**（使用完整 ViNoter 功能需要 3 个终端）
+
+> 💡 **使用 ViNoter 超级智能体**: 需要启动 3 个服务，分别在不同终端运行：
+> 
+> **终端 1 - DID 认证服务器：**
+> ```bash
+> cd backend/anp
+> python client_did_server.py
+> ```
+> 
+> **终端 2 - 视频搜索服务端：**
+> ```bash
+> cd backend/anp
+> python search_server_agent.py
+> ```
+> 
+> **终端 3 - ViNote 主应用：**
+> ```bash
+> # 从项目根目录
+> uv run uvicorn backend.main:app --reload --port 8999
+> ```
+
+**基本使用（不使用 ViNoter 超级智能体），有两种方式启动服务：**
 
 **方式 1：使用 uv run（推荐，无需激活虚拟环境）**
 ```bash
 # 开发模式（自动重载）
-uv run uvicorn backend.main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload --port 8999
 
 # 生产模式
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8999 --workers 4
 ```
 
 **方式 2：激活虚拟环境后运行**
@@ -174,11 +211,11 @@ source .venv/bin/activate  # macOS/Linux
 .venv\Scripts\activate     # Windows
 
 # 然后启动服务
-uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8999
 ```
 
-7. **访问应用**
-打开浏览器访问: http://localhost:8000
+8. **访问应用**
+打开浏览器访问: http://localhost:8999
 
 ---
 
@@ -216,7 +253,7 @@ python search_server_agent.py
 ```bash
 # 返回项目根目录
 cd ../..
-uv run uvicorn backend.main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload --port 8999
 ```
 
 #### 使用方式
@@ -650,7 +687,7 @@ ViNote主应用已集成ANP视频搜索功能，您可以通过环境变量配�
 
 ```bash
 # .env 文件
-ANP_SERVER_URL=http://localhost:8000/ad.json
+ANP_SERVER_URL=http://localhost:8999/ad.json
 ```
 
 详细的ANP文档和示例代码请查看 
