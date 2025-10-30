@@ -162,54 +162,64 @@ cp cookies.txt.example bilibili_cookies.txt
 # See "🍪 Cookies Configuration" section below for details
 ```
 
-6. **Generate ANP DID Keys** (Required for ViNoter Super Agent, first time only)
+6. **Start Services**
+
+**🚀 One-Click Start (Recommended)**
+
+Start all services with a single command:
+
 ```bash
-cd backend/anp
-python gen_did_keys.py
-cd ../..
+# Make script executable (first time only)
+chmod +x start.sh
+
+# Start all services
+./start.sh
 ```
 
-7. **Start Services** (3 terminals required for full ViNoter functionality)
+This will automatically:
+- ✅ Generate DID keys (if not exists)
+- ✅ Start DID Authentication Server (port 9000)
+- ✅ Start Video Search Server (port 8000)
+- ✅ Start ViNote Main Application (port 8999)
 
-> 💡 **For ViNoter Super Agent**: You need to start 3 services in separate terminals:
-> 
-> **Terminal 1 - DID Authentication Server:**
+**Manual Start (Advanced)**
+
+If you prefer to start services manually in separate terminals:
+
+> 💡 **Terminal 1 - Generate DID Keys** (first time only)
+> ```bash
+> cd backend/anp
+> python gen_did_keys.py
+> cd ../..
+> ```
+
+> **Terminal 2 - DID Authentication Server:**
 > ```bash
 > cd backend/anp
 > python client_did_server.py
 > ```
 > 
-> **Terminal 2 - Video Search Server:**
+> **Terminal 3 - Video Search Server:**
 > ```bash
 > cd backend/anp
 > python search_server_agent.py
 > ```
 > 
-> **Terminal 3 - ViNote Main Application:**
+> **Terminal 4 - ViNote Main Application:**
 > ```bash
-> # From project root directory
 > uv run uvicorn backend.main:app --reload --port 8999
 > ```
 
-**For basic usage (without ViNoter Super Agent), two ways to start the service:**
+**Basic Usage (Without ViNoter Super Agent)**
 
-**Method 1: Using uv run (Recommended, no need to activate virtual environment)**
+If you only need basic features without ViNoter:
+
 ```bash
-# Development mode (with auto-reload)
+# Using uv run (recommended)
 uv run uvicorn backend.main:app --reload --port 8999
 
-# Production mode
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8999 --workers 4
-```
-
-**Method 2: Activate virtual environment first**
-```bash
-# Activate virtual environment
+# Or activate virtual environment first
 source .venv/bin/activate  # macOS/Linux
-# or
-.venv\Scripts\activate     # Windows
-
-# Then start the service
 uvicorn backend.main:app --reload --port 8999
 ```
 
