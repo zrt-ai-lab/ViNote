@@ -8,6 +8,7 @@ const workspacePages = {
     'notes': 'workspacePage',
     'qa': 'qaWorkspace',
     'search-agent': 'searchAgentWorkspace',
+    'dev-tools': 'devToolsWorkspace',
     'publish': 'publishWorkspace',
     'subtitle': 'subtitleWorkspace',
     'flashcard': 'flashcardWorkspace',
@@ -62,6 +63,13 @@ function enterWorkspace(pageType = 'notes') {
     document.getElementById('landingPage').style.display = 'none';
     const logo = document.querySelector('.landing-logo');
     if (logo) logo.style.display = 'none';
+    
+    // 隐藏全局侧边栏（所有工作区页面都有自己的侧边栏）
+    const globalSidebar = document.getElementById('globalSidebar');
+    if (globalSidebar) {
+        globalSidebar.classList.add('collapsed');
+    }
+    
     Object.values(workspacePages).forEach(pageId => {
         if (pageId !== targetPageId) {
             const page = document.getElementById(pageId);
@@ -167,6 +175,13 @@ function backToLanding() {
     document.getElementById('landingPage').style.display = 'flex';
     const logo = document.querySelector('.landing-logo');
     if (logo) logo.style.display = 'block';
+    
+    // 显示全局侧边栏
+    const globalSidebar = document.getElementById('globalSidebar');
+    if (globalSidebar) {
+        globalSidebar.classList.remove('collapsed');
+    }
+    
     window.scrollTo(0, 0);
 }
 

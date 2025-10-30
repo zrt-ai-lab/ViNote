@@ -3227,6 +3227,11 @@
                     <span data-zh="ViNoter超级智搜" data-en="ViNoter Super Search">ViNoter超级智搜</span>
                     <span class="nav-badge">HOT</span>
                 </a>
+                <a href="#" class="nav-item" onclick="enterWorkspace('dev-tools', event)">
+                    <i class="fas fa-tools"></i>
+                    <span data-zh="开发者工具" data-en="Dev Tools">开发者工具</span>
+                    <span class="nav-badge">NEW</span>
+                </a>
                 <a href="#" class="nav-item disabled">
                     <i class="fas fa-pen-fancy"></i>
                     <span data-zh="一键创作发布" data-en="Publishing">一键创作发布</span>
@@ -3277,7 +3282,7 @@
                         <div class="welcome-icon">
                             <i class="fas fa-robot"></i>
                         </div>
-                        <h3 data-zh="ViNoter · 超级视频智能体" data-en="ViNoter · Super Video Agent">ViNoter · 超级视频智能体</h3>
+                        <h3 data-zh="ViNoter · 超级视记Agent ✨" data-en="ViNoter · Super ViNote Agent ✨">ViNoter · 超级视记Agent ✨</h3>
                         <p data-zh="搜索全网优质视频，自动生成笔记和摘要，与视频内容智能对话" data-en="Search videos, auto notes & smart chat">
                             搜索全网优质视频，自动生成笔记和摘要，与视频内容智能对话
                         </p>
@@ -4064,6 +4069,90 @@
     <!-- 成功消息区域 -->
     <div id="successMessage" class="success-message" style="display: none;"></div>
 
+    <!-- 开发者工具工作页面 -->
+    <div id="devToolsWorkspace" class="main-container" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100vh; z-index: 10;">
+        <!-- 左侧面板 -->
+        <div class="left-panel">
+            <button class="back-to-home-btn" onclick="backToLanding()">
+                <i class="fas fa-arrow-left"></i>
+                <span data-zh="返回首页" data-en="Back to Home">返回首页</span>
+            </button>
+            
+            <header class="header">
+                <h1 data-zh="开发者工具" data-en="Dev Tools">开发者工具</h1>
+                <p data-zh="B站Cookies转换工具" data-en="Bilibili Cookies Converter">B站Cookies转换工具</p>
+            </header>
+            
+            <!-- 工具简介 -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(76, 140, 245, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%); border: 1px solid rgba(76, 140, 245, 0.2);">
+                <h3 style="font-size: 1rem; color: var(--accent-blue); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-info-circle"></i>
+                    <span data-zh="工具说明" data-en="Tool Description">工具说明</span>
+                </h3>
+                <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.8;">
+                    <p style="margin-bottom: 12px;">此工具可以将B站的Cookies转换为Netscape格式，用于yt-dlp等下载工具。</p>
+                    <p style="margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">使用步骤：</p>
+                    <ol style="margin: 0; padding-left: 20px;">
+                        <li>登录B站网页版</li>
+                        <li>打开浏览器开发者工具(F12)</li>
+                        <li>找到Network标签，刷新页面</li>
+                        <li>复制请求头中的Cookie值</li>
+                        <li>粘贴到下方输入框</li>
+                        <li>点击生成按钮</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="card">
+                <div class="form-group">
+                    <label for="cookiesInput" data-zh="B站Cookies" data-en="Bilibili Cookies">B站Cookies</label>
+                    <textarea 
+                        id="cookiesInput" 
+                        class="form-control"
+                        placeholder="粘贴从浏览器复制的Cookies..."
+                        data-zh-placeholder="粘贴从浏览器复制的Cookies..."
+                        data-en-placeholder="Paste cookies from browser..."
+                        rows="6"
+                        style="font-family: 'Monaco', 'Menlo', monospace; font-size: 13px;"
+                    ></textarea>
+                </div>
+                
+                <button type="button" id="generateCookiesBtn" class="btn-full" onclick="generateNetscapeCookies()" style="margin-top: 16px; background: linear-gradient(135deg, rgba(20, 20, 20, 0.95) 0%, rgba(30, 30, 30, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.1); color: white; padding: 16px 28px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; font-family: inherit; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);">
+                    <i class="fas fa-magic" id="generateCookiesBtnIcon"></i>
+                    <span id="generateCookiesBtnText" data-zh="生成Netscape格式" data-en="Generate Netscape Format">生成Netscape格式</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 右侧面板 - 流式输出区域 -->
+        <div class="right-panel" style="padding: 40px; position: relative; display: flex; flex-direction: column;">
+            <!-- 流式输出文本区域 - 直接打在背景上 -->
+            <div id="devToolsOutputArea" style="flex: 1; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-wrap: break-word; overflow-y: auto; display: none;">
+                <!-- 流式文本将显示在这里 -->
+            </div>
+            
+            <!-- 初始空状态 -->
+            <div id="devToolsEmptyState" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                <i class="fas fa-cookie-bite" style="font-size: 80px; color: var(--text-muted); opacity: 0.3; margin-bottom: 24px;"></i>
+                <p style="font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 12px;" data-zh="等待转换" data-en="Waiting for Conversion">等待转换</p>
+                <span style="font-size: 0.95rem; color: var(--text-muted);" data-zh="请在左侧输入Cookies并点击生成" data-en="Enter cookies on the left and click generate">请在左侧输入Cookies并点击生成</span>
+            </div>
+            
+            <!-- 复制按钮 - 完成后显示在右下角 -->
+            <button 
+                id="devToolsCopyBtn"
+                onclick="copyNetscapeCookies()" 
+                style="position: fixed; bottom: 40px; right: 40px; display: none; z-index: 1000; min-width: 140px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.9) 0%, rgba(22, 163, 74, 0.9) 100%); color: white; border: none; padding: 16px 28px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 16px rgba(34, 197, 94, 0.25); font-family: inherit; text-transform: uppercase; letter-spacing: 0.5px;"
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(34, 197, 94, 0.4)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 16px rgba(34, 197, 94, 0.25)';"
+            >
+                <i class="fas fa-copy" style="margin-right: 8px;"></i>
+                <span data-zh="复制内容" data-en="Copy">复制内容</span>
+            </button>
+        </div>
+    </div>
+
     <!-- AI视频搜索Agent工作页面 -->
     <div id="searchAgentWorkspace" class="main-container" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100vh; z-index: 10;">
         <!-- 左侧面板: ViNoter功能简介 -->
@@ -4187,6 +4276,12 @@
         </div>
     </div>
 
+    <!-- JavaScript全局变量 -->
+    <script>
+        // 存储生成的Netscape格式cookies
+        let generatedNetscapeCookies = '';
+    </script>
+
     <!-- 模块化JavaScript文件 -->
     <!-- 1. 工具函数（最先加载，其他模块依赖）-->
     <script src="/static/js/utils/helpers.js"></script>
@@ -4204,8 +4299,7 @@
     <script src="/static/js/modules/localPath.js"></script>
     <script src="/static/js/modules/qaLocalPath.js"></script>
     <script src="/static/js/modules/searchAgent.js"></script>
-    
+    <script src="/static/js/modules/devTools.js"></script>
+
     <!-- 4. 主入口 -->
     <script src="/static/js/app.js"></script>
-</body>
-</html>

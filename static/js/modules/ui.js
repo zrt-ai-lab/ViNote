@@ -113,7 +113,7 @@ function enterWorkspace(type, event) {
     }
     
     // 隐藏所有工作区
-    const workspaces = ['workspacePage', 'qaWorkspace', 'searchAgentWorkspace'];
+    const workspaces = ['workspacePage', 'qaWorkspace', 'searchAgentWorkspace', 'devToolsWorkspace'];
     workspaces.forEach(id => {
         const workspace = document.getElementById(id);
         if (workspace) {
@@ -161,6 +161,15 @@ function enterWorkspace(type, event) {
             updateNavActive('search-agent');
             break;
             
+        case 'dev-tools':
+            // 开发者工具
+            const devToolsWorkspace = document.getElementById('devToolsWorkspace');
+            if (devToolsWorkspace) {
+                devToolsWorkspace.style.display = 'grid';
+            }
+            updateNavActive('dev-tools');
+            break;
+            
         default:
             console.warn('未知的工作区类型:', type);
     }
@@ -187,7 +196,7 @@ function showHomePage(event) {
     console.log('显示首页');
     
     // 隐藏所有工作区
-    const workspaces = ['workspacePage', 'qaWorkspace', 'searchAgentWorkspace'];
+    const workspaces = ['workspacePage', 'qaWorkspace', 'searchAgentWorkspace', 'devToolsWorkspace'];
     workspaces.forEach(id => {
         const workspace = document.getElementById(id);
         if (workspace) {
@@ -235,6 +244,9 @@ function updateNavActive(activeItem) {
             break;
         case 'search-agent':
             selector = '.nav-item[onclick*="enterWorkspace(\'search-agent\'"]';
+            break;
+        case 'dev-tools':
+            selector = '.nav-item[onclick*="enterWorkspace(\'dev-tools\'"]';
             break;
     }
     
