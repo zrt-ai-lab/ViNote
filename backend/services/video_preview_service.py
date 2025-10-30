@@ -16,13 +16,29 @@ class VideoPreviewService:
     
     def __init__(self):
         """初始化视频预览服务"""
-        self.ydl_opts = {
+        # 获取cookies文件路径（项目根目录）
+        from pathlib import Path
+        self.project_root = Path(__file__).parent.parent.parent
+        self.bilibili_cookies = self.project_root / "bilibili_cookies.txt"
+        
+        # 基础配置（不含 cookies） - 移除可能导致问题的 http_headers
+        self.base_ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
             'skip_download': True,
         }
     
+    def _get_cookies_for_url(self, url: str) -> str:
+        """根据 URL 获取对应的 cookies 文件路径"""
+        # 仅B站使用 cookies，YouTube 不使用（避免认证问题）
+        if 'bilibili.com' in url or 'b23.tv' in url:
+            if self.bilibili_cookies.exists():
+                logger.info(f"使用 B站 cookies: {self.bilibili_cookies}")
+                return str(self.bilibili_cookies)
+        
+        return None
+
     async def get_video_info(self, url: str) -> Dict:
         """
         获取视频信息
@@ -36,7 +52,13 @@ class VideoPreviewService:
         try:
             logger.info(f"开始获取视频信息: {url}")
             
-            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+            # 根据 URL 选择对应的 cookies
+            ydl_opts = self.base_ydl_opts.copy()
+            cookies_file = self._get_cookies_for_url(url)
+            if cookies_file:
+                ydl_opts['cookiefile'] = cookies_file
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = await asyncio.to_thread(ydl.extract_info, url, False)
             
             video_info = {

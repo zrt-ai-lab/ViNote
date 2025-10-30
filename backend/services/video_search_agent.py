@@ -242,16 +242,84 @@ class VideoSearchAgent:
             # 混合ANP工具和本地工具
             all_tools = (self.openai_tools if self.openai_tools else []) + self.local_tools
             
-            # 调用OpenAI进行工具选择
+            # 调用OpenAI，使用流式输出
             response = await self.openai_client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 tools=all_tools if all_tools else None,
                 tool_choice="auto",
-                stream=False
+                stream=True  # 启用流式输出
             )
             
-            response_message = response.choices[0].message
+            # 收集流式响应
+            response_message = None
+            full_content = ""
+            tool_calls_data = []
+            
+            async for chunk in response:
+                delta = chunk.choices[0].delta
+                
+                # 处理内容流
+                if delta.content:
+                    full_content += delta.content
+                    yield {
+                        "type": "text_chunk",
+                        "content": delta.content
+                    }
+                
+                # 处理工具调用
+                if delta.tool_calls:
+                    for tool_call_chunk in delta.tool_calls:
+                        # 确保有足够的空间存储工具调用
+                        while len(tool_calls_data) <= tool_call_chunk.index:
+                            tool_calls_data.append({
+                                "id": "",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""}
+                            })
+                        
+                        # 更新工具调用数据
+                        if tool_call_chunk.id:
+                            tool_calls_data[tool_call_chunk.index]["id"] = tool_call_chunk.id
+                        if tool_call_chunk.function:
+                            if tool_call_chunk.function.name:
+                                tool_calls_data[tool_call_chunk.index]["function"]["name"] = tool_call_chunk.function.name
+                            if tool_call_chunk.function.arguments:
+                                tool_calls_data[tool_call_chunk.index]["function"]["arguments"] += tool_call_chunk.function.arguments
+                
+                # 保存最后一个消息对象
+                if not response_message and chunk.choices[0].finish_reason:
+                    response_message = chunk.choices[0]
+            
+            # 构建完整的响应消息
+            from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
+            from openai.types.chat.chat_completion_message_tool_call import Function
+            
+            if tool_calls_data:
+                # 有工具调用
+                tool_calls = [
+                    ChatCompletionMessageToolCall(
+                        id=tc["id"],
+                        type="function",
+                        function=Function(
+                            name=tc["function"]["name"],
+                            arguments=tc["function"]["arguments"]
+                        )
+                    )
+                    for tc in tool_calls_data
+                ]
+                response_message = ChatCompletionMessage(
+                    role="assistant",
+                    content=full_content if full_content else None,
+                    tool_calls=tool_calls
+                )
+            else:
+                # 没有工具调用，只有内容
+                response_message = ChatCompletionMessage(
+                    role="assistant",
+                    content=full_content if full_content else None
+                )
+            
             messages.append(response_message)
             
             # 检查是否需要调用工具
@@ -554,12 +622,8 @@ class VideoSearchAgent:
                         }
                 
             else:
-                # 没有工具调用，直接返回AI回复
-                if response_message.content:
-                    yield {
-                        "type": "text_chunk",
-                        "content": response_message.content
-                    }
+                # 没有工具调用，内容已经在上面流式输出了
+                pass
             
             # 更新会话历史
             if conversation_history is None:

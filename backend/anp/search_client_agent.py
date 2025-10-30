@@ -2,19 +2,28 @@ import asyncio
 import os
 from anp.anp_crawler import ANPCrawler
 from pathlib import Path
-from openai import AsyncOpenAI
+import sys
+from pathlib import Path
+
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from backend.core.ai_client import get_async_openai_client
+from backend.config.ai_config import get_openai_config
 
 
 async def main():
     print("🚀 ANPCrawler + OpenAI 智能客户端")
     print("连接到视频搜索服务 (localhost:8000)\n")
 
-    # 初始化 OpenAI 客户端
-    client = AsyncOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY", "xxx"),
-        base_url=os.getenv("OPENAI_BASE_URL", "http://xxx/v1")
-    )
-    model = os.getenv("OPENAI_MODEL", "xxx")
+    # 使用全局 OpenAI 客户端
+    client = get_async_openai_client()
+    if client is None:
+        print("✗ OpenAI 客户端未配置，请检查环境变量")
+        return
+    
+    config = get_openai_config()
+    model = config.model
 
     # 初始化 ANPCrawler
     print("=" * 60)
