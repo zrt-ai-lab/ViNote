@@ -20,6 +20,7 @@ COPY pyproject.toml ./
 COPY backend ./backend
 COPY static ./static
 COPY .env.example ./.env.example
+COPY cookies.txt.example ./cookies.txt.example
 
 # 安装 uv 并使用它安装依赖
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
@@ -32,11 +33,11 @@ ENV PATH="/root/.local/bin:${PATH}"
 RUN mkdir -p temp temp/downloads temp/backups
 
 # 暴露端口
-EXPOSE 8000
+EXPOSE 8999
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
+    CMD curl -f http://localhost:8999/ || exit 1
 
 # 启动命令
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8999"]
