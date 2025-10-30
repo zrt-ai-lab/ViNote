@@ -553,6 +553,7 @@ async function triggerNotesGeneration(url, title, index) {
         
         // 生成成功后，更新按钮状态为"已生成"
         if (clickedButton) {
+            clickedButton.disabled = false;
             clickedButton.innerHTML = '<i class="fas fa-check-circle"></i> 已生成';
             clickedButton.style.opacity = '1';
             clickedButton.style.background = 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(52, 211, 153, 0.2) 100%)';
@@ -621,6 +622,7 @@ async function selectVideoForNotes(url, title, index) {
         
         // 生成成功后，更新按钮状态为"已生成"
         if (clickedButton) {
+            clickedButton.disabled = false;
             clickedButton.innerHTML = '<i class="fas fa-check-circle"></i> 已生成';
             clickedButton.style.opacity = '1';
             clickedButton.style.background = 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(52, 211, 153, 0.2) 100%)';

@@ -7,6 +7,7 @@ import yt_dlp
 from fastapi import FastAPI
 import json
 from urllib.parse import quote
+import os
 
 
 # ------------------ 本地 DID 解析器 ------------------
@@ -30,6 +31,46 @@ with open("./jwt_keys/video_search/jwt_private_key.pem", 'r') as f:
     jwt_private_key = f.read()
 with open("./jwt_keys/video_search/jwt_public_key.pem", 'r') as f:
     jwt_public_key = f.read()
+
+# ------------------ 读取 Cookies ------------------
+def load_cookies_from_file():
+    """从 bilibili_cookies.txt 加载 B站 cookies"""
+    cookies_path = os.path.join(os.path.dirname(__file__), "..", "..", "bilibili_cookies.txt")
+    
+    if not os.path.exists(cookies_path):
+        print(f"⚠️  未找到 bilibili_cookies.txt 文件")
+        return ""
+    
+    try:
+        with open(cookies_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # 解析 Netscape 格式的 cookies
+        cookies = {}
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            parts = line.split('\t')
+            if len(parts) >= 7:
+                domain = parts[0]
+                name = parts[5]
+                value = parts[6]
+                
+                if 'bilibili.com' in domain or 'hdslb.com' in domain:
+                    cookies[name] = value
+        
+        cookie_string = "; ".join([f"{name}={value}" for name, value in cookies.items()])
+        print(f"✅ 成功加载 {len(cookies)} 个 B站 cookies")
+        print(f"   关键 cookies: SESSDATA={'存在' if 'SESSDATA' in cookies else '缺失'}, bili_jct={'存在' if 'bili_jct' in cookies else '缺失'}")
+        return cookie_string
+        
+    except Exception as e:
+        print(f"❌ 读取 cookies 失败: {str(e)}")
+        return ""
+
+BILIBILI_COOKIES = load_cookies_from_file()
 
 # ------------------ 创建 FastAPI 应用 ------------------
 app = FastAPI(title="Video Search Agent")
@@ -75,8 +116,10 @@ def _search_bilibili_internal(keyword: str, page: int = 1) -> dict:
         "Origin": "https://www.bilibili.com",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "zh-CN,zh;q=0.9",
-        "cookie":"buvid3=75059253-28F6-A73A-B291-B454C7D42A8148284infoc; b_nut=1740449948; _uuid=417BE1067-8161-10658-D254-D2FC1096DA18D49219infoc; buvid4=DCACB010-0DD1-B512-9314-CD580A028D3C46387-025022512-t2lDc1YsIEDKWbGRgiaFSg%3D%3D; rpdid=|(umYl|mluYY0J'u~R|Ykk~lu; CURRENT_QUALITY=0; enable_web_push=DISABLE; share_source_origin=COPY; bsource=search_baidu; fingerprint=8f866f28edc6e54d61cca8df7a583ac4; buvid_fp_plain=undefined; buvid_fp=8f866f28edc6e54d61cca8df7a583ac4; home_feed_column=4; CURRENT_FNVAL=2000; browser_resolution=1261-934; bili_ticket=eyJhbGciOiJIUzI1NiIsImtpZCI6InMwMyIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjE5Njc3MjUsImlhdCI6MTc2MTcwODQ2NSwicGx0IjotMX0.bNFjm9aIfpkGcBao-KyXvaLA8mtHKZFBOelka4HgSaQ; bili_ticket_expires=1761967665; sid=pm0b2r0h; b_lsid=98A10A42D_19A2EA93271"
     }
+    
+    if BILIBILI_COOKIES:
+        headers["Cookie"] = BILIBILI_COOKIES
 
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=10)

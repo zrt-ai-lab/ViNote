@@ -1,19 +1,38 @@
 [project]
 name = "vinote"
-version = "1.0.0"
+version = "1.2.0"
 description = "视记AI · 让每个视频成为你的知识资产"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    # Web Framework
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.27.0",
     "python-multipart>=0.0.9",
+    "aiofiles>=24.1.0",
+    
+    # Video & Audio Processing
     "yt-dlp>=2024.12.13",
     "faster-whisper>=1.1.0",
+    "av>=16.0.0",
+    
+    # AI & NLP
     "openai>=1.51.0",
     "pydantic>=2.7.0",
-    "aiofiles>=24.1.0",
+    
+    # ANP (Agent Network Protocol)
+    "anp>=0.4.0",
+    "aiohttp>=3.9.0",
+    "cryptography>=46.0.0",
+    "pyjwt>=2.8.0",
+    "ecdsa>=0.19.0",
+    
+    # Utilities
     "python-dotenv>=1.0.0",
+    "requests>=2.32.0",
+    "pyyaml>=6.0.0",
+    "coloredlogs>=15.0.0",
+    "typer-slim>=0.20.0",
 ]
 
 [project.optional-dependencies]

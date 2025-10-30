@@ -1,11 +1,12 @@
-
 <div align="center">
 
 ![ViNote Logo](static/product-logo.png)
 
 **ViNote = Video + Note**
 
-ViNote AI · Turn Every Video into Your Knowledge Asset
+**ViNote AI · Turn Every Video into Your Knowledge Asset**
+
+**ViNoter · Super Video Agent**
 
 **Video to Everything: Notes, Q&A, Articles, Subtitles, Cards, Mind Maps - All in One**
 
@@ -20,9 +21,17 @@ English | [中文文档](README_ZH.md)
 
 ---
 
-
 ![overview_en.png](overview_en.png)
+
 ## ✨ Core Features
+
+### 🤖 ViNoter Super Agent 🔥
+- **Conversational Operation**: Complete all video processing tasks through natural language dialogue
+- **Intelligent Intent Understanding**: Automatically recognize user needs without manual function switching
+- **Cross-Platform Search**: Support for Bilibili, YouTube and other multi-platform video search
+- **Process Automation**: Search→Transcribe→Notes→Translate, seamlessly integrated
+- **Based on ANP Protocol**: Leading open-source decentralized Agent collaboration standard
+
 
 ### 🎯 Intelligent Video Processing
 - **Multi-Platform Support**: YouTube, Bilibili, and other major video platforms
@@ -35,17 +44,11 @@ English | [中文文档](README_ZH.md)
 - **Structured Output**: Automatically generate outlines, key points, and summaries
 - **Markdown Format**: Perfect compatibility with all note-taking apps
 - **Real-Time Progress**: SSE real-time progress updates
-- **Batch Processing**: Support for concurrent multi-task processing
 
 ### 🤖 Video Q&A
 - **Intelligent Q&A**: AI Q&A system based on video content
 - **Context Understanding**: Deep comprehension of video content
-
-### 🔍 AI Video Search (ViNoter Super Search) 🔥
-- **Cross-Platform Search**: Built on [Apple's ANP Protocol](https://github.com/apple/live-caller-id-lookup-example), supports Bilibili, YouTube video search
-- **Intelligent Conversation**: Natural language interaction, automatically understands user intent
-- **Auto Note Generation**: Automatically generates notes after selecting videos
-- **Streaming Progress**: Real-time progress display with SSE
+- **Streaming Output**: Real-time responses for better user experience
 
 ### 🎬 Video Download
 - **Multi-Format Support**: Support for various video formats and resolutions
@@ -92,13 +95,6 @@ docker-compose logs -f
 # Stop services
 docker-compose down
 ```
-
-> 💡 **Image Acceleration Tip**:
-> 
-> The Dockerfile is configured to use Tsinghua University mirrors for faster package downloads:
-> - Debian package sources: `mirrors.tuna.tsinghua.edu.cn`
-> 
-> This will significantly improve build speed for users in China. If you want to use other mirrors (like Alibaba Cloud, USTC, etc.), you can modify the mirror addresses in the Dockerfile.
 
 4. **Access Application**
 Open your browser and visit: http://localhost:8000
@@ -187,6 +183,89 @@ Open your browser and visit: http://localhost:8000
 
 ## 📖 User Guide
 
+### ViNoter Super Agent 🔥
+
+**ViNoter** is a super agent based on the ANP protocol that completes video search, transcription, note generation, and all other operations through natural conversation.
+
+#### Prerequisites
+
+Before using ViNoter, you need to start the ANP server:
+
+1. **Generate DID Keys** (first time only)
+```bash
+cd backend/anp
+python gen_did_keys.py
+```
+
+2. **Start ANP Services** (requires 3 terminals)
+
+**Terminal 1 - DID Authentication Server:**
+```bash
+cd backend/anp
+python client_did_server.py
+```
+
+**Terminal 2 - Video Search Server:**
+```bash
+cd backend/anp
+python search_server_agent.py
+```
+
+**Terminal 3 - ViNote Main Application:**
+```bash
+# Return to project root directory
+cd ../..
+uv run uvicorn backend.main:app --reload --port 8000
+```
+
+#### How to Use
+
+1. Open the application homepage and select the **"ViNoter Super Search"** tab
+2. Enter your request in the dialogue box, for example:
+
+**Scenario 1: Search Videos**
+```
+You: "Help me search for Python tutorials on Bilibili"
+ViNoter: "Found 10 related videos for you:
+1. [Black Horse Programmer] Python Zero-Based Introduction
+2. [Tsinghua University] Python Data Analysis
+...
+Which one would you like to choose?"
+```
+
+**Scenario 2: Video Transcription**
+```
+You: "Choose the first one and transcribe it for me"
+ViNoter: "Sure, processing for you:
+✓ Downloading video
+✓ Extracting audio
+✓ Transcribing... (Progress 45%)
+✓ Transcription complete!
+I've saved the transcript for you. Would you like me to generate notes?"
+```
+
+**Scenario 3: Multi-Platform Search**
+```
+You: "Help me search for machine learning tutorials on both YouTube and Bilibili"
+ViNoter: "Searching across platforms...
+YouTube results: 5 videos
+Bilibili results: 8 videos
+Showing you the 10 most relevant..."
+```
+
+#### ViNoter Advantages
+
+- 🗣️ **Natural Conversation**: Just say what you need, like chatting with a friend
+- 🤖 **Intelligent Understanding**: Automatically understands intent, no need to manually switch functions
+- 🔄 **Process Integration**: Search→Transcribe→Notes→Translate, seamlessly integrated
+- 📊 **Real-time Feedback**: Streaming output with real-time progress visibility
+- 🌐 **Cross-Platform**: Supports multiple platforms including Bilibili, YouTube, etc.
+
+> 💡 **Tip**: ViNoter is based on ANP (Agent Network Protocol), an open-source decentralized Agent collaboration standard. For more details, see [`backend/anp/README.md`](backend/anp/README.md)
+
+
+
+
 ### Video to Notes
 
 #### Method 1: Online Video URL
@@ -249,6 +328,15 @@ Open your browser and visit: http://localhost:8000
 ```
 vinote/
 ├── backend/              # Backend code
+│   ├── anp/             # ANP Agent Protocol Demo Module 🆕
+│   │   ├── search_client_agent.py   # Client agent
+│   │   ├── search_server_agent.py   # Server agent (needs to be started before using ViNoter)
+│   │   ├── client_did_server.py     # DID authentication server
+│   │   ├── gen_did_keys.py          # DID key generation tool
+│   │   ├── README.md                # ANP module documentation
+│   │   ├── client_did_keys/         # Client DID keys
+│   │   ├── did_keys/                # Server DID keys
+│   │   └── jwt_keys/                # JWT keys
 │   ├── config/          # Configuration management
 │   │   ├── ai_config.py      # AI model configuration
 │   │   └── settings.py       # Application settings
@@ -265,20 +353,32 @@ vinote/
 │   │   ├── video_downloader.py      # Video download
 │   │   ├── video_preview_service.py # Video preview
 │   │   ├── video_download_service.py # Download service
-│   │   └── video_qa_service.py      # Video Q&A
+│   │   ├── video_qa_service.py      # Video Q&A
+│   │   └── video_search_agent.py    # Video search agent service 🆕
 │   ├── utils/           # Utility functions
 │   │   ├── file_handler.py   # File handling
 │   │   └── text_processor.py # Text processing
 │   └── main.py          # FastAPI application entry
 ├── static/              # Frontend static files
 │   ├── index.html       # Main page
-│   ├── app.js          # Frontend logic
+│   ├── css/            # Style files
+│   │   └── search-agent.css  # Smart search styles 🆕
+│   ├── js/             # JavaScript files
+│   │   ├── app.js           # Main frontend logic
+│   │   ├── modules/
+│   │   │   ├── searchAgent.js    # Smart search module 🆕
+│   │   │   ├── transcription.js  # Transcription module
+│   │   │   ├── videoPreview.js   # Video preview
+│   │   │   └── ...               # Other modules
+│   │   └── utils/
 │   └── *.png/jpg       # Image resources
 ├── temp/               # Temporary files directory
 │   ├── downloads/      # Downloaded files
 │   └── backups/        # Task backups
+├── cookies.txt.example # Cookies configuration example 🆕
 ├── .env.example        # Environment variables example
 ├── pyproject.toml      # Project configuration (uv)
+├── uv.lock            # Dependency version lock 🆕
 ├── Dockerfile          # Docker image configuration
 ├── docker-compose.yml  # Docker compose configuration
 └── README.md          # Project documentation
@@ -298,87 +398,136 @@ vinote/
 | `WHISPER_MODEL_SIZE` | Whisper model size | `base` | ✅ |
 | `APP_HOST` | Service listening address | `0.0.0.0` | ❌ |
 | `APP_PORT` | Service port | `8001` | ❌ |
-
 ### Whisper Model Selection
 
 | Model | Parameters | GPU VRAM (fp16) | CPU RAM (int8) | Speed | Quality | Use Case |
 |-------|------------|-----------------|----------------|--------|---------|----------|
 | `tiny` | 39M | ~1GB | ~600MB | ⚡⚡⚡⚡⚡ | ⭐⭐ | Quick testing, real-time transcription |
 | `base` | 74M | ~1GB | ~800MB | ⚡⚡⚡⚡ | ⭐⭐⭐ | Balanced choice ✅ |
-| `small` | 244M | ~2GB | ~1.5GB | ⚡⚡⚡ | ⭐⭐⭐⭐ | Medium quality |
+| `small` | 244M | ~2GB | ~1.5GB (1477MB) | ⚡⚡⚡ | ⭐⭐⭐⭐ | Medium quality |
 | `medium` | 769M | ~3-4GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐ | High quality |
 | `large-v1` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality (legacy) |
-| `large-v2` | 1550M | ~4.5GB | ~2.9GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality |
+| `large-v2` | 1550M | ~4.5GB (4525MB) | ~2.9GB (2926MB int8) | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality |
 | `large-v3` / `large` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality (recommended) |
-| `turbo` / `large-v3-turbo` | ~809M | ~3GB | ~2GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | High quality fast version |
-| `distil-small.en` | ~166M | ~1.5GB | ~1GB | ⚡⚡⚡⚡ | ⭐⭐⭐ | English fast transcription |
-| `distil-medium.en` | ~394M | ~2.5GB | ~1.8GB | ⚡⚡⚡ | ⭐⭐⭐⭐ | English medium quality |
-| `distil-large-v2` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Distilled high quality |
-| `distil-large-v3` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Distilled latest |
+
+### 🍪 Cookies Configuration (Bilibili Only)
+
+Bilibili has anti-scraping mechanisms that require login credentials. If you encounter download failures (such as HTTP 412 errors), you need to configure the cookies file.
+
+#### Why Do You Need Cookies?
+- ✅ Bypass anti-scraping verification on Bilibili
+- ✅ Support downloading videos that require login to watch
+- ✅ Improve download success rate and stability
+
+> 💡 **Important Notice**:
+> - **YouTube videos do NOT need cookies**: System automatically accesses publicly
+> - **Bilibili videos need cookies**: Configure following the steps below
+
+#### Configuration Steps
+
+**Method 1: Using yt-dlp Command (Recommended ⭐⭐⭐⭐⭐)**
+
+```bash
+# 1. Ensure yt-dlp is installed
+pip install yt-dlp
+
+# 2. Export Bilibili Cookies
+yt-dlp --cookies-from-browser chrome --cookies bilibili_cookies.txt https://www.bilibili.com
+
+# Note:
+# - chrome can be replaced with firefox, edge, safari, brave, etc.
+# - macOS will prompt for system password to access keychain
+```
+
+**Method 2: Copy Example File Manually**
+
+```bash
+# 1. Copy the example file
+cp cookies.txt.example bilibili_cookies.txt
+
+# 2. Edit bilibili_cookies.txt and fill in real cookie values (Netscape format)
+# Refer to comments in the file
+```
+
+**Method 3: Using Browser Extension**
+
+1. Install a browser extension (such as EditThisCookie or Cookie-Editor)
+2. Log in to bilibili.com
+3. Export cookies in Netscape format
+4. Save as `bilibili_cookies.txt`
+
+#### File Format Example
+
+`bilibili_cookies.txt` file format (Netscape HTTP Cookie File):
+
+```
+# Netscape HTTP Cookie File
+# Bilibili Cookies
+
+.bilibili.com	TRUE	/	FALSE	1893456000	SESSDATA	your_SESSDATA_value (required)
+.bilibili.com	TRUE	/	FALSE	1893456000	bili_jct	your_bili_jct_value
+.bilibili.com	TRUE	/	FALSE	1893456000	DedeUserID	your_user_id
+.bilibili.com	TRUE	/	FALSE	1893456000	buvid3	device_fingerprint
+.bilibili.com	TRUE	/	FALSE	1893456000	sid	session_id
+```
+
+#### ⚠️ Security Tips
+
+- 🔒 `bilibili_cookies.txt` contains login credentials
+- 🔄 Cookies typically **expire in 3-6 months**, need regular updates
+
 
 ---
 
-## 🛠️ Development Guide
-
-### uv Package Manager Commands
-
-```bash
-# Install dependencies
-uv sync
-
-# Add new dependency
-uv add package-name
-
-# Add development dependency
-uv add --dev package-name
-
-# Update dependencies
-uv lock --upgrade
-
-# Run script
-uv run python script.py
-```
-
-### Docker Commands
-
-```bash
-# Build image
-docker-compose build
-
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f vinote
-
-# Enter container
-docker-compose exec vinote bash
-
-# Stop services
-docker-compose down
-
-# Complete cleanup (including volumes)
-docker-compose down -v
-```
-
-### API Endpoints
-
-Complete API documentation: http://localhost:8000/docs
-
-Main endpoints:
-- `POST /api/process-video` - Process video to generate notes
-- `GET /api/task-status/{task_id}` - Query task status
-- `GET /api/task-stream/{task_id}` - SSE task progress stream
-- `POST /api/video-qa-stream` - Video Q&A streaming interface
-- `GET /api/preview-video` - Preview video information
-- `POST /api/start-download` - Start video download
-- `GET /api/download/{filename}` - Download generated files
-
----
 
 ## 📋 Version History
 
-### v1.1 (2025-01-27)
+### v1.2.0 (2025-11-03) 🎉 Major Update
+
+#### 🚀 New Features
+
+**1. ViNoter Super Search Module** ⭐⭐⭐⭐⭐
+- ✅ Super video agent based on ANP protocol
+- ✅ Conversational video search on websites (supports Bilibili, YouTube, etc.)
+- ✅ Conversational video transcription with direct download after completion
+- ✅ Intelligently understands user intent and automatically calls appropriate tools
+- ✅ Streaming conversation experience with real-time progress feedback
+
+**2. ANP Protocol Video Search Demo System** 🔐
+- ✅ **Client Agent**: Intelligent conversation client (`search_client_agent.py`)
+- ✅ **DID Server**: Decentralized identity authentication server (`client_did_server.py`)
+- ✅ **Server Agent**: Video search server (`search_server_agent.py`)
+- ✅ Complete DID identity authentication process
+- ✅ Secure communication mechanism between Agents
+
+**3. Transcription Progress Optimization** 📊
+- ✅ Backend adds detailed transcription progress tracking
+- ✅ Frame-by-frame progress output for developer debugging
+- ✅ Real-time progress percentage display
+- ✅ Real-time transcription status updates
+
+#### 🔧 Important Improvements
+
+**4. Bilibili Video 412 Error Fix** 🛠️
+- ✅ Added Cookie authentication support
+- ✅ Bilibili uses dedicated `bilibili_cookies.txt`
+- ✅ Built-in Developer Tools for easy Cookie format conversion
+
+**5. Dependency Management Improvements** 📦
+- ✅ Added ANP protocol related dependencies
+- ✅ Ensured environment reproducibility
+
+#### ⚠️ Important Notice
+
+> **Prerequisites for using ViNoter Agent**:
+> - Must locally start ANP's `search_server_agent.py` server
+> - Detailed configuration see `backend/anp/README.md`
+> - Need to generate DID key pairs
+
+
+---
+
+### v1.1.0 (2025-01-27)
 #### 🎉 New Features
 - ✅ **Local Video Support**: Support for local video file input via absolute path
   - Supported formats: MP4, AVI, MOV, MKV, MP3, WAV, etc.
@@ -392,7 +541,7 @@ Main endpoints:
 - Improved user interface experience
 - Enhanced documentation
 
-### v1.0 (2025-01-20)
+### v1.0.0 (2025-01-20)
 #### 🎉 Initial Release
 - ✅ Online video download and transcription
 - ✅ AI-driven note generation
@@ -408,6 +557,7 @@ Main endpoints:
 ### ✅ Completed Features
 
 #### Core Features
+- ✅ ViNoter Super Agent
 - ✅ Video audio download and transcription
 - ✅ AI-driven note generation
 - ✅ Intelligent text optimization
@@ -422,22 +572,89 @@ Main endpoints:
 - 🔲 Video content to article
 - 🔲 Multi-platform publishing (WeChat, Zhihu, Xiaohongshu, etc.)
 - 🔲 Custom publishing templates
-
+- 🔲 Image-text mixed layout editor
 
 #### Module 4️⃣: Real-Time Subtitle Download
 - 🔲 Extract video subtitles
 - 🔲 Multi-format support (SRT, VTT, ASS, etc.)
 
-
 #### Module 5️⃣: Knowledge Card Generation
 - 🔲 Automatically extract knowledge points
 - 🔲 Generate study cards
 
-
 #### Module 6️⃣: Mind Map Generation
 - 🔲 Automatically generate mind maps
 - 🔲 Multiple mind map styles
+- 🔲 Export as image/PDF
 
+---
+
+## 🔬 ANP Video Search Demo
+
+ViNote integrates an **ANP (Agent Network Protocol)** based video search demo system, demonstrating decentralized identity authentication and intelligent Agent communication capabilities.
+
+### What is ANP?
+
+ANP (Agent Network Protocol) is an Agent network protocol based on DID (Decentralized Identity), supporting:
+- 🔐 **Decentralized Identity Authentication**: Secure authentication based on DID standards
+- 🤖 **Intelligent Agent Communication**: Supports multi-Agent collaboration and tool invocation
+- 🌐 **Distributed Architecture**: No need for centralized servers
+
+### Quick Experience ANP Demo
+
+#### Step 1: Generate Keys
+
+```bash
+cd backend/anp
+python gen_did_keys.py
+```
+
+This will generate DID documents and keys for both server and client.
+
+#### Step 2: Start Services (in order)
+
+**Terminal 1 - Client DID Server:**
+```bash
+cd backend/anp
+python client_did_server.py
+```
+
+**Terminal 2 - Video Search Server:**
+```bash
+cd backend/anp
+python search_server_agent.py
+```
+
+**Terminal 3 - Intelligent Client:**
+```bash
+cd backend/anp
+python search_client_agent.py
+```
+
+#### Step 3: Use Demo
+
+Enter natural language queries in the client terminal:
+```
+You: Help me search for Python tutorials on Bilibili
+```
+
+The system will automatically:
+1. 🤔 Parse your intent
+2. 🔍 Call corresponding search interface
+3. 📊 Return summarized results
+
+### ANP Integration Configuration
+
+ViNote main application has integrated ANP video search functionality. You can configure ANP server address via environment variables:
+
+```bash
+# .env file
+ANP_SERVER_URL=http://localhost:8000/ad.json
+```
+
+For detailed ANP documentation and example code, see:
+- [`backend/anp/README.md`](backend/anp/README.md)
+- [`ANP Official Documentation`](https://github.com/agent-network-protocol/anp/blob/master/README.cn.md)
 
 ---
 
@@ -459,6 +676,7 @@ Contributions are welcome! Please follow these steps:
 
 ---
 
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
@@ -478,10 +696,6 @@ This project is built upon the following excellent open-source projects and serv
 ### Inspiration
 - **[AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)** - An open-source AI video transcription and summarization tool that provided important design inspiration for this project
 
-### Other Tools
-- **[uv](https://github.com/astral-sh/uv)** - Blazingly fast Python package manager
-- **[Docker](https://www.docker.com/)** - Containerized deployment platform
-- **[Pydantic](https://github.com/pydantic/pydantic)** - Data validation and configuration management
 
 Thanks to all open-source contributors! 💖
 
