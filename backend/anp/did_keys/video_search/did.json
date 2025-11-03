@@ -1,0 +1,32 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/jws-2020/v1",
+    "https://w3id.org/security/suites/secp256k1-2019/v1"
+  ],
+  "id": "did:wba:localhost:agent:video-search",
+  "verificationMethod": [
+    {
+      "id": "did:wba:localhost:agent:video-search#key-1",
+      "type": "EcdsaSecp256k1VerificationKey2019",
+      "controller": "did:wba:localhost:agent:video-search",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "secp256k1",
+        "x": "Lej3x9W2uvnv3wYMXCTmaCoG46xgBBo1vAigqjgbYKk",
+        "y": "kgK3-ldrD27S2ZHygfKoXmJWSt867VVeEKmCydX6n3I",
+        "kid": "-Jrfn0F7Zeg_lGFUzyYHa2XqSxbfUEq_pzSkZmr9cOE"
+      }
+    }
+  ],
+  "authentication": [
+    "did:wba:localhost:agent:video-search#key-1"
+  ],
+  "service": [
+    {
+      "id": "did:wba:localhost:agent:video-search#ad",
+      "type": "AgentDescription",
+      "serviceEndpoint": "http://localhost:8000/ad.json"
+    }
+  ]
+}

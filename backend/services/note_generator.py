@@ -100,11 +100,17 @@ class NoteGenerator:
             await asyncio.sleep(0.2)
             self._check_cancelled(cancel_check)
             
+            # 转录任务（注意：这会在线程池中运行，无法被asyncio.CancelledError中断）
+            # 但我们在转录完成后会立即检查取消状态
             raw_transcript = await self.audio_transcriber.transcribe_audio(
                 audio_path,
                 video_title=video_title,
-                video_url=video_url
+                video_url=video_url,
+                cancel_check=cancel_check
             )
+            
+            # 转录完成后立即检查是否已取消（关键检查点）
+            self._check_cancelled(cancel_check)
             detected_language = self.audio_transcriber.get_detected_language(raw_transcript)
             
             # 生成短ID和安全文件名

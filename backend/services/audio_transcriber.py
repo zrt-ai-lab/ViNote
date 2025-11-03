@@ -26,7 +26,8 @@ class AudioTranscriber:
         audio_path: str,
         language: Optional[str] = None,
         video_title: str = "",
-        video_url: str = ""
+        video_url: str = "",
+        cancel_check: Optional[callable] = None
     ) -> str:
         """
         转录音频文件
@@ -97,7 +98,7 @@ class AudioTranscriber:
         Returns:
             (segments, info) 转录片段和信息
         """
-        return model.transcribe(
+        segments_generator, info = model.transcribe(
             audio_path,
             language=language,
             beam_size=self.config.beam_size,
@@ -116,6 +117,34 @@ class AudioTranscriber:
             # 避免错误累积导致的连环重复
             condition_on_previous_text=self.config.condition_on_previous_text
         )
+        
+        # 收集所有segment并打印时间段信息
+        segments_list = []
+        segment_count = 0
+        
+        logger.info("=" * 60)
+        logger.info("🎬 开始逐段处理音频")
+        logger.info("=" * 60)
+        
+        for segment in segments_generator:
+            segment_count += 1
+            start_time = self._format_time(segment.start)
+            end_time = self._format_time(segment.end)
+            duration = segment.end - segment.start
+            text_preview = segment.text.strip()[:50] + "..." if len(segment.text.strip()) > 50 else segment.text.strip()
+            
+            # 打印每个segment的详细信息
+            logger.info(f"📝 片段 #{segment_count:03d} | {start_time} → {end_time} | 时长: {duration:.1f}s")
+            logger.info(f"   内容: {text_preview}")
+            logger.info("-" * 60)
+            
+            segments_list.append(segment)
+        
+        logger.info("=" * 60)
+        logger.info(f"✅ 处理完成！共 {segment_count} 个片段")
+        logger.info("=" * 60)
+        
+        return segments_list, info
     
     def _format_transcript(
         self,

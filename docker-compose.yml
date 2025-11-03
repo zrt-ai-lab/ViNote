@@ -5,18 +5,20 @@ services:
       dockerfile: Dockerfile
     container_name: vinote
     ports:
-      - "8000:8000"
+      - "8999:8999"
     volumes:
       # 挂载环境配置文件
       - ./.env:/app/.env:ro
+      # 挂载 cookies 文件（B站视频下载需要，需要可写权限）
+      - ./bilibili_cookies.txt:/app/bilibili_cookies.txt
       # 挂载临时文件目录（持久化生成的笔记）
       - ./temp:/app/temp
     environment:
       - APP_HOST=0.0.0.0
-      - APP_PORT=8000
+      - APP_PORT=8999
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8999/"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -7,13 +7,38 @@
 const workspacePages = {
     'notes': 'workspacePage',
     'qa': 'qaWorkspace',
+    'search-agent': 'searchAgentWorkspace',
+    'dev-tools': 'devToolsWorkspace',
     'publish': 'publishWorkspace',
     'subtitle': 'subtitleWorkspace',
     'flashcard': 'flashcardWorkspace',
     'mindmap': 'mindmapWorkspace'
 };
 
+// 格式化时长（支持秒数或已格式化字符串）
+function formatDuration(duration) {
+    // 如果已经是字符串格式（如 "176:26"），直接返回
+    if (typeof duration === 'string' && duration.includes(':')) {
+        return duration;
+    }
+    
+    // 如果是数字，转换为格式化字符串
+    const seconds = typeof duration === 'number' ? duration : parseFloat(duration);
+    if (!seconds || seconds === 0 || isNaN(seconds)) return '0:00';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    } else {
+        return `${minutes}:${String(secs).padStart(2, '0')}`;
+    }
+}
+
 // QA状态管理
+
 let qaState = {
     videoInfo: null,
     transcript: null,
@@ -38,6 +63,13 @@ function enterWorkspace(pageType = 'notes') {
     document.getElementById('landingPage').style.display = 'none';
     const logo = document.querySelector('.landing-logo');
     if (logo) logo.style.display = 'none';
+    
+    // 隐藏全局侧边栏（所有工作区页面都有自己的侧边栏）
+    const globalSidebar = document.getElementById('globalSidebar');
+    if (globalSidebar) {
+        globalSidebar.classList.add('collapsed');
+    }
+    
     Object.values(workspacePages).forEach(pageId => {
         if (pageId !== targetPageId) {
             const page = document.getElementById(pageId);
@@ -143,6 +175,13 @@ function backToLanding() {
     document.getElementById('landingPage').style.display = 'flex';
     const logo = document.querySelector('.landing-logo');
     if (logo) logo.style.display = 'block';
+    
+    // 显示全局侧边栏
+    const globalSidebar = document.getElementById('globalSidebar');
+    if (globalSidebar) {
+        globalSidebar.classList.remove('collapsed');
+    }
+    
     window.scrollTo(0, 0);
 }
 

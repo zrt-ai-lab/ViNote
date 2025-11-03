@@ -5,7 +5,9 @@
 
 **ViNote = Video + Note**
 
-视记AI · 让每个视频成为你的知识资产
+**视记AI · 让每个视频成为你的知识资产**
+
+ViNoter · 超级视记Agent
 
 **Video to Everything：笔记、问答、文章、字幕、卡片、导图，一应俱全**
 
@@ -24,6 +26,12 @@
 
 ## ✨ 核心特性
 
+### 🤖 ViNoter 超级智能体 🔥
+- **对话式操作**: 通过自然语言对话完成所有视频处理任务
+- **智能意图理解**: 自动识别用户需求，无需手动切换功能
+- **跨平台搜索**: 支持 B站、YouTube 等多平台视频检索
+- **流程自动化**: 搜索→转录→笔记→翻译，一气呵成
+- **基于 ANP 协议**: 全球领先开源的去中心化 Agent 协作标准
 
 
 ### 🎯 智能视频处理
@@ -66,15 +74,19 @@ git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 ```
 
-2. **配置环境变量**
+2. **配置环境变量和 Cookies**
 ```bash
 # 复制环境配置文件
 cp .env.example .env
-
 # 编辑 .env 文件，填入你的 OpenAI API Key
 # OPENAI_API_KEY=your-api-key-here
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # OPENAI_MODEL=gpt-4o
+
+# 复制 cookies 配置（可选，B站需要）
+cp cookies.txt.example bilibili_cookies.txt
+# 如果需要下载B站视频，请编辑 bilibili_cookies.txt
+# 详见下方"🍪 Cookies 配置"章节
 ```
 
 3. **启动服务**
@@ -89,15 +101,8 @@ docker-compose logs -f
 docker-compose down
 ```
 
-> 💡 **镜像加速提示**：
-> 
-> 本项目的 Dockerfile 已配置使用清华大学镜像源加速软件包下载：
-> - Debian 软件源：`mirrors.tuna.tsinghua.edu.cn`
-> 
-> 这将大大提升国内用户的构建速度。如果你想使用其他镜像源（如阿里云、中科大等），可以修改 Dockerfile 中的镜像地址。
-
 4. **访问应用**
-打开浏览器访问: http://localhost:8000
+打开浏览器访问: http://localhost:8999
 
 ---
 
@@ -146,23 +151,71 @@ uv pip install -e .
 uv sync
 ```
 
-5. **配置环境变量**
+5. **配置环境变量和 Cookies**
 ```bash
+# 复制环境配置文件
 cp .env.example .env
 # 编辑 .env 文件，填入你的配置
+
+# 复制 cookies 配置（可选，B站需要）
+cp cookies.txt.example bilibili_cookies.txt
+# 如果需要下载B站视频，请编辑 bilibili_cookies.txt
+# 详见下方"🍪 Cookies 配置"章节
 ```
 
 6. **启动服务**
 
-有两种方式启动服务：
+**🚀 一键启动（推荐）**
+
+使用一条命令启动所有服务：
+
+```bash
+# 设置脚本权限（首次运行）
+chmod +x start.sh
+
+# 启动所有服务
+./start.sh
+```
+
+这将自动完成：
+- ✅ 生成 DID 密钥（如果不存在）
+- ✅ 启动 DID 认证服务器（端口 9000）
+- ✅ 启动视频搜索服务端（端口 8000）
+- ✅ 启动 ViNote 主应用（端口 8999）
+
+**手动启动（高级）**
+
+如果你更喜欢手动分别启动服务：
+
+> 💡 **使用 ViNoter 超级智能体**: 需要启动 3 个服务，分别在不同终端运行：
+> 
+> **终端 1 - DID 认证服务器：**
+> ```bash
+> cd backend/anp
+> python client_did_server.py
+> ```
+> 
+> **终端 2 - 视频搜索服务端：**
+> ```bash
+> cd backend/anp
+> python search_server_agent.py
+> ```
+> 
+> **终端 3 - ViNote 主应用：**
+> ```bash
+> # 从项目根目录
+> uv run uvicorn backend.main:app --reload --port 8999
+> ```
+
+**基本使用（不使用 ViNoter 超级智能体），有两种方式启动服务：**
 
 **方式 1：使用 uv run（推荐，无需激活虚拟环境）**
 ```bash
 # 开发模式（自动重载）
-uv run uvicorn backend.main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload --port 8999
 
 # 生产模式
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8999 --workers 4
 ```
 
 **方式 2：激活虚拟环境后运行**
@@ -173,15 +226,98 @@ source .venv/bin/activate  # macOS/Linux
 .venv\Scripts\activate     # Windows
 
 # 然后启动服务
-uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8999
 ```
 
-7. **访问应用**
-打开浏览器访问: http://localhost:8000
+8. **访问应用**
+打开浏览器访问: http://localhost:8999
 
 ---
 
 ## 📖 使用指南
+
+### ViNoter 超级智能体 🔥
+
+**ViNoter** 是基于 ANP 协议的超级智能体，通过自然对话完成视频搜索、转录、笔记生成等所有操作。
+
+#### 前置准备
+
+使用 ViNoter 前，需要先启动 ANP 服务端：
+
+1. **生成 DID 密钥**（首次使用）
+```bash
+cd backend/anp
+python gen_did_keys.py
+```
+
+2. **启动 ANP 服务**（需要 3 个终端）
+
+**终端 1 - DID 认证服务器：**
+```bash
+cd backend/anp
+python client_did_server.py
+```
+
+**终端 2 - 视频搜索服务端：**
+```bash
+cd backend/anp
+python search_server_agent.py
+```
+
+**终端 3 - ViNote 主应用：**
+```bash
+# 返回项目根目录
+cd ../..
+uv run uvicorn backend.main:app --reload --port 8999
+```
+
+#### 使用方式
+
+1. 打开应用首页，选择 **"ViNoter 超级智搜"** 标签
+2. 在对话框中输入你的需求，例如：
+
+**场景 1：搜索视频**
+```
+你: "帮我在 B站搜索 Python 教程"
+ViNoter: "为您找到 10 个相关视频：
+1. 【黑马程序员】Python 零基础入门
+2. 【清华大学】Python 数据分析
+...
+请问您想选择哪一个？"
+```
+
+**场景 2：视频转录**
+```
+你: "选第一个，帮我转录"
+ViNoter: "好的，正在为您处理：
+✓ 下载视频
+✓ 提取音频
+✓ 转录中... (进度 45%)
+✓ 转录完成！
+已为您保存转录文本，是否需要生成笔记？"
+```
+
+**场景 3：多平台搜索**
+```
+你: "帮我在 YouTube 和 B站上同时搜索机器学习教程"
+ViNoter: "正在跨平台搜索...
+YouTube 结果：5 个视频
+B站结果：8 个视频
+为您展示最相关的 10 个..."
+```
+
+#### ViNoter 的优势
+
+- 🗣️ **自然对话**：像和朋友聊天一样，说出你的需求
+- 🤖 **智能理解**：自动理解意图，无需手动切换功能
+- 🔄 **流程串联**：搜索→转录→笔记→翻译，一气呵成
+- 📊 **实时反馈**：流式输出，进度实时可见
+- 🌐 **跨平台**：同时支持 B站、YouTube 等多平台
+
+> 💡 **提示**：ViNoter 基于 ANP（Agent Network Protocol）协议，这是开源的去中心化 Agent 协作标准。详细了解请查看 [`backend/anp/README.md`](backend/anp/README.md)
+
+
+
 
 ### 视频转笔记
 
@@ -245,6 +381,15 @@ uvicorn backend.main:app --reload --port 8000
 ```
 vinote/
 ├── backend/              # 后端代码
+│   ├── anp/             # ANP智能体协议模块演示模块 🆕
+│   │   ├── search_client_agent.py   # 客户端智能体
+│   │   ├── search_server_agent.py   # 服务端智能体(使用ViNoter需要提前启动)
+│   │   ├── client_did_server.py     # DID身份认证服务器
+│   │   ├── gen_did_keys.py          # DID密钥生成工具
+│   │   ├── README.md                # ANP模块文档
+│   │   ├── client_did_keys/         # 客户端DID密钥
+│   │   ├── did_keys/                # 服务端DID密钥
+│   │   └── jwt_keys/                # JWT密钥
 │   ├── config/          # 配置管理
 │   │   ├── ai_config.py      # AI模型配置
 │   │   └── settings.py       # 应用设置
@@ -261,20 +406,32 @@ vinote/
 │   │   ├── video_downloader.py      # 视频下载
 │   │   ├── video_preview_service.py # 视频预览
 │   │   ├── video_download_service.py # 下载服务
-│   │   └── video_qa_service.py      # 视频问答
+│   │   ├── video_qa_service.py      # 视频问答
+│   │   └── video_search_agent.py    # 视频搜索智能体服务 🆕
 │   ├── utils/           # 工具函数
 │   │   ├── file_handler.py   # 文件处理
 │   │   └── text_processor.py # 文本处理
 │   └── main.py          # FastAPI应用入口
 ├── static/              # 前端静态文件
 │   ├── index.html       # 主页面
-│   ├── app.js          # 前端逻辑
+│   ├── css/            # 样式文件
+│   │   └── search-agent.css  # 智能搜索样式 🆕
+│   ├── js/             # JavaScript文件
+│   │   ├── app.js           # 前端主逻辑
+│   │   ├── modules/
+│   │   │   ├── searchAgent.js    # 智能搜索模块 🆕
+│   │   │   ├── transcription.js  # 转录模块
+│   │   │   ├── videoPreview.js   # 视频预览
+│   │   │   └── ...               # 其他模块
+│   │   └── utils/
 │   └── *.png/jpg       # 图片资源
 ├── temp/               # 临时文件目录
 │   ├── downloads/      # 下载文件
 │   └── backups/        # 任务备份
+├── cookies.txt.example # Cookies配置示例 🆕
 ├── .env.example        # 环境变量示例
 ├── pyproject.toml      # 项目配置（uv）
+├── uv.lock            # 依赖版本锁定 🆕
 ├── Dockerfile          # Docker镜像配置
 ├── docker-compose.yml  # Docker编排配置
 └── README.md          # 项目文档
@@ -305,77 +462,125 @@ vinote/
 | `large-v1` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 (旧版) |
 | `large-v2` | 1550M | ~4.5GB (4525MB) | ~2.9GB (2926MB int8) | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 |
 | `large-v3` / `large` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 (推荐) |
-| `turbo` / `large-v3-turbo` | ~809M | ~3GB | ~2GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | 高质量快速版 |
-| `distil-small.en` | ~166M | ~1.5GB | ~1GB | ⚡⚡⚡⚡ | ⭐⭐⭐ | 英文快速转录 |
-| `distil-medium.en` | ~394M | ~2.5GB | ~1.8GB | ⚡⚡⚡ | ⭐⭐⭐⭐ | 英文中等质量 |
-| `distil-large-v2` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | 蒸馏版高质量 |
-| `distil-large-v3` | ~756M | ~3.5GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | 蒸馏版最新 | 
+
+### 🍪 Cookies 配置（B站专用）
+
+B站有反爬虫机制，需要登录凭证才能访问。如果遇到下载失败（如 HTTP 412 错误），需要配置 cookies 文件。
+
+#### 为什么需要 Cookies？
+- ✅ 绕过B站平台的反爬虫验证
+- ✅ 支持下载需要登录才能观看的视频
+- ✅ 提升下载成功率和稳定性
+
+> 💡 **重要说明**：
+> - **YouTube 视频无需 cookies**：系统会自动以公开方式访问
+> - **B站视频需要 cookies**：按以下步骤配置
+
+#### 配置步骤
+
+**方法1：使用 yt-dlp 命令（推荐 ⭐⭐⭐⭐⭐）**
+
+```bash
+# 1. 确保已安装 yt-dlp
+pip install yt-dlp
+
+# 2. 导出 B站 Cookies
+yt-dlp --cookies-from-browser chrome --cookies bilibili_cookies.txt https://www.bilibili.com
+
+# 注意：
+# - chrome 可替换为 firefox, edge, safari, brave 等
+# - macOS 系统会要求输入系统密码（Mac 登录密码）来访问钥匙串
+```
+
+**方法2：手动复制示例文件**
+
+```bash
+# 1. 复制示例文件
+cp cookies.txt.example bilibili_cookies.txt
+
+# 2. 编辑 bilibili_cookies.txt，填入真实的 cookie 值（转为 Netscape 格式）
+# 参考文件中的注释说明
+```
+
+**方法3：使用浏览器插件**
+
+1. 安装浏览器插件（如 EditThisCookie 或 Cookie-Editor）
+2. 登录 bilibili.com
+3. 导出 cookies 为 Netscape 格式
+4. 保存为 `bilibili_cookies.txt`
+
+#### 文件格式示例
+
+`bilibili_cookies.txt` 文件格式（Netscape HTTP Cookie File）：
+
+```
+# Netscape HTTP Cookie File
+# B站 Cookies
+
+.bilibili.com	TRUE	/	FALSE	1893456000	SESSDATA	你的SESSDATA值（必需）
+.bilibili.com	TRUE	/	FALSE	1893456000	bili_jct	你的bili_jct值
+.bilibili.com	TRUE	/	FALSE	1893456000	DedeUserID	你的用户ID
+.bilibili.com	TRUE	/	FALSE	1893456000	buvid3	设备指纹
+.bilibili.com	TRUE	/	FALSE	1893456000	sid	会话ID
+```
+
+#### ⚠️ 安全提示
+
+- 🔒 `bilibili_cookies.txt` 包含登录凭证。
+- 🔄 Cookies 通常 **3-6 个月过期**，需要定期更新
+
 
 ---
 
-## 🛠️ 开发指南
-
-### uv 包管理器命令
-
-```bash
-# 安装依赖
-uv sync
-
-# 添加新依赖
-uv add package-name
-
-# 添加开发依赖
-uv add --dev package-name
-
-# 更新依赖
-uv lock --upgrade
-
-# 运行脚本
-uv run python script.py
-```
-
-### Docker 命令
-
-```bash
-# 构建镜像
-docker-compose build
-
-# 启动服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f vinote
-
-# 进入容器
-docker-compose exec vinote bash
-
-# 停止服务
-docker-compose down
-
-# 完全清理（包括卷）
-docker-compose down -v
-```
-
-### API 端点
-
-完整 API 文档: http://localhost:8000/docs
-
-主要端点:
-- `POST /api/process-video` - 处理视频生成笔记
-- `GET /api/task-status/{task_id}` - 查询任务状态
-- `GET /api/task-stream/{task_id}` - SSE任务进度流
-- `POST /api/video-qa-stream` - 视频问答流式接口
-- `GET /api/preview-video` - 预览视频信息
-- `POST /api/start-download` - 开始下载视频
-- `GET /api/download/{filename}` - 下载生成的文件
-
-
-
----
 
 ## 📋 版本更新
 
-### v1.1 (2025-01-27)
+### v1.2.0 (2025-11-03) 🎉 重大更新
+
+#### 🚀 新功能
+
+**1. ViNoter 超级智搜模块** ⭐⭐⭐⭐⭐
+- ✅ 基于 ANP 智能体协议实现的超级视记 Agent
+- ✅ 对话式检索网站视频（支持 B站、YouTube 等）
+- ✅ 对话式视频转录，转录完成可直接下载
+- ✅ 智能理解用户意图，自动调用相应工具
+- ✅ 流式对话体验，实时反馈处理进度
+
+**2. ANP 协议视频检索 Demo 闭环系统** 🔐
+- ✅ **客户端 Agent**：智能对话客户端（`search_client_agent.py`）
+- ✅ **DID Server**：去中心化身份认证服务器（`client_did_server.py`）
+- ✅ **服务端 Agent**：视频搜索服务端（`search_server_agent.py`）
+- ✅ 完整的 DID 身份认证流程
+- ✅ Agent 间安全通信机制
+
+**3. 转录进度优化** 📊
+- ✅ 后端增加详细转录进度跟踪
+- ✅ 卡帧式进度输出，便于开发者调试
+- ✅ 实时进度百分比显示
+- ✅ 转录状态实时更新
+
+#### 🔧 重要改进
+
+**4. B站视频 412 错误修复** 🛠️
+- ✅ 增加 Cookie 认证支持
+- ✅ B站使用专用 `bilibili_cookies.txt`
+- ✅ 内置开发者工具，方便进行 Cookie 格式转换
+
+**5. 依赖管理完善** 📦
+- ✅ 新增 ANP 协议相关依赖
+- ✅ 确保环境可重现性
+
+#### ⚠️ 重要提示
+
+> **使用 ViNoter Agent 前提**：
+> - 必须本地启动 ANP 的 `search_server_agent.py` 服务端
+> - 详细配置请参考 `backend/anp/README.md`
+> - 需要生成 DID 密钥对
+
+
+---
+
+### v1.1.0 (2025-01-27)
 #### 🎉 新功能
 - ✅ **本地视频支持**：支持通过绝对路径输入本地视频文件
   - 支持格式：MP4, AVI, MOV, MKV, MP3, WAV等
@@ -389,7 +594,7 @@ docker-compose down -v
 - 改进了用户界面体验
 - 完善了文档说明
 
-### v1.0 (2025-01-20)
+### v1.0.0 (2025-01-20)
 #### 🎉 初始版本
 - ✅ 在线视频下载和转录
 - ✅ AI驱动的笔记生成
@@ -405,6 +610,7 @@ docker-compose down -v
 ### ✅ 已完成功能
 
 #### 核心功能
+- ✅ 超级视记Agent-ViNoter
 - ✅ 视频音频下载和转录
 - ✅ AI驱动的笔记生成
 - ✅ 文本智能优化
@@ -434,6 +640,74 @@ docker-compose down -v
 - 🔲 多种导图样式
 - 🔲 导出为图片/PDF
 
+---
+
+## 🔬 ANP视频搜索Demo
+
+ViNote集成了基于**ANP（Agent Network Protocol）**的视频搜索Demo系统，展示了去中心化身份认证和智能Agent通信的能力。
+
+### 什么是ANP？
+
+ANP（Agent Network Protocol）是一个基于DID（去中心化身份）的Agent网络协议，支持：
+- 🔐 **去中心化身份认证**：基于DID标准的安全认证
+- 🤖 **智能Agent通信**：支持多Agent协作和工具调用
+- 🌐 **分布式架构**：无需中心化服务器
+
+### 快速体验ANP Demo
+
+#### 第一步：生成密钥
+
+```bash
+cd backend/anp
+python gen_did_keys.py
+```
+
+这将生成服务端和客户端的DID文档及密钥。
+
+#### 第二步：启动服务（按顺序）
+
+**终端 1 - 客户端DID服务器:**
+```bash
+cd backend/anp
+python client_did_server.py
+```
+
+**终端 2 - 视频搜索服务端:**
+```bash
+cd backend/anp
+python search_server_agent.py
+```
+
+**终端 3 - 智能客户端:**
+```bash
+cd backend/anp
+python search_client_agent.py
+```
+
+#### 第三步：使用Demo
+
+在客户端终端输入自然语言查询：
+```
+您: 帮我在b站上搜索Python教程
+```
+
+系统会自动：
+1. 🤔 解析您的意图
+2. 🔍 调用对应的搜索接口
+3. 📊 返回总结结果
+
+### ANP集成配置
+
+ViNote主应用已集成ANP视频搜索功能，您可以通过环境变量配置ANP服务器地址：
+
+```bash
+# .env 文件
+ANP_SERVER_URL=http://localhost:8999/ad.json
+```
+
+详细的ANP文档和示例代码请查看 
+- [`backend/anp/README.md`](backend/anp/README.md)。
+- [`ANP 官方文档`](https://github.com/agent-network-protocol/anp/blob/master/README.cn.md)
 ---
 
 ## 🤝 贡献指南

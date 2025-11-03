@@ -23,7 +23,12 @@ class VideoDownloader:
 
     def __init__(self):
         """初始化yt-dlp配置"""
-        self.ydl_opts = {
+        # 获取cookies文件路径（项目根目录）
+        self.project_root = Path(__file__).parent.parent.parent
+        self.bilibili_cookies = self.project_root / "bilibili_cookies.txt"
+        
+        # 基础配置（不含 cookies）- 移除可能导致YouTube问题的http_headers
+        self.base_ydl_opts = {
             'format': 'bestaudio/best',  # 优先下载最佳音频源
             'outtmpl': '%(title)s.%(ext)s',
             'retries': 10,  # 增加重试次数
@@ -41,6 +46,16 @@ class VideoDownloader:
             'no_warnings': True,
             'noplaylist': True,  # 强制只下载单个视频，不下载播放列表
         }
+    
+    def _get_cookies_for_url(self, url: str) -> str:
+        """根据 URL 获取对应的 cookies 文件路径"""
+        # 仅B站使用 cookies，YouTube 不使用（避免认证问题）
+        if 'bilibili.com' in url or 'b23.tv' in url:
+            if self.bilibili_cookies.exists():
+                logger.info(f"使用 B站 cookies: {self.bilibili_cookies}")
+                return str(self.bilibili_cookies)
+        
+        return None
 
     async def download_video_audio(
         self,
@@ -72,8 +87,13 @@ class VideoDownloader:
             output_template = str(output_dir / f"audio_{unique_id}.%(ext)s")
 
             # 更新yt-dlp选项
-            ydl_opts = self.ydl_opts.copy()
+            ydl_opts = self.base_ydl_opts.copy()
             ydl_opts['outtmpl'] = output_template
+            
+            # 根据 URL 选择对应的 cookies
+            cookies_file = self._get_cookies_for_url(url)
+            if cookies_file:
+                ydl_opts['cookiefile'] = cookies_file
 
             logger.info(f"📥 开始提取音频: {url[:60]}...")
 

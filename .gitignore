@@ -205,6 +205,26 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-.idea/
-.idea/
-.gitignore
+
+# ViNote specific
+# Cookies files (contains authentication credentials)
+cookies.txt
+bilibili_cookies.txt
+cookies.txt.backup
+
+# Temporary files
+temp/
+*.tmp
+*.temp
+
+# Downloaded videos and audio files
+*.mp4
+*.mp3
+*.m4a
+*.wav
+*.webm
+
+# Generated transcripts and summaries
+transcripts/
+summaries/
+notes/
