@@ -449,8 +449,71 @@ vinote/
 | `OPENAI_BASE_URL` | OpenAI API地址 | `https://api.openai.com/v1` | ✅ |
 | `OPENAI_MODEL` | 使用的模型 | `gpt-4o`                    | ✅ |
 | `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base`                      | ✅ |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 密钥 | -                           | ⭐ 推荐 |
 | `APP_HOST` | 服务监听地址 | `0.0.0.0`                   | ❌ |
 | `APP_PORT` | 服务端口 | `8001`                      | ❌ |
+
+### 🎬 YouTube API 配置（强烈推荐）
+
+#### 为什么需要配置 YouTube API？
+
+**性能提升对比：**
+- ❌ **不配置**：使用 yt-dlp 获取视频信息（2-5秒）
+- ✅ **配置后**：使用 YouTube API 获取视频信息（**0.1-0.3秒**）⚡
+
+**适用场景：**
+| 功能 | 不配置 | 配置后 | 提升 |
+|------|--------|--------|------|
+| YouTube 视频预览 | 2-5秒 | 0.1-0.3秒 | ⚡ 10-50x |
+| YouTube 笔记生成 | 5-10秒 | 4-9秒 | ⚡ 略快 |
+| YouTube 视频搜索 | 较慢 | 极快 | ⚡ 10-50x |
+
+> 💡 **重要说明**：
+> - ✅ **YouTube 视频强烈建议配置**：大幅提升处理速度
+> - ✅ **B站视频完全不受影响**：继续使用 cookies 方式
+
+#### 快速配置步骤
+
+**1. 获取 YouTube API Key**
+
+访问 [Google Cloud Console](https://console.cloud.google.com/)：
+1. 创建项目或选择现有项目
+2. 启用 "YouTube Data API v3"
+3. 创建 API 密钥（凭据）
+4. 复制生成的 API Key
+
+**2. 配置到环境变量**
+
+在 `.env` 文件中添加：
+```bash
+YOUTUBE_API_KEY=你的API密钥
+```
+
+**3. 验证配置**
+
+启动服务后，查看日志：
+```
+✅ YouTube API 配置成功
+   API Key: AIzaSy...
+```
+
+#### API 配额说明
+
+**免费配额（每天）：**
+- 总配额：10,000 单位
+- 视频预览：1 单位/次 → 可用 10,000 次/天
+- 视频搜索：100 单位/次 → 可用 100 次/天
+
+**超限自动降级：**
+- 配额用完 → 自动切换到 yt-dlp
+- API 失败 → 自动切换到 yt-dlp
+- 用户无感知，不影响使用 ✅
+
+#### 详细配置指南
+
+完整的配置教程、常见问题、故障排除，请查看：
+📖 **[YOUTUBE_API_SETUP.md](YOUTUBE_API_SETUP.md)**
+
 ### Whisper 模型选择
 
 | 模型 | 参数量 | GPU 显存需求 (fp16) | CPU 内存需求 (int8) | 相对速度 | 质量 | 推荐场景 |

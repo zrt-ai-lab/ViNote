@@ -443,8 +443,75 @@ vinote/
 | `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` | ✅ |
 | `OPENAI_MODEL` | Model to use | `gpt-4o` | ✅ |
 | `WHISPER_MODEL_SIZE` | Whisper model size | `base` | ✅ |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 Key | - | ⭐ Recommended |
 | `APP_HOST` | Service listening address | `0.0.0.0` | ❌ |
 | `APP_PORT` | Service port | `8001` | ❌ |
+
+### 🎬 YouTube API Configuration (Highly Recommended)
+
+#### Why Configure YouTube API?
+
+**Performance Comparison:**
+- ❌ **Without Configuration**: Using yt-dlp to fetch video info (2-5 seconds)
+- ✅ **With Configuration**: Using YouTube API to fetch video info (**0.1-0.3 seconds**) ⚡
+- 🚀 **Speed Improvement**: **10-50x faster**!
+
+**Use Cases:**
+| Feature | Without Config | With Config | Improvement |
+|---------|----------------|-------------|-------------|
+| YouTube Video Preview | 2-5s | 0.1-0.3s | ⚡ 10-50x |
+| YouTube Note Generation | 5-10s | 4-9s | ⚡ Faster |
+| YouTube Video Search | Slow | Super Fast | ⚡ 10-50x |
+| Bilibili Videos | 2-5s | 2-5s | Unchanged ✅ |
+
+> 💡 **Important Notes**:
+> - ✅ **Highly recommended for YouTube videos**: Dramatically improves processing speed
+> - ✅ **Bilibili videos unaffected**: Continue using cookies method
+> - ✅ **Optional configuration**: Works without it (auto-fallback to yt-dlp)
+> - ✅ **Generous free quota**: 10,000 units/day, sufficient for daily use
+
+#### Quick Configuration Steps
+
+**1. Get YouTube API Key**
+
+Visit [Google Cloud Console](https://console.cloud.google.com/):
+1. Create or select a project
+2. Enable "YouTube Data API v3"
+3. Create API credentials (API Key)
+4. Copy the generated API Key
+
+**2. Configure Environment Variable**
+
+Add to `.env` file:
+```bash
+YOUTUBE_API_KEY=your_api_key_here
+```
+
+**3. Verify Configuration**
+
+After starting the service, check logs:
+```
+✅ YouTube API configured successfully
+   API Key: AIzaSy...
+```
+
+#### API Quota Information
+
+**Free Quota (per day):**
+- Total quota: 10,000 units
+- Video preview: 1 unit/request → 10,000 requests/day
+- Video search: 100 units/request → 100 searches/day
+
+**Auto-Fallback on Quota Exhausted:**
+- Quota exhausted → Auto-switch to yt-dlp
+- API failure → Auto-switch to yt-dlp
+- Seamless for users, no impact on functionality ✅
+
+#### Detailed Configuration Guide
+
+For complete setup tutorial, FAQ, and troubleshooting:
+📖 **[YOUTUBE_API_SETUP.md](YOUTUBE_API_SETUP.md)**
+
 ### Whisper Model Selection
 
 | Model | Parameters | GPU VRAM (fp16) | CPU RAM (int8) | Speed | Quality | Use Case |

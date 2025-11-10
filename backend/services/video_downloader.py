@@ -27,6 +27,11 @@ class VideoDownloader:
         self.project_root = Path(__file__).parent.parent.parent
         self.bilibili_cookies = self.project_root / "bilibili_cookies.txt"
         
+        # 初始化 YouTube API Helper
+        from backend.utils.youtube_api_helper import YouTubeAPIHelper
+        youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+        self.youtube_helper = YouTubeAPIHelper(api_key=youtube_api_key)
+        
         # 基础配置（不含 cookies）- 移除可能导致YouTube问题的http_headers
         self.base_ydl_opts = {
             'format': 'bestaudio/best',  # 优先下载最佳音频源
@@ -64,6 +69,8 @@ class VideoDownloader:
     ) -> Tuple[str, str]:
         """
         下载视频并转换为音频格式
+        YouTube视频: 优先使用API快速获取元数据 → yt-dlp下载音频
+        其他平台: 直接使用yt-dlp
 
         Args:
             url: 视频URL
@@ -97,15 +104,27 @@ class VideoDownloader:
 
             logger.info(f"📥 开始提取音频: {url[:60]}...")
 
+            # YouTube视频: 尝试用API快速获取标题(可选优化)
+            video_title = None
+            expected_duration = 0
+            
+            if self.youtube_helper.is_youtube_url(url):
+                api_info = await self.youtube_helper.get_video_info_from_url(url)
+                if api_info:
+                    video_title = api_info.get('title', 'unknown')
+                    expected_duration = api_info.get('duration', 0)
+                    logger.info(f"🎬 视频标题 (API): {video_title}")
+
             # 在线程池中执行yt-dlp操作（避免阻塞事件循环）
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # 获取视频信息
-                info = await asyncio.to_thread(ydl.extract_info, url, False)
-                video_title = info.get('title', 'unknown')
-                expected_duration = info.get('duration') or 0
-                logger.info(f"🎬 视频标题: {video_title}")
+                # 如果API未获取到标题,使用yt-dlp获取
+                if not video_title:
+                    info = await asyncio.to_thread(ydl.extract_info, url, False)
+                    video_title = info.get('title', 'unknown')
+                    expected_duration = info.get('duration') or 0
+                    logger.info(f"🎬 视频标题 (yt-dlp): {video_title}")
 
-                # 下载视频
+                # 下载音频
                 await asyncio.to_thread(ydl.download, [url])
 
             # 查找生成的m4a文件
