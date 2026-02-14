@@ -68,7 +68,7 @@ class OpenAIClientSingleton:
                     timeout=config.timeout,
                     max_retries=config.max_retries
                 )
-                logger.info(f"OpenAI客户端初始化成功 (base_url: {config.base_url})")
+                logger.debug("OpenAI客户端初始化成功")
             except Exception as e:
                 logger.error(f"OpenAI客户端初始化失败: {e}")
                 return None
@@ -92,7 +92,7 @@ class OpenAIClientSingleton:
                     timeout=config.timeout,
                     max_retries=config.max_retries
                 )
-                logger.info(f"OpenAI异步客户端初始化成功 (base_url: {config.base_url})")
+                logger.debug("OpenAI异步客户端初始化成功")
             except Exception as e:
                 logger.error(f"OpenAI异步客户端初始化失败: {e}")
                 return None

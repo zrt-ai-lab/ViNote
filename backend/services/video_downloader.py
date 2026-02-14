@@ -10,7 +10,7 @@ import subprocess
 import shlex
 import uuid
 from pathlib import Path
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Optional
 
 from backend.config.settings import get_settings
 
@@ -187,32 +187,3 @@ class VideoDownloader:
                 logger.error(f"重封装失败：{e}")
 
         return audio_file
-
-    def get_video_info(self, url: str) -> Dict[str, any]:
-        """
-        获取视频信息（同步方法，用于预览）
-
-        Args:
-            url: 视频URL
-
-        Returns:
-            视频信息字典
-
-        Raises:
-            Exception: 获取信息失败
-        """
-        try:
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
-                return {
-                    'title': info.get('title', ''),
-                    'duration': info.get('duration', 0),
-                    'uploader': info.get('uploader', ''),
-                    'upload_date': info.get('upload_date', ''),
-                    'description': info.get('description', ''),
-                    'view_count': info.get('view_count', 0),
-                    'thumbnail': info.get('thumbnail', ''),
-                }
-        except Exception as e:
-            logger.error(f"获取视频信息失败: {str(e)}")
-            raise Exception(f"获取视频信息失败: {str(e)}")

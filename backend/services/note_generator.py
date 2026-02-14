@@ -48,8 +48,10 @@ class NoteGenerator:
         video_url: str,
         temp_dir: Path,
         summary_language: str = "zh",
-        progress_callback: Optional[Callable[[int, str], None]] = None,
-        cancel_check: Optional[Callable[[], bool]] = None
+        progress_callback=None,
+        cancel_check: Optional[Callable[[], bool]] = None,
+        audio_path_override: Optional[str] = None,
+        video_title_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         生成完整的视频笔记
@@ -79,16 +81,21 @@ class NoteGenerator:
             }
         """
         try:
-            # 步骤1: 下载视频音频
-            await self._update_progress(progress_callback, 10, "🎬 正在获取并分析视频资源...")
-            await asyncio.sleep(0.1)
-            self._check_cancelled(cancel_check)
-            
-            audio_path, video_title = await self.video_downloader.download_video_audio(
-                video_url, temp_dir
-            )
-            
-            await self._update_progress(progress_callback, 35, "✅ 解析视频成功，开始处理...")
+            # 步骤1: 获取音频
+            if audio_path_override:
+                audio_path = audio_path_override
+                video_title = video_title_override or Path(audio_path_override).stem
+                await self._update_progress(progress_callback, 35, "✅ 音频已就绪，开始处理...")
+            else:
+                await self._update_progress(progress_callback, 10, "🎬 正在获取并分析视频资源...")
+                await asyncio.sleep(0.1)
+                self._check_cancelled(cancel_check)
+
+                audio_path, video_title = await self.video_downloader.download_video_audio(
+                    video_url, temp_dir
+                )
+                await self._update_progress(progress_callback, 35, "✅ 解析视频成功，开始处理...")
+
             self._check_cancelled(cancel_check)
             
             # 步骤2: 转录音频
@@ -156,6 +163,7 @@ class NoteGenerator:
             # 步骤4: 检查是否需要翻译
             translation_content = None
             translation_path = None
+            translation_with_meta = None
             
             if detected_language and self.text_translator.should_translate(
                 detected_language, summary_language
@@ -204,7 +212,21 @@ class NoteGenerator:
                 optimized_transcript, summary_language, video_title
             )
             
-            # 为摘要添加格式化的元信息
+            # 步骤6: 生成思维导图
+            await self._update_progress(progress_callback, 90, "🧠 正在绘制思维导图...")
+            self._check_cancelled(cancel_check)
+            
+            mindmap = await self.content_summarizer.generate_mindmap(
+                summary, summary_language
+            )
+            
+            mindmap_filename = None
+            mindmap_path = None
+            if mindmap:
+                mindmap_filename = f"mindmap_{safe_title}_{short_id}.md"
+                mindmap_path = temp_dir / mindmap_filename
+                await self._save_file(mindmap_path, mindmap)
+            
             summary_with_meta = f"""# {video_title}
 
 > 🔗 **视频来源：** [点击观看]({video_url})
@@ -219,20 +241,19 @@ class NoteGenerator:
 *由 ViNote AI 自动生成*
 """
             
-            # 保存摘要
             summary_filename = f"summary_{safe_title}_{short_id}.md"
             summary_path = temp_dir / summary_filename
             await self._save_file(summary_path, summary_with_meta)
             
-            # 步骤6: 完成
+            # 步骤7: 完成
             await self._update_progress(progress_callback, 100, "✨ 所有处理已完成！")
             
-            # 构建返回结果
             result = {
                 "video_title": video_title,
                 "raw_transcript": raw_transcript,
                 "optimized_transcript": transcript_with_meta,
                 "summary": summary_with_meta,
+                "mindmap": mindmap or "",
                 "detected_language": detected_language,
                 "summary_language": summary_language,
                 "short_id": short_id,
@@ -244,11 +265,12 @@ class NoteGenerator:
                     "transcript_filename": transcript_filename,
                     "summary_path": summary_path,
                     "summary_filename": summary_filename,
+                    "mindmap_path": mindmap_path,
+                    "mindmap_filename": mindmap_filename,
                 }
             }
             
-            # 添加翻译信息（如果有）
-            if translation_content and translation_path:
+            if translation_content and translation_path and translation_with_meta:
                 result["translation"] = translation_with_meta
                 result["files"]["translation_path"] = translation_path
                 result["files"]["translation_filename"] = translation_path.name
