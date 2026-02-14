@@ -13,11 +13,7 @@ ViNoter · 超级视记Agent
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-中文
-
 </div>
 
 ---
@@ -512,12 +508,8 @@ cp cookies.txt.example bilibili_cookies.txt
 - ✅ **知识卡片**: 从笔记一键生成知识卡片，支持多种卡片风格
 - ✅ **思维导图**: 基于 Markmap 的交互式思维导图，从笔记自动生成
 - ✅ **历史记录**: 笔记任务历史查看与管理
-- ✅ **一键启动脚本**: `start.sh` / `start.bat` 自动安装依赖、构建前端、检测端口
+- ✅ **优化一键启动脚本**: `start.sh` / `start.bat` 自动安装依赖、构建前端、检测端口
 
-#### 🔧 改进
-- 清理全部废弃代码（12 个无用文件/模块）
-- 新增 `.gitignore` 规则（IDE、构建产物、敏感文件）
-- `.env.example` 新增 `VIDEO_SEARCH_PROVIDERS` 配置项
 
 ### v1.2.0 (2025-11-03) 🎉 重大更新
 
