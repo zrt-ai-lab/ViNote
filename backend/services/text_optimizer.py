@@ -13,6 +13,9 @@ from backend.utils.text_processor import detect_language, smart_chunk_text, form
 
 logger = logging.getLogger(__name__)
 
+# 并发限制：防止 OpenAI API 限流
+MAX_CONCURRENT_CHUNKS = 5
+
 
 class TextOptimizer:
     """文本优化服务"""
@@ -156,32 +159,28 @@ class TextOptimizer:
         transcript_language: str,
         max_chars_per_chunk: int
     ) -> str:
-        """智能分块+上下文+去重合成优化文本"""
-        # 使用统一的分块函数
+        """智能分块+上下文+并行优化+去重合成"""
         chunks = smart_chunk_text(raw_transcript, max_chars_per_chunk, prefer_paragraphs=True)
-        logger.info(f"文本分为 {len(chunks)} 块处理")
-        
-        optimized = []
-        client = get_openai_client()
-        
-        for i, c in enumerate(chunks):
-            # 添加上下文
+        logger.info(f"文本分为 {len(chunks)} 块并行处理")
+
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNKS)
+
+        async def _process_chunk(i: int, c: str) -> str:
             chunk_with_context = c
             if i > 0:
                 prev_tail = chunks[i - 1][-100:]
                 marker = f"[上文续：{prev_tail}]" if transcript_language == 'zh' else f"[Context: {prev_tail}]"
                 chunk_with_context = marker + "\n\n" + c
-            
-            try:
-                oc = await self._format_single_chunk(chunk_with_context, transcript_language)
-                # 移除上下文标记
-                oc = re.sub(r"^\[(上文续|Context)：?:?.*?\]\s*", "", oc, flags=re.S)
-                optimized.append(oc)
-            except Exception as e:
-                logger.warning(f"第 {i+1} 块优化失败: {e}")
-                optimized.append(self._basic_transcript_cleanup(c))
-        
-        # 邻接块去重
+            async with semaphore:
+                try:
+                    oc = await self._format_single_chunk(chunk_with_context, transcript_language)
+                    return re.sub(r"^\[(上文续|Context)：?:?.*?\]\s*", "", oc, flags=re.S)
+                except Exception as e:
+                    logger.warning(f"第 {i+1} 块优化失败: {e}")
+                    return self._basic_transcript_cleanup(c)
+
+        optimized = await asyncio.gather(*[_process_chunk(i, c) for i, c in enumerate(chunks)])
+
         deduped = []
         for i, c in enumerate(optimized):
             cur_txt = c
@@ -194,7 +193,7 @@ class TextOptimizer:
                         continue
             if cur_txt.strip():
                 deduped.append(cur_txt)
-        
+
         merged = "\n\n".join(deduped)
         merged = remove_transcript_headings(merged)
         enforced = enforce_paragraph_length(merged, max_chars=400)

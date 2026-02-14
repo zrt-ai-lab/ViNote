@@ -3,6 +3,7 @@
 使用OpenAI API进行高质量翻译
 """
 import logging
+import asyncio
 from typing import Optional
 
 from backend.core.ai_client import get_openai_client, is_openai_available
@@ -10,6 +11,8 @@ from backend.config.ai_config import get_openai_config, get_language_name
 from backend.utils.text_processor import detect_language, smart_chunk_text
 
 logger = logging.getLogger(__name__)
+
+MAX_CONCURRENT_CHUNKS = 5
 
 
 class TextTranslator:
@@ -122,30 +125,17 @@ class TextTranslator:
         target_lang_name: str,
         source_lang_name: str
     ) -> str:
-        """
-        分块翻译长文本
-        
-        Args:
-            text: 要翻译的文本
-            target_lang_name: 目标语言名称
-            source_lang_name: 源语言名称
-            
-        Returns:
-            翻译后的文本
-        """
-        # 使用统一的分块函数
         chunks = smart_chunk_text(text, max_chars_per_chunk=4000, prefer_paragraphs=True)
-        logger.info(f"分割为 {len(chunks)} 个块进行翻译")
-        
-        translated_chunks = []
+        total = len(chunks)
+        logger.info(f"分割为 {total} 个块并行翻译")
+
         client = get_openai_client()
-        
-        for i, chunk in enumerate(chunks):
-            logger.info(f"正在翻译第 {i+1}/{len(chunks)} 块...")
-            
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNKS)
+
+        async def _translate_chunk(i: int, chunk: str) -> str:
             system_prompt = f"""你是专业翻译专家。请将{source_lang_name}文本准确翻译为{target_lang_name}。
 
-这是完整文档的第{i+1}部分，共{len(chunks)}部分。
+这是完整文档的第{i+1}部分，共{total}部分。
 
 翻译要求：
 - 保持原文的格式和结构
@@ -160,26 +150,24 @@ class TextTranslator:
 
 只返回翻译结果。"""
 
-            try:
-                response = client.chat.completions.create(
-                    model=self.config.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=self.config.translation_max_tokens,
-                    temperature=self.config.translation_temperature
-                )
-                
-                translated_chunk = response.choices[0].message.content
-                translated_chunks.append(translated_chunk)
-                
-            except Exception as e:
-                logger.error(f"翻译第 {i+1} 块失败: {e}")
-                # 失败时保留原文
-                translated_chunks.append(chunk)
-        
-        # 合并翻译结果
+            async with semaphore:
+                try:
+                    response = await asyncio.to_thread(
+                        client.chat.completions.create,
+                        model=self.config.model,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        max_tokens=self.config.translation_max_tokens,
+                        temperature=self.config.translation_temperature
+                    )
+                    return response.choices[0].message.content
+                except Exception as e:
+                    logger.error(f"翻译第 {i+1} 块失败: {e}")
+                    return chunk
+
+        translated_chunks = await asyncio.gather(*[_translate_chunk(i, c) for i, c in enumerate(chunks)])
         return "\n\n".join(translated_chunks)
     
     def is_available(self) -> bool:

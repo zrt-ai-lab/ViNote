@@ -14,6 +14,8 @@ from backend.core.ai_client import get_openai_client
 
 logger = logging.getLogger(__name__)
 
+MAX_CONCURRENT_CHUNKS = 5
+
 
 class ContentSummarizer:
     """内容摘要服务"""
@@ -143,57 +145,53 @@ Requirements:
         video_title: Optional[str],
         max_tokens: int
     ) -> str:
-        """分块摘要长文本"""
+        """分块并行摘要长文本"""
         language_name = self.language_map.get(target_language, "中文（简体）")
-        
-        # 智能分块
+
         chunks = self._smart_chunk_text(transcript, max_chars_per_chunk=4000)
-        logger.info(f"分割为 {len(chunks)} 个块进行摘要")
-        
-        chunk_summaries = []
-        
-        # 每块生成局部摘要
-        for i, chunk in enumerate(chunks):
-            logger.info(f"正在摘要第 {i+1}/{len(chunks)} 块...")
-            
+        total = len(chunks)
+        logger.info(f"分割为 {total} 个块并行摘要")
+
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNKS)
+
+        async def _summarize_chunk(i: int, chunk: str) -> str:
             system_prompt = f"""You are a summarization expert. Please write a high-density summary for this text chunk in {language_name}.
 
-This is part {i+1} of {len(chunks)} of the complete content.
+This is part {i+1} of {total} of the complete content.
 
 Output preferences: Focus on natural paragraphs, use minimal bullet points if necessary; highlight new information and its relationship to the main narrative; avoid vague repetition and formatted headings; moderate length (suggested 120-220 words)."""
 
-            user_prompt = f"""[Part {i+1}/{len(chunks)}] Summarize the key points of the following text in {language_name} (natural paragraphs preferred, minimal bullet points, 120-220 words):
+            user_prompt = f"""[Part {i+1}/{total}] Summarize the key points of the following text in {language_name} (natural paragraphs preferred, minimal bullet points, 120-220 words):
 
 {chunk}
 
 Avoid using any subheadings or decorative separators, output content only."""
 
-            try:
-                response = await asyncio.to_thread(
-                    self.client.chat.completions.create,
-                    model=self.config.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=1000,
-                    temperature=0.3,
-                    timeout=60.0
-                )
-                
-                chunk_summary = response.choices[0].message.content
-                chunk_summaries.append(chunk_summary)
-                
-            except Exception as e:
-                logger.error(f"摘要第 {i+1} 块失败: {e}")
-                simple_summary = f"第{i+1}部分内容概述：" + chunk[:200] + "..."
-                chunk_summaries.append(simple_summary)
-        
-        # 合并所有局部摘要
+            async with semaphore:
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.chat.completions.create,
+                        model=self.config.model,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        max_tokens=1000,
+                        temperature=0.3,
+                        timeout=60.0
+                    )
+                    return response.choices[0].message.content
+                except Exception as e:
+                    logger.error(f"摘要第 {i+1} 块失败: {e}")
+                    return f"第{i+1}部分内容概述：" + chunk[:200] + "..."
+
+        chunk_summaries = await asyncio.gather(*[_summarize_chunk(i, c) for i, c in enumerate(chunks)])
+        chunk_summaries = list(chunk_summaries)
+
         combined_summaries = "\n\n".join([
             f"[Part {idx+1}]\n{s}" for idx, s in enumerate(chunk_summaries)
         ])
-        
+
         logger.info("正在整合最终摘要...")
         if len(chunk_summaries) > 10:
             final_summary = await self._integrate_hierarchical_summaries(
@@ -203,7 +201,7 @@ Avoid using any subheadings or decorative separators, output content only."""
             final_summary = await self._integrate_chunk_summaries(
                 combined_summaries, target_language
             )
-        
+
         return self._format_summary_with_meta(final_summary, target_language, video_title)
     
     async def _integrate_chunk_summaries(
@@ -475,3 +473,64 @@ Requirements:
     def get_supported_languages(self) -> dict:
         """获取支持的语言列表"""
         return self.language_map.copy()
+    
+    async def generate_mindmap(
+        self,
+        summary: str,
+        target_language: str = "zh"
+    ) -> str:
+        """
+        基于摘要生成 Markdown 思维导图代码
+        格式为 Markdown 列表，适配 Markmap。
+        
+        Args:
+            summary: 摘要内容
+            target_language: 目标语言
+            
+        Returns:
+            Markdown 列表字符串
+        """
+        try:
+            if not self.client:
+                return ""
+            
+            language_name = self.language_map.get(target_language, "中文（简体）")
+            
+            system_prompt = f"""You are a visualization expert. Please generate a Mindmap structure using Markdown List syntax based on the provided summary content.
+
+Requirements:
+1. Use standard Markdown list syntax (`- `, `  - `, `    - `) to represent the tree structure.
+2. The root node should be the main title as a level 1 heading `# Title` or just the first list item.
+3. Use indentation to represent hierarchy.
+4. Keep node text concise (keywords or short phrases).
+5. Output ONLY the Markdown content (start with `#` or `-`), no code blocks or explanations.
+6. Use {language_name} for node text.
+"""
+
+            user_prompt = f"""Based on the following summary, generate a Markdown Mindmap structure:
+
+{summary}
+
+Output ONLY the markdown content."""
+
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
+                model=self.config.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=2000,
+                temperature=0.2
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            # 清理可能的代码块标记
+            content = content.replace("```markdown", "").replace("```", "").strip()
+            
+            return content
+            
+        except Exception as e:
+            logger.error(f"生成思维导图失败: {e}")
+            return ""
