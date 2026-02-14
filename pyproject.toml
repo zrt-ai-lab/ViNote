@@ -1,6 +1,6 @@
 [project]
 name = "vinote"
-version = "1.2.0"
+version = "1.3.0"
 description = "视记AI · 让每个视频成为你的知识资产"
 readme = "README.md"
 requires-python = ">=3.10"

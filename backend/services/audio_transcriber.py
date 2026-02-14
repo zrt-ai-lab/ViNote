@@ -12,6 +12,8 @@ from backend.config.ai_config import get_whisper_config
 
 logger = logging.getLogger(__name__)
 
+_transcribe_semaphore = asyncio.Semaphore(1)
+
 
 class AudioTranscriber:
     """音频转录服务"""
@@ -45,24 +47,22 @@ class AudioTranscriber:
             Exception: 转录失败
         """
         try:
-            # 检查文件是否存在
             if not os.path.exists(audio_path):
                 raise Exception(f"音频文件不存在: {audio_path}")
             
             logger.info(f"开始转录音频: {audio_path}")
             
-            # 获取Whisper模型（单例）
-            logger.info(f"🤖 正在加载 Whisper 模型: {self.config.model_size}")
-            model = get_whisper_model()
-            logger.info("✅ Whisper 模型加载完成")
-            
-            # 在线程池中执行转录（避免阻塞事件循环）
-            segments, info = await asyncio.to_thread(
-                self._do_transcribe,
-                model,
-                audio_path,
-                language
-            )
+            async with _transcribe_semaphore:
+                logger.info(f"🤖 正在加载 Whisper 模型: {self.config.model_size}")
+                model = get_whisper_model()
+                logger.info("✅ Whisper 模型加载完成")
+                
+                segments, info = await asyncio.to_thread(
+                    self._do_transcribe,
+                    model,
+                    audio_path,
+                    language
+                )
             
             # 保存检测到的语言
             detected_language = info.language

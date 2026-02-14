@@ -228,3 +228,24 @@ temp/
 transcripts/
 summaries/
 notes/
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Build artifacts
+static-build/
+
+# Logs
+*.log
+
+# Frontend dependencies
+web/node_modules/
+web/dist/
+
+# Cookies (sensitive)
+douyin_cookies.txt

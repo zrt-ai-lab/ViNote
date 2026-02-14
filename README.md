@@ -1,126 +1,79 @@
+
 <div align="center">
 
-![ViNote Logo](static/product-logo.png)
+![ViNote Logo](web/public/product-logo.png)
 
 **ViNote = Video + Note**
 
-**ViNote AI · Turn Every Video into Your Knowledge Asset**
+**视记AI · 让每个视频成为你的知识资产**
 
-**ViNoter · Super Video Agent**
+ViNoter · 超级视记Agent
 
-**Video to Everything: Notes, Q&A, Articles, Subtitles, Cards, Mind Maps - All in One**
+**Video to Everything：笔记、问答、文章、字幕、卡片、导图，一应俱全**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-English | [中文文档](README_ZH.md)
+中文
 
 </div>
 
 ---
 
-![overview_en.png](overview_en.png)
+![overview_zh.png](overview_zh.png)
 
-## ✨ Core Features
+## ✨ 核心特性
 
-### 🤖 ViNoter Super Agent 🔥
-- **Conversational Operation**: Complete all video processing tasks through natural language dialogue
-- **Intelligent Intent Understanding**: Automatically recognize user needs without manual function switching
-- **Cross-Platform Search**: Support for Bilibili, YouTube and other multi-platform video search
-- **Process Automation**: Search→Transcribe→Notes→Translate, seamlessly integrated
-- **Based on ANP Protocol**: Leading open-source decentralized Agent collaboration standard
+### 🤖 ViNoter 超级智能体 🔥
+- **对话式操作**: 通过自然语言对话完成所有视频处理任务
+- **智能意图理解**: 自动识别用户需求，无需手动切换功能
+- **跨平台搜索**: 支持 B站、YouTube 等多平台视频检索
+- **流程自动化**: 搜索→转录→笔记→翻译，一气呵成
+- **基于 ANP 协议**: 全球领先开源的去中心化 Agent 协作标准
 
 
-### 🎯 Intelligent Video Processing
-- **Multi-Platform Support**: YouTube, Bilibili, and other major video platforms
-- **Local Video Support**: Support for local video file path input (MP4, AVI, MOV, MKV, etc.)
-- **High-Quality Transcription**: Local audio transcription based on Faster-Whisper
-- **Smart Optimization**: AI-driven text optimization and formatting
-- **Multi-Language Support**: Automatic language detection and translation
+### 🎯 智能视频处理
+- **多平台支持**: YouTube, Bilibili等主流视频平台
+- **本地视频支持**: 支持本地视频文件路径输入（MP4, AVI, MOV, MKV等格式）
+- **高质量转录**: 基于 Faster-Whisper 的本地音频转录
+- **智能优化**: AI驱动的文本优化和格式化
+- **多语言支持**: 自动检测语言并支持翻译
 
-### 📝 Note Generation
-- **Structured Output**: Automatically generate outlines, key points, and summaries
-- **Markdown Format**: Perfect compatibility with all note-taking apps
-- **Real-Time Progress**: SSE real-time progress updates
+### 📝 笔记生成
+- **结构化输出**: 自动生成大纲、要点和总结
+- **Markdown格式**: 完美支持各类笔记软件
+- **实时进度**: SSE实时推送处理进度
 
-### 🤖 Video Q&A
-- **Intelligent Q&A**: AI Q&A system based on video content
-- **Context Understanding**: Deep comprehension of video content
-- **Streaming Output**: Real-time responses for better user experience
+### 🤖 视频问答
+- **智能问答**: 基于视频内容的AI问答系统
+- **上下文理解**: 深度理解视频内容
+- **流式输出**: 实时响应，提升用户体验
 
-### 🎬 Video Download
-- **Multi-Format Support**: Support for various video formats and resolutions
-- **Preview Feature**: Preview video information before downloading
-- **Progress Tracking**: Real-time download progress display
-
----
-
-## 🚀 Quick Start
-
-### Method 1: Docker Deployment (Recommended)
-
-#### Prerequisites
-- Docker 20.10+
-- Docker Compose 2.0+
-
-#### Deployment Steps
-
-1. **Clone the Project**
-```bash
-git clone https://github.com/zrt-ai-lab/ViNote.git
-cd ViNote
-```
-
-2. **Configure Environment Variables and Cookies**
-```bash
-# Copy environment configuration file
-cp .env.example .env
-# Edit .env file and add your OpenAI API Key
-# OPENAI_API_KEY=your-api-key-here
-# OPENAI_BASE_URL=https://api.openai.com/v1
-# OPENAI_MODEL=gpt-4o
-
-# Copy cookies configuration (optional, required for Bilibili)
-cp cookies.txt.example bilibili_cookies.txt
-# Edit bilibili_cookies.txt if you need to download Bilibili videos
-# See "🍪 Cookies Configuration" section below for details
-```
-
-3. **Start Services**
-```bash
-# Build and start
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-4. **Access Application**
-Open your browser and visit: http://localhost:8999
+### 🎬 视频下载
+- **多格式支持**: 支持多种视频格式和分辨率
+- **预览功能**: 下载前预览视频信息
+- **进度跟踪**: 实时显示下载进度
 
 ---
 
-### Method 2: Local Development
+## 🚀 快速开始
 
-#### Prerequisites
+#### 前置要求
 - Python 3.10+
-- FFmpeg (for audio/video processing)
-- uv package manager
+- FFmpeg（音视频处理）
+- uv 包管理器
 
-#### Installation Steps
+#### 安装步骤
 
-1. **Clone the Project**
+1. **克隆项目**
 ```bash
 git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 ```
 
-2. **Install uv Package Manager**
+2. **安装 uv 包管理器**
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -129,7 +82,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-3. **Install FFmpeg**
+3. **安装 FFmpeg**
 ```bash
 # macOS
 brew install ffmpeg
@@ -138,626 +91,618 @@ brew install ffmpeg
 sudo apt-get update && sudo apt-get install ffmpeg
 
 # Windows
-# Download and install from https://ffmpeg.org/download.html
+# 从 https://ffmpeg.org/download.html 下载并安装
 ```
 
-4. **Install Dependencies**
+4. **安装依赖**
 ```bash
-# Install dependencies using uv (will automatically create .venv virtual environment)
+# 使用 uv 安装依赖（会自动创建 .venv 虚拟环境）
 uv pip install -e .
 
-# Or use uv sync (recommended)
+# 或使用 uv sync（推荐）
 uv sync
 ```
 
-5. **Configure Environment Variables and Cookies**
+5. **配置环境变量和 Cookies**
 ```bash
-# Copy environment configuration file
+# 复制环境配置文件
 cp .env.example .env
-# Edit .env file with your configuration
+# 编辑 .env 文件，填入你的配置
 
-# Copy cookies configuration (optional, required for Bilibili)
+# 复制 cookies 配置（可选，B站需要）
 cp cookies.txt.example bilibili_cookies.txt
-# Edit bilibili_cookies.txt if you need to download Bilibili videos
-# See "🍪 Cookies Configuration" section below for details
+# 如果需要下载B站视频，请编辑 bilibili_cookies.txt
+# 详见下方"🍪 Cookies 配置"章节
 ```
 
-6. **Start Services**
+6. **启动服务**
 
-**🚀 One-Click Start (Recommended)**
-
-Start all services with a single command:
+**🚀 一键启动（推荐）**
 
 ```bash
-# Make script executable (first time only)
-chmod +x start.sh
-
-# Start all services
+# macOS / Linux
+chmod +x start.sh   # 首次运行设置权限
 ./start.sh
+
+# Windows
+start.bat
 ```
 
-This will automatically:
-- ✅ Generate DID keys (if not exists)
-- ✅ Start DID Authentication Server (port 9000)
-- ✅ Start Video Search Server (port 8000)
-- ✅ Start ViNote Main Application (port 8999)
+脚本会自动完成：
+- ✅ 检查依赖（Python、FFmpeg、Node.js）
+- ✅ 安装后端依赖（uv sync）
+- ✅ 构建前端（npm run build）
+- ✅ 启动 ViNote 主应用（端口 8999）
+- ✅ 启动 ANP 服务（如已配置）
 
-**Manual Start (Advanced)**
+**手动启动（高级）**
 
-If you prefer to start services manually in separate terminals:
+如果你更喜欢手动分别启动服务：
 
-> 💡 **Terminal 1 - Generate DID Keys** (first time only)
-> ```bash
-> cd backend/anp
-> python gen_did_keys.py
-> cd ../..
-> ```
-
-> **Terminal 2 - DID Authentication Server:**
+> 💡 **使用 ViNoter 超级智能体**: 需要启动 3 个服务，分别在不同终端运行：
+> 
+> **终端 1 - DID 认证服务器：**
 > ```bash
 > cd backend/anp
 > python client_did_server.py
 > ```
 > 
-> **Terminal 3 - Video Search Server:**
+> **终端 2 - 视频搜索服务端：**
 > ```bash
 > cd backend/anp
 > python search_server_agent.py
 > ```
 > 
-> **Terminal 4 - ViNote Main Application:**
+> **终端 3 - ViNote 主应用：**
 > ```bash
+> # 从项目根目录
 > uv run uvicorn backend.main:app --reload --port 8999
 > ```
 
-**Basic Usage (Without ViNoter Super Agent)**
+**基本使用（不使用 ViNoter 超级智能体），有两种方式启动服务：**
 
-If you only need basic features without ViNoter:
-
+**方式 1：使用 uv run（推荐，无需激活虚拟环境）**
 ```bash
-# Using uv run (recommended)
+# 开发模式（自动重载）
 uv run uvicorn backend.main:app --reload --port 8999
 
-# Or activate virtual environment first
+# 生产模式
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8999 --workers 4
+```
+
+**方式 2：激活虚拟环境后运行**
+```bash
+# 先激活虚拟环境
 source .venv/bin/activate  # macOS/Linux
+# 或
+.venv\Scripts\activate     # Windows
+
+# 然后启动服务
 uvicorn backend.main:app --reload --port 8999
 ```
 
-8. **Access Application**
-Open your browser and visit: http://localhost:8999
+8. **访问应用**
+打开浏览器访问: http://localhost:8999
 
 ---
 
-## 📖 User Guide
+## 📖 使用指南
 
-### ViNoter Super Agent 🔥
+### ViNoter 超级智能体 🔥
 
-**ViNoter** is a super agent based on the ANP protocol that completes video search, transcription, note generation, and all other operations through natural conversation.
+**ViNoter** 是基于 ANP 协议的超级智能体，通过自然对话完成视频搜索、转录、笔记生成等所有操作。
 
-#### Prerequisites
+#### 前置准备
 
-Before using ViNoter, you need to start the ANP server:
+使用 ViNoter 前，需要先启动 ANP 服务端：
 
-1. **Generate DID Keys** (first time only)
+1. **生成 DID 密钥**（首次使用）
 ```bash
 cd backend/anp
 python gen_did_keys.py
 ```
 
-2. **Start ANP Services** (requires 3 terminals)
+2. **启动 ANP 服务**（需要 3 个终端）
 
-**Terminal 1 - DID Authentication Server:**
+**终端 1 - DID 认证服务器：**
 ```bash
 cd backend/anp
 python client_did_server.py
 ```
 
-**Terminal 2 - Video Search Server:**
+**终端 2 - 视频搜索服务端：**
 ```bash
 cd backend/anp
 python search_server_agent.py
 ```
 
-**Terminal 3 - ViNote Main Application:**
+**终端 3 - ViNote 主应用：**
 ```bash
-# Return to project root directory
+# 返回项目根目录
 cd ../..
 uv run uvicorn backend.main:app --reload --port 8999
 ```
 
-#### How to Use
+#### 使用方式
 
-1. Open the application homepage and select the **"ViNoter Super Search"** tab
-2. Enter your request in the dialogue box, for example:
+1. 打开应用首页，选择 **"ViNoter 超级智搜"** 标签
+2. 在对话框中输入你的需求，例如：
 
-**Scenario 1: Search Videos**
+**场景 1：搜索视频**
 ```
-You: "Help me search for Python tutorials on Bilibili"
-ViNoter: "Found 10 related videos for you:
-1. [Black Horse Programmer] Python Zero-Based Introduction
-2. [Tsinghua University] Python Data Analysis
+你: "帮我在 B站搜索 Python 教程"
+ViNoter: "为您找到 10 个相关视频：
+1. 【黑马程序员】Python 零基础入门
+2. 【清华大学】Python 数据分析
 ...
-Which one would you like to choose?"
+请问您想选择哪一个？"
 ```
 
-**Scenario 2: Video Transcription**
+**场景 2：视频转录**
 ```
-You: "Choose the first one and transcribe it for me"
-ViNoter: "Sure, processing for you:
-✓ Downloading video
-✓ Extracting audio
-✓ Transcribing... (Progress 45%)
-✓ Transcription complete!
-I've saved the transcript for you. Would you like me to generate notes?"
-```
-
-**Scenario 3: Multi-Platform Search**
-```
-You: "Help me search for machine learning tutorials on both YouTube and Bilibili"
-ViNoter: "Searching across platforms...
-YouTube results: 5 videos
-Bilibili results: 8 videos
-Showing you the 10 most relevant..."
+你: "选第一个，帮我转录"
+ViNoter: "好的，正在为您处理：
+✓ 下载视频
+✓ 提取音频
+✓ 转录中... (进度 45%)
+✓ 转录完成！
+已为您保存转录文本，是否需要生成笔记？"
 ```
 
-#### ViNoter Advantages
+**场景 3：多平台搜索**
+```
+你: "帮我在 YouTube 和 B站上同时搜索机器学习教程"
+ViNoter: "正在跨平台搜索...
+YouTube 结果：5 个视频
+B站结果：8 个视频
+为您展示最相关的 10 个..."
+```
 
-- 🗣️ **Natural Conversation**: Just say what you need, like chatting with a friend
-- 🤖 **Intelligent Understanding**: Automatically understands intent, no need to manually switch functions
-- 🔄 **Process Integration**: Search→Transcribe→Notes→Translate, seamlessly integrated
-- 📊 **Real-time Feedback**: Streaming output with real-time progress visibility
-- 🌐 **Cross-Platform**: Supports multiple platforms including Bilibili, YouTube, etc.
+#### ViNoter 的优势
 
-> 💡 **Tip**: ViNoter is based on ANP (Agent Network Protocol), an open-source decentralized Agent collaboration standard. For more details, see [`backend/anp/README.md`](backend/anp/README.md)
+- 🗣️ **自然对话**：像和朋友聊天一样，说出你的需求
+- 🤖 **智能理解**：自动理解意图，无需手动切换功能
+- 🔄 **流程串联**：搜索→转录→笔记→翻译，一气呵成
+- 📊 **实时反馈**：流式输出，进度实时可见
+- 🌐 **跨平台**：同时支持 B站、YouTube 等多平台
+
+> 💡 **提示**：ViNoter 基于 ANP（Agent Network Protocol）协议，这是开源的去中心化 Agent 协作标准。详细了解请查看 [`backend/anp/README.md`](backend/anp/README.md)
 
 
 
 
-### Video to Notes
+### 视频转笔记
 
-#### Method 1: Online Video URL
-1. Open the application homepage and select "AI Video Notes"
-2. In "Online URL" mode, paste video link (supports YouTube, Bilibili, etc.)
-3. Click "Preview" to view video information
-4. Select summary language (Chinese/English/Japanese and 11 languages)
-5. Click "Generate Notes"
-6. Wait for completion (view real-time progress)
-7. Download generated Markdown notes
+#### 方式一：在线视频URL
+1. 打开应用首页，选择"AI视频笔记"
+2. 在"在线URL"模式下，粘贴视频链接（支持 YouTube, Bilibili 等）
+3. 点击"预览"查看视频信息
+4. 选择摘要语言（中文/英文/日语等11种语言）
+5. 点击"生成笔记"
+6. 等待处理完成（可查看实时进度）
+7. 下载生成的 Markdown 笔记
 
-#### Method 2: Local Video File
-1. Open the application homepage and select "AI Video Notes"
-2. Switch to "Local Path" mode
-3. Enter the absolute path of your local video file, for example:
+#### 方式二：本地视频文件
+1. 打开应用首页，选择"AI视频笔记"
+2. 切换到"本地路径"模式
+3. 输入本地视频文件的绝对路径，例如：
    - Mac/Linux: `/Users/zhangsan/Videos/lecture.mp4`
    - Windows: `C:\Users\zhangsan\Videos\lecture.mp4`
-   - Docker: `/app/videos/lecture.mp4` (requires mounted directory)
-4. Click "Preview" to verify the file
-5. Select summary language
-6. Click "Generate Notes"
-7. Wait for completion and download notes
+   - Docker: `/app/videos/lecture.mp4`（需要挂载目录）
+4. 点击"预览"验证文件
+5. 选择摘要语言
+6. 点击"生成笔记"
+7. 等待处理完成并下载笔记
 
-> 💡 **Supported Video Formats**: MP4, AVI, MOV, MKV, MP3, WAV, etc.
+> 💡 **支持的视频格式**：MP4, AVI, MOV, MKV, MP3, WAV 等
 
-### Video Q&A
+### 视频问答
 
-#### Method 1: Online Video URL
-1. Open the application homepage and select "AI Video Q&A"
-2. In "Online URL" mode, paste video link (supports YouTube, Bilibili, etc.)
-3. Click "Preview" to view video information
-4. Click "Start Preprocessing" button
-5. Wait for AI preprocessing to complete (extract audio and transcribe)
-6. Enter your question in the input box
-7. AI will answer in real-time based on video content
+#### 方式一：在线视频URL
+1. 打开应用首页，选择"AI视频问答"
+2. 在"在线URL"模式下，粘贴视频链接（支持 YouTube, Bilibili 等）
+3. 点击"预览"查看视频信息
+4. 点击"开始预处理"按钮
+5. 等待AI预处理完成（提取音频并转录）
+6. 在输入框中输入您的问题
+7. AI将基于视频内容实时回答
 
-#### Method 2: Local Video File
-1. Open the application homepage and select "AI Video Q&A"
-2. Switch to "Local Path" mode
-3. Enter the absolute path of your local video file
-4. Click "Preview" to verify the file
-5. Click "Start Preprocessing" button
-6. Wait for AI preprocessing to complete
-7. Enter questions in the input box, AI answers in real-time
+#### 方式二：本地视频文件
+1. 打开应用首页，选择"AI视频问答"
+2. 切换到"本地路径"模式
+3. 输入本地视频文件的绝对路径
+4. 点击"预览"验证文件
+5. 点击"开始预处理"按钮
+6. 等待AI预处理完成
+7. 在输入框中输入问题，AI实时回答
 
-> 💡 **Tip**: After preprocessing is complete, you can ask any questions about the video content, and AI will provide accurate answers based on the complete video content
+> 💡 **提示**：预处理完成后，您可以针对视频内容提出任意问题，AI会基于完整的视频内容给出准确回答
 
-### Video Download
+### 视频下载
 
-1. Select "Video Download" tab
-2. Paste video link and click "Preview"
-3. Choose desired video quality
-4. Click "Start Download"
-5. Save file after download completes
+1. 选择"视频下载"标签
+2. 粘贴视频链接并点击"预览"
+3. 选择想要的视频质量
+4. 点击"开始下载"
+5. 下载完成后保存文件
 
 ---
 
-## 🏗️ Project Architecture
+## 🏗️ 项目架构
 
 ```
 vinote/
-├── backend/              # Backend code
-│   ├── anp/             # ANP Agent Protocol Demo Module 🆕
-│   │   ├── search_client_agent.py   # Client agent
-│   │   ├── search_server_agent.py   # Server agent (needs to be started before using ViNoter)
-│   │   ├── client_did_server.py     # DID authentication server
-│   │   ├── gen_did_keys.py          # DID key generation tool
-│   │   ├── README.md                # ANP module documentation
-│   │   ├── client_did_keys/         # Client DID keys
-│   │   ├── did_keys/                # Server DID keys
-│   │   └── jwt_keys/                # JWT keys
-│   ├── config/          # Configuration management
-│   │   ├── ai_config.py      # AI model configuration
-│   │   └── settings.py       # Application settings
-│   ├── core/            # Core functionality
-│   │   └── ai_client.py      # AI client singleton
-│   ├── models/          # Data models
-│   │   └── schemas.py        # Pydantic models
-│   ├── services/        # Business logic layer
-│   │   ├── note_generator.py        # Note generation
-│   │   ├── content_summarizer.py    # Content summarization
-│   │   ├── text_optimizer.py        # Text optimization
-│   │   ├── text_translator.py       # Text translation
-│   │   ├── audio_transcriber.py     # Audio transcription
-│   │   ├── video_downloader.py      # Video download
-│   │   ├── video_preview_service.py # Video preview
-│   │   ├── video_download_service.py # Download service
-│   │   ├── video_qa_service.py      # Video Q&A
-│   │   └── video_search_agent.py    # Video search agent service 🆕
-│   ├── utils/           # Utility functions
-│   │   ├── file_handler.py   # File handling
-│   │   └── text_processor.py # Text processing
-│   └── main.py          # FastAPI application entry
-├── static/              # Frontend static files
-│   ├── index.html       # Main page
-│   ├── css/            # Style files
-│   │   └── search-agent.css  # Smart search styles 🆕
-│   ├── js/             # JavaScript files
-│   │   ├── app.js           # Main frontend logic
-│   │   ├── modules/
-│   │   │   ├── searchAgent.js    # Smart search module 🆕
-│   │   │   ├── transcription.js  # Transcription module
-│   │   │   ├── videoPreview.js   # Video preview
-│   │   │   └── ...               # Other modules
-│   │   └── utils/
-│   └── *.png/jpg       # Image resources
-├── temp/               # Temporary files directory
-│   ├── downloads/      # Downloaded files
-│   └── backups/        # Task backups
-├── cookies.txt.example # Cookies configuration example 🆕
-├── .env.example        # Environment variables example
-├── pyproject.toml      # Project configuration (uv)
-├── uv.lock            # Dependency version lock 🆕
-├── Dockerfile          # Docker image configuration
-├── docker-compose.yml  # Docker compose configuration
-└── README.md          # Project documentation
+├── backend/                  # 后端代码
+│   ├── main.py              # FastAPI 应用入口
+│   ├── anp/                 # ANP 智能体协议模块
+│   │   ├── search_client_agent.py   # 客户端智能体
+│   │   ├── search_server_agent.py   # 服务端智能体
+│   │   ├── client_did_server.py     # DID 身份认证服务器
+│   │   └── gen_did_keys.py          # DID 密钥生成工具
+│   ├── config/              # 配置管理
+│   │   ├── ai_config.py     # AI 模型配置
+│   │   └── settings.py      # 应用设置
+│   ├── core/                # 核心功能
+│   │   ├── ai_client.py     # AI 客户端单例
+│   │   ├── lifecycle.py     # 启动/关闭生命周期
+│   │   ├── middleware.py    # 限流中间件
+│   │   └── state.py         # 全局状态管理
+│   ├── routers/             # 路由模块（按功能拆分）
+│   │   ├── tasks.py         # 笔记生成任务
+│   │   ├── qa.py            # 视频问答
+│   │   ├── downloads.py     # 视频下载
+│   │   ├── preview.py       # 视频预览
+│   │   ├── search_agent.py  # ViNoter 智能搜索
+│   │   ├── mindmap.py       # 思维导图
+│   │   ├── dev_tools.py     # 开发者工具
+│   │   └── proxy.py         # 图片代理
+│   ├── services/            # 业务逻辑层
+│   │   ├── note_generator.py        # 笔记生成编排
+│   │   ├── audio_transcriber.py     # Whisper 音频转录
+│   │   ├── text_optimizer.py        # AI 文本优化
+│   │   ├── content_summarizer.py    # AI 内容摘要
+│   │   ├── text_translator.py       # AI 翻译
+│   │   ├── video_downloader.py      # 视频下载
+│   │   ├── video_preview_service.py # 视频预览
+│   │   ├── video_download_service.py # 下载服务
+│   │   ├── video_qa_service.py      # 视频问答
+│   │   ├── video_search_agent.py    # ViNoter 搜索智能体
+│   │   └── search_providers/        # 搜索提供者
+│   │       ├── base.py              # 基类
+│   │       ├── local_provider.py    # 本地搜索（yt-dlp）
+│   │       ├── anp_provider.py      # ANP 协议搜索
+│   │       └── manager.py           # 多源管理
+│   └── utils/               # 工具函数
+│       ├── file_handler.py  # 文件处理
+│       └── text_processor.py # 文本处理
+├── web/                     # 前端（React + TypeScript + Vite）
+│   ├── src/
+│   │   ├── pages/           # 页面组件
+│   │   ├── components/      # 通用组件
+│   │   ├── hooks/           # 自定义 Hooks
+│   │   ├── api/             # API 客户端
+│   │   └── types/           # 类型定义
+│   └── public/              # 静态资源
+├── static-build/            # 前端构建产物（自动生成）
+├── .env.example             # 环境变量示例
+├── cookies.txt.example      # Cookies 配置示例
+├── pyproject.toml           # Python 项目配置（uv）
+├── uv.lock                  # 依赖版本锁定
+├── start.sh                 # 一键启动脚本（macOS/Linux）
+├── start.bat                # 一键启动脚本（Windows）
+└── README.md                # 项目文档
 ```
 
 ---
 
-## 🔧 Configuration
+## 🔧 配置说明
 
-### Environment Variables
+### 环境变量
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `OPENAI_API_KEY` | OpenAI API Key | - | ✅ |
-| `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` | ✅ |
-| `OPENAI_MODEL` | Model to use | `gpt-4o` | ✅ |
-| `WHISPER_MODEL_SIZE` | Whisper model size | `base` | ✅ |
-| `APP_HOST` | Service listening address | `0.0.0.0` | ❌ |
-| `APP_PORT` | Service port | `8001` | ❌ |
-### Whisper Model Selection
+| 变量名 | 说明 | 默认值                         | 必需 |
+|--------|------|-----------------------------|------|
+| `OPENAI_API_KEY` | OpenAI API密钥 | -                           | ✅ |
+| `OPENAI_BASE_URL` | OpenAI API地址 | `https://api.openai.com/v1` | ✅ |
+| `OPENAI_MODEL` | 使用的模型 | `gpt-4o`                    | ✅ |
+| `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base`                      | ✅ |
+| `APP_HOST` | 服务监听地址 | `0.0.0.0`                   | ❌ |
+| `APP_PORT` | 服务端口 | `8999`                      | ❌ |
+### Whisper 模型选择
 
-| Model | Parameters | GPU VRAM (fp16) | CPU RAM (int8) | Speed | Quality | Use Case |
-|-------|------------|-----------------|----------------|--------|---------|----------|
-| `tiny` | 39M | ~1GB | ~600MB | ⚡⚡⚡⚡⚡ | ⭐⭐ | Quick testing, real-time transcription |
-| `base` | 74M | ~1GB | ~800MB | ⚡⚡⚡⚡ | ⭐⭐⭐ | Balanced choice ✅ |
-| `small` | 244M | ~2GB | ~1.5GB (1477MB) | ⚡⚡⚡ | ⭐⭐⭐⭐ | Medium quality |
-| `medium` | 769M | ~3-4GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐ | High quality |
-| `large-v1` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality (legacy) |
-| `large-v2` | 1550M | ~4.5GB (4525MB) | ~2.9GB (2926MB int8) | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality |
-| `large-v3` / `large` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | Highest quality (recommended) |
+| 模型 | 参数量 | GPU 显存需求 (fp16) | CPU 内存需求 (int8) | 相对速度 | 质量 | 推荐场景 |
+|------|--------|---------------------|---------------------|----------|------|----------|
+| `tiny` | 39M | ~1GB | ~600MB | ⚡⚡⚡⚡⚡ | ⭐⭐ | 快速测试、实时转录 |
+| `base` | 74M | ~1GB | ~800MB | ⚡⚡⚡⚡ | ⭐⭐⭐ | 平衡首选 ✅ |
+| `small` | 244M | ~2GB | ~1.5GB (1477MB) | ⚡⚡⚡ | ⭐⭐⭐⭐ | 中等质量 |
+| `medium` | 769M | ~3-4GB | ~2.5GB | ⚡⚡ | ⭐⭐⭐⭐ | 高质量 |
+| `large-v1` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 (旧版) |
+| `large-v2` | 1550M | ~4.5GB (4525MB) | ~2.9GB (2926MB int8) | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 |
+| `large-v3` / `large` | 1550M | ~4.5GB | ~3GB | ⚡ | ⭐⭐⭐⭐⭐ | 最高质量 (推荐) |
 
-### 🍪 Cookies Configuration (Bilibili Only)
+### 🍪 Cookies 配置（B站专用）
 
-Bilibili has anti-scraping mechanisms that require login credentials. If you encounter download failures (such as HTTP 412 errors), you need to configure the cookies file.
+B站有反爬虫机制，需要登录凭证才能访问。如果遇到下载失败（如 HTTP 412 错误），需要配置 cookies 文件。
 
-#### Why Do You Need Cookies?
-- ✅ Bypass anti-scraping verification on Bilibili
-- ✅ Support downloading videos that require login to watch
-- ✅ Improve download success rate and stability
+#### 为什么需要 Cookies？
+- ✅ 绕过B站平台的反爬虫验证
+- ✅ 支持下载需要登录才能观看的视频
+- ✅ 提升下载成功率和稳定性
 
-> 💡 **Important Notice**:
-> - **YouTube videos do NOT need cookies**: System automatically accesses publicly
-> - **Bilibili videos need cookies**: Configure following the steps below
+> 💡 **重要说明**：
+> - **YouTube 视频无需 cookies**：系统会自动以公开方式访问
+> - **B站视频需要 cookies**：按以下步骤配置
 
-#### Configuration Steps
+#### 配置步骤
 
-**Method 1: Using yt-dlp Command (Recommended ⭐⭐⭐⭐⭐)**
+**方法1：使用 yt-dlp 命令（推荐 ⭐⭐⭐⭐⭐）**
 
 ```bash
-# 1. Ensure yt-dlp is installed
+# 1. 确保已安装 yt-dlp
 pip install yt-dlp
 
-# 2. Export Bilibili Cookies
+# 2. 导出 B站 Cookies
 yt-dlp --cookies-from-browser chrome --cookies bilibili_cookies.txt https://www.bilibili.com
 
-# Note:
-# - chrome can be replaced with firefox, edge, safari, brave, etc.
-# - macOS will prompt for system password to access keychain
+# 注意：
+# - chrome 可替换为 firefox, edge, safari, brave 等
+# - macOS 系统会要求输入系统密码（Mac 登录密码）来访问钥匙串
 ```
 
-**Method 2: Copy Example File Manually**
+**方法2：手动复制示例文件**
 
 ```bash
-# 1. Copy the example file
+# 1. 复制示例文件
 cp cookies.txt.example bilibili_cookies.txt
 
-# 2. Edit bilibili_cookies.txt and fill in real cookie values (Netscape format)
-# Refer to comments in the file
+# 2. 编辑 bilibili_cookies.txt，填入真实的 cookie 值（转为 Netscape 格式）
+# 参考文件中的注释说明
 ```
 
-**Method 3: Using Browser Extension**
+**方法3：使用浏览器插件**
 
-1. Install a browser extension (such as EditThisCookie or Cookie-Editor)
-2. Log in to bilibili.com
-3. Export cookies in Netscape format
-4. Save as `bilibili_cookies.txt`
+1. 安装浏览器插件（如 EditThisCookie 或 Cookie-Editor）
+2. 登录 bilibili.com
+3. 导出 cookies 为 Netscape 格式
+4. 保存为 `bilibili_cookies.txt`
 
-#### File Format Example
+#### 文件格式示例
 
-`bilibili_cookies.txt` file format (Netscape HTTP Cookie File):
+`bilibili_cookies.txt` 文件格式（Netscape HTTP Cookie File）：
 
 ```
 # Netscape HTTP Cookie File
-# Bilibili Cookies
+# B站 Cookies
 
-.bilibili.com	TRUE	/	FALSE	1893456000	SESSDATA	your_SESSDATA_value (required)
-.bilibili.com	TRUE	/	FALSE	1893456000	bili_jct	your_bili_jct_value
-.bilibili.com	TRUE	/	FALSE	1893456000	DedeUserID	your_user_id
-.bilibili.com	TRUE	/	FALSE	1893456000	buvid3	device_fingerprint
-.bilibili.com	TRUE	/	FALSE	1893456000	sid	session_id
+.bilibili.com	TRUE	/	FALSE	1893456000	SESSDATA	你的SESSDATA值（必需）
+.bilibili.com	TRUE	/	FALSE	1893456000	bili_jct	你的bili_jct值
+.bilibili.com	TRUE	/	FALSE	1893456000	DedeUserID	你的用户ID
+.bilibili.com	TRUE	/	FALSE	1893456000	buvid3	设备指纹
+.bilibili.com	TRUE	/	FALSE	1893456000	sid	会话ID
 ```
 
-#### ⚠️ Security Tips
+#### ⚠️ 安全提示
 
-- 🔒 `bilibili_cookies.txt` contains login credentials
-- 🔄 Cookies typically **expire in 3-6 months**, need regular updates
+- 🔒 `bilibili_cookies.txt` 包含登录凭证。
+- 🔄 Cookies 通常 **3-6 个月过期**，需要定期更新
 
 
 ---
 
 
-## 📋 Version History
+## 📋 版本更新
 
-### v1.2.0 (2025-11-03) 🎉 Major Update
+### v1.2.0 (2025-11-03) 🎉 重大更新
 
-#### 🚀 New Features
+#### 🚀 新功能
 
-**1. ViNoter Super Search Module** ⭐⭐⭐⭐⭐
-- ✅ Super video agent based on ANP protocol
-- ✅ Conversational video search on websites (supports Bilibili, YouTube, etc.)
-- ✅ Conversational video transcription with direct download after completion
-- ✅ Intelligently understands user intent and automatically calls appropriate tools
-- ✅ Streaming conversation experience with real-time progress feedback
+**1. ViNoter 超级智搜模块** ⭐⭐⭐⭐⭐
+- ✅ 基于 ANP 智能体协议实现的超级视记 Agent
+- ✅ 对话式检索网站视频（支持 B站、YouTube 等）
+- ✅ 对话式视频转录，转录完成可直接下载
+- ✅ 智能理解用户意图，自动调用相应工具
+- ✅ 流式对话体验，实时反馈处理进度
 
-**2. ANP Protocol Video Search Demo System** 🔐
-- ✅ **Client Agent**: Intelligent conversation client (`search_client_agent.py`)
-- ✅ **DID Server**: Decentralized identity authentication server (`client_did_server.py`)
-- ✅ **Server Agent**: Video search server (`search_server_agent.py`)
-- ✅ Complete DID identity authentication process
-- ✅ Secure communication mechanism between Agents
+**2. ANP 协议视频检索 Demo 闭环系统** 🔐
+- ✅ **客户端 Agent**：智能对话客户端（`search_client_agent.py`）
+- ✅ **DID Server**：去中心化身份认证服务器（`client_did_server.py`）
+- ✅ **服务端 Agent**：视频搜索服务端（`search_server_agent.py`）
+- ✅ 完整的 DID 身份认证流程
+- ✅ Agent 间安全通信机制
 
-**3. Transcription Progress Optimization** 📊
-- ✅ Backend adds detailed transcription progress tracking
-- ✅ Frame-by-frame progress output for developer debugging
-- ✅ Real-time progress percentage display
-- ✅ Real-time transcription status updates
+**3. 转录进度优化** 📊
+- ✅ 后端增加详细转录进度跟踪
+- ✅ 卡帧式进度输出，便于开发者调试
+- ✅ 实时进度百分比显示
+- ✅ 转录状态实时更新
 
-#### 🔧 Important Improvements
+#### 🔧 重要改进
 
-**4. Bilibili Video 412 Error Fix** 🛠️
-- ✅ Added Cookie authentication support
-- ✅ Bilibili uses dedicated `bilibili_cookies.txt`
-- ✅ Built-in Developer Tools for easy Cookie format conversion
+**4. B站视频 412 错误修复** 🛠️
+- ✅ 增加 Cookie 认证支持
+- ✅ B站使用专用 `bilibili_cookies.txt`
+- ✅ 内置开发者工具，方便进行 Cookie 格式转换
 
-**5. Dependency Management Improvements** 📦
-- ✅ Added ANP protocol related dependencies
-- ✅ Ensured environment reproducibility
+**5. 依赖管理完善** 📦
+- ✅ 新增 ANP 协议相关依赖
+- ✅ 确保环境可重现性
 
-#### ⚠️ Important Notice
+#### ⚠️ 重要提示
 
-> **Prerequisites for using ViNoter Agent**:
-> - Must locally start ANP's `search_server_agent.py` server
-> - Detailed configuration see `backend/anp/README.md`
-> - Need to generate DID key pairs
+> **使用 ViNoter Agent 前提**：
+> - 必须本地启动 ANP 的 `search_server_agent.py` 服务端
+> - 详细配置请参考 `backend/anp/README.md`
+> - 需要生成 DID 密钥对
 
 
 ---
 
 ### v1.1.0 (2025-01-27)
-#### 🎉 New Features
-- ✅ **Local Video Support**: Support for local video file input via absolute path
-  - Supported formats: MP4, AVI, MOV, MKV, MP3, WAV, etc.
-  - Support for Mac/Linux/Windows paths
-  - Docker environment supports directory mounting
-- ✅ **Video Notes Local Mode**: Process local videos directly to generate notes
-- ✅ **Video Q&A Local Mode**: Intelligent Q&A based on local video content
+#### 🎉 新功能
+- ✅ **本地视频支持**：支持通过绝对路径输入本地视频文件
+  - 支持格式：MP4, AVI, MOV, MKV, MP3, WAV等
+  - 支持Mac/Linux/Windows路径
+  - Docker环境支持目录挂载
+- ✅ **视频笔记本地模式**：可直接处理本地视频生成笔记
+- ✅ **视频问答本地模式**：可基于本地视频内容进行智能问答
 
-#### 🔧 Improvements
-- Optimized path validation logic
-- Improved user interface experience
-- Enhanced documentation
+#### 🔧 改进
+- 优化了路径验证逻辑
+- 改进了用户界面体验
+- 完善了文档说明
 
 ### v1.0.0 (2025-01-20)
-#### 🎉 Initial Release
-- ✅ Online video download and transcription
-- ✅ AI-driven note generation
-- ✅ Video Q&A system
-- ✅ Video download functionality
-- ✅ Multi-language support
-- ✅ Real-time progress tracking
+#### 🎉 初始版本
+- ✅ 在线视频下载和转录
+- ✅ AI驱动的笔记生成
+- ✅ 视频问答系统
+- ✅ 视频下载功能
+- ✅ 多语言支持
+- ✅ 实时进度跟踪
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ 开发路线图
 
-### ✅ Completed Features
+### ✅ 已完成功能
 
-#### Core Features
-- ✅ ViNoter Super Agent
-- ✅ Video audio download and transcription
-- ✅ AI-driven note generation
-- ✅ Intelligent text optimization
-- ✅ Multi-language translation support
-- ✅ Video Q&A system
-- ✅ Video download functionality
+#### 核心功能
+- ✅ 超级视记Agent-ViNoter
+- ✅ 视频音频下载和转录
+- ✅ AI驱动的笔记生成
+- ✅ 文本智能优化
+- ✅ 多语言翻译支持
+- ✅ 视频问答系统
+- ✅ 视频下载功能
 
 
-### 🚧 Upcoming Modules (4/6)
+### ✅ 已完成模块（6/6）
 
-#### Module 3️⃣: One-Click Content Publishing
-- 🔲 Video content to article
-- 🔲 Multi-platform publishing (WeChat, Zhihu, Xiaohongshu, etc.)
-- 🔲 Custom publishing templates
-- 🔲 Image-text mixed layout editor
-
-#### Module 4️⃣: Real-Time Subtitle Download
-- 🔲 Extract video subtitles
-- 🔲 Multi-format support (SRT, VTT, ASS, etc.)
-
-#### Module 5️⃣: Knowledge Card Generation
-- 🔲 Automatically extract knowledge points
-- 🔲 Generate study cards
-
-#### Module 6️⃣: Mind Map Generation
-- 🔲 Automatically generate mind maps
-- 🔲 Multiple mind map styles
-- 🔲 Export as image/PDF
+- ✅ 知识卡片生成（自动提取知识点、多种卡片风格）
+- ✅ 思维导图生成（从笔记/视频自动生成）
 
 ---
 
-## 🔬 ANP Video Search Demo
+## 🔬 ANP视频搜索Demo
 
-ViNote integrates an **ANP (Agent Network Protocol)** based video search demo system, demonstrating decentralized identity authentication and intelligent Agent communication capabilities.
+ViNote集成了基于**ANP（Agent Network Protocol）**的视频搜索Demo系统，展示了去中心化身份认证和智能Agent通信的能力。
 
-### What is ANP?
+### 什么是ANP？
 
-ANP (Agent Network Protocol) is an Agent network protocol based on DID (Decentralized Identity), supporting:
-- 🔐 **Decentralized Identity Authentication**: Secure authentication based on DID standards
-- 🤖 **Intelligent Agent Communication**: Supports multi-Agent collaboration and tool invocation
-- 🌐 **Distributed Architecture**: No need for centralized servers
+ANP（Agent Network Protocol）是一个基于DID（去中心化身份）的Agent网络协议，支持：
+- 🔐 **去中心化身份认证**：基于DID标准的安全认证
+- 🤖 **智能Agent通信**：支持多Agent协作和工具调用
+- 🌐 **分布式架构**：无需中心化服务器
 
-### Quick Experience ANP Demo
+### 快速体验ANP Demo
 
-#### Step 1: Generate Keys
+#### 第一步：生成密钥
 
 ```bash
 cd backend/anp
 python gen_did_keys.py
 ```
 
-This will generate DID documents and keys for both server and client.
+这将生成服务端和客户端的DID文档及密钥。
 
-#### Step 2: Start Services (in order)
+#### 第二步：启动服务（按顺序）
 
-**Terminal 1 - Client DID Server:**
+**终端 1 - 客户端DID服务器:**
 ```bash
 cd backend/anp
 python client_did_server.py
 ```
 
-**Terminal 2 - Video Search Server:**
+**终端 2 - 视频搜索服务端:**
 ```bash
 cd backend/anp
 python search_server_agent.py
 ```
 
-**Terminal 3 - Intelligent Client:**
+**终端 3 - 智能客户端:**
 ```bash
 cd backend/anp
 python search_client_agent.py
 ```
 
-#### Step 3: Use Demo
+#### 第三步：使用Demo
 
-Enter natural language queries in the client terminal:
+在客户端终端输入自然语言查询：
 ```
-You: Help me search for Python tutorials on Bilibili
+您: 帮我在b站上搜索Python教程
 ```
 
-The system will automatically:
-1. 🤔 Parse your intent
-2. 🔍 Call corresponding search interface
-3. 📊 Return summarized results
+系统会自动：
+1. 🤔 解析您的意图
+2. 🔍 调用对应的搜索接口
+3. 📊 返回总结结果
 
-### ANP Integration Configuration
+### ANP集成配置
 
-ViNote main application has integrated ANP video search functionality. You can configure ANP server address via environment variables:
+ViNote主应用已集成ANP视频搜索功能，您可以通过环境变量配置ANP服务器地址：
 
 ```bash
-# .env file
+# .env 文件
 ANP_SERVER_URL=http://localhost:8999/ad.json
 ```
 
-For detailed ANP documentation and example code, see:
-- [`backend/anp/README.md`](backend/anp/README.md)
-- [`ANP Official Documentation`](https://github.com/agent-network-protocol/anp/blob/master/README.cn.md)
+详细的ANP文档和示例代码请查看 
+- [`backend/anp/README.md`](backend/anp/README.md)。
+- [`ANP 官方文档`](https://github.com/agent-network-protocol/anp/blob/master/README.cn.md)
+---
+
+## 🤝 贡献指南
+
+欢迎贡献代码！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+### 贡献建议
+- 📋 查看 [开发路线图](#🗺️-开发路线图) 选择待开发功能
+- 🐛 修复 Issues 中的 Bug
+- 📝 改进文档和示例
+- ✨ 提出新功能建议
 
 ---
 
-## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+## 📄 许可证
 
-1. Fork this repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Contribution Suggestions
-- 📋 Check the [Roadmap](#🗺️-roadmap) to select features to develop
-- 🐛 Fix bugs in Issues
-- 📝 Improve documentation and examples
-- ✨ Propose new feature ideas
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
 ---
 
+## 🙏 致谢
 
-## 📄 License
+本项目基于以下优秀的开源项目和服务构建：
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
+### 核心依赖
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - 强大的视频下载工具，支持数百个视频平台
+- **[Faster-Whisper](https://github.com/SYSTRAN/faster-whisper)** - 高效的 Whisper 实现，提供出色的转录性能
+- **[FastAPI](https://github.com/tiangolo/fastapi)** - 现代化的 Python Web 框架，高性能且易用
+- **[OpenAI API](https://openai.com/)** - 强大的 AI 文本处理能力
 
----
-
-## 🙏 Acknowledgments
-
-This project is built upon the following excellent open-source projects and services:
-
-### Core Dependencies
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - Powerful video download tool supporting hundreds of video platforms
-- **[Faster-Whisper](https://github.com/SYSTRAN/faster-whisper)** - Efficient Whisper implementation with excellent transcription performance
-- **[FastAPI](https://github.com/tiangolo/fastapi)** - Modern Python web framework, high-performance and easy to use
-- **[OpenAI API](https://openai.com/)** - Powerful AI text processing capabilities
-
-### Inspiration
-- **[AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)** - An open-source AI video transcription and summarization tool that provided important design inspiration for this project
+### 灵感来源
+- **[AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)** - 一款开源的 AI 视频转录和摘要工具，为本项目提供了重要的设计灵感
 
 
-Thanks to all open-source contributors! 💖
+感谢所有开源项目的贡献者们！💖
 
 ---
 
-## 💬 Contact
+## 💬 联系方式
 
-- Issue Feedback: [GitHub Issues](https://github.com/zrt-ai-lab/ViNote/issues)
-- Email: 864410260@qq.com
+- 问题反馈: [GitHub Issues](https://github.com/zrt-ai-lab/ViNote/issues)
+- 邮箱: 864410260@qq.com
 
 ---
 
 <div align="center">
 
-**If this project helps you, please give it a ⭐️ Star!**
+**如果这个项目对你有帮助，请给个 ⭐️ Star 支持一下！**
 
 Made with ❤️ by ViNote Team
 
