@@ -128,6 +128,20 @@ class ASRModelSingleton:
             return model
         
         if provider == "qwen3":
+            # Monkey patch MAX_ASR_INPUT_SECONDS to avoid OOM on long audio
+            try:
+                import qwen_asr.inference.utils
+                import qwen_asr.inference.qwen3_asr
+                
+                # Reduce max chunk size (default is 1200s which causes OOM)
+                qwen_asr.inference.utils.MAX_ASR_INPUT_SECONDS = config.max_input_seconds
+                # Also patch the imported value in qwen3_asr module
+                qwen_asr.inference.qwen3_asr.MAX_ASR_INPUT_SECONDS = config.max_input_seconds
+                
+                logger.info(f"Successfully patched MAX_ASR_INPUT_SECONDS to {config.max_input_seconds}s")
+            except (ImportError, AttributeError) as e:
+                logger.warning(f"Failed to patch MAX_ASR_INPUT_SECONDS: {e}")
+
             from qwen_asr import Qwen3ASRModel
             model_id = config.model_dir or _resolve_qwen_model_id(config.model)
             if config.model_dir:
@@ -137,7 +151,8 @@ class ASRModelSingleton:
             model = Qwen3ASRModel.from_pretrained(
                 model_path,
                 device_map=config.device,
-                trust_remote_code=True
+                trust_remote_code=True,
+                max_inference_batch_size=config.batch_size,  # Force batch size to avoid OOM
             )
             return model
         

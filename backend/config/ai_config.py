@@ -52,6 +52,8 @@ class ASRConfig:
     model_dir: Optional[str] = None
     device: str = "cpu"
     compute_type: str = "int8"
+    max_input_seconds: int = 1200
+    batch_size: int = 1
     whisper: WhisperConfig = field(default_factory=WhisperConfig)
     
     def __post_init__(self):
@@ -78,6 +80,20 @@ class ASRConfig:
         env_compute_type = os.getenv("ASR_COMPUTE_TYPE")
         if env_compute_type:
             self.compute_type = env_compute_type
+        
+        env_max_input_seconds = os.getenv("ASR_MAX_INPUT_SECONDS")
+        if env_max_input_seconds:
+            try:
+                self.max_input_seconds = int(env_max_input_seconds)
+            except ValueError:
+                pass
+
+        env_batch_size = os.getenv("ASR_MAX_INFERENCE_BATCH_SIZE")
+        if env_batch_size:
+            try:
+                self.batch_size = int(env_batch_size)
+            except ValueError:
+                pass
         
         if self.provider == "whisper":
             env_whisper_model = os.getenv("WHISPER_MODEL_SIZE")
