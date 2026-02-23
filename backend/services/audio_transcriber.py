@@ -1,14 +1,15 @@
 """
 音频转录服务
-使用Faster-Whisper进行语音转文字
+使用多模型进行语音转文字
 """
 import os
 import logging
 import asyncio
 from typing import Optional
+from types import SimpleNamespace
 
-from backend.core.ai_client import get_whisper_model
-from backend.config.ai_config import get_whisper_config
+from backend.core.ai_client import get_asr_model
+from backend.config.ai_config import get_asr_config
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class AudioTranscriber:
     
     def __init__(self):
         """初始化转录服务"""
-        self.config = get_whisper_config()
+        self.config = get_asr_config()
         self.last_detected_language: Optional[str] = None
     
     async def transcribe_audio(
@@ -53,28 +54,49 @@ class AudioTranscriber:
             logger.info(f"开始转录音频: {audio_path}")
             
             async with _transcribe_semaphore:
-                logger.info(f"🤖 正在加载 Whisper 模型: {self.config.model_size}")
-                model = get_whisper_model()
-                logger.info("✅ Whisper 模型加载完成")
+                provider = self.config.provider.lower()
+                logger.info(f"🤖 正在加载 ASR 模型: {provider}:{self.config.model}")
+                model = get_asr_model()
+                logger.info("✅ ASR 模型加载完成")
                 
-                segments, info = await asyncio.to_thread(
-                    self._do_transcribe,
-                    model,
-                    audio_path,
-                    language
-                )
+                if provider == "whisper":
+                    segments, info = await asyncio.to_thread(
+                        self._do_whisper_transcribe,
+                        model,
+                        audio_path,
+                        language
+                    )
+                elif provider == "funasr":
+                    segments, info = await asyncio.to_thread(
+                        self._do_funasr_transcribe,
+                        model,
+                        audio_path,
+                        language
+                    )
+                elif provider == "qwen3":
+                    segments, info = await asyncio.to_thread(
+                        self._do_qwen_transcribe,
+                        model,
+                        audio_path,
+                        language
+                    )
+                else:
+                    raise Exception(f"不支持的ASR提供方: {self.config.provider}")
             
             # 保存检测到的语言
-            detected_language = info.language
+            detected_language = getattr(info, "language", None) or language or "unknown"
+            language_probability = getattr(info, "language_probability", None)
+            if language_probability is None:
+                language_probability = 0.0
             self.last_detected_language = detected_language
             logger.info(f"检测到的语言: {detected_language}")
-            logger.info(f"语言检测概率: {info.language_probability:.2f}")
+            logger.info(f"语言检测概率: {language_probability:.2f}")
             
             # 组装转录结果
             transcript_text = self._format_transcript(
                 segments,
                 detected_language,
-                info.language_probability,
+                language_probability,
                 video_title,
                 video_url
             )
@@ -86,7 +108,7 @@ class AudioTranscriber:
             logger.error(f"转录失败: {str(e)}")
             raise Exception(f"转录失败: {str(e)}")
     
-    def _do_transcribe(self, model, audio_path: str, language: Optional[str]):
+    def _do_whisper_transcribe(self, model, audio_path: str, language: Optional[str]):
         """
         执行实际的转录操作（在线程中运行）
         
@@ -98,24 +120,25 @@ class AudioTranscriber:
         Returns:
             (segments, info) 转录片段和信息
         """
+        whisper_config = self.config.whisper
         segments_generator, info = model.transcribe(
             audio_path,
             language=language,
-            beam_size=self.config.beam_size,
-            best_of=self.config.best_of,
-            temperature=self.config.temperature,
+            beam_size=whisper_config.beam_size,
+            best_of=whisper_config.best_of,
+            temperature=whisper_config.temperature,
             # VAD参数（降低静音/噪音导致的重复）
-            vad_filter=self.config.vad_filter,
+            vad_filter=whisper_config.vad_filter,
             vad_parameters={
-                "min_silence_duration_ms": self.config.min_silence_duration_ms,
-                "speech_pad_ms": self.config.speech_pad_ms
+                "min_silence_duration_ms": whisper_config.min_silence_duration_ms,
+                "speech_pad_ms": whisper_config.speech_pad_ms
             },
             # 阈值参数
-            no_speech_threshold=self.config.no_speech_threshold,
-            compression_ratio_threshold=self.config.compression_ratio_threshold,
-            log_prob_threshold=self.config.log_prob_threshold,
+            no_speech_threshold=whisper_config.no_speech_threshold,
+            compression_ratio_threshold=whisper_config.compression_ratio_threshold,
+            log_prob_threshold=whisper_config.log_prob_threshold,
             # 避免错误累积导致的连环重复
-            condition_on_previous_text=self.config.condition_on_previous_text
+            condition_on_previous_text=whisper_config.condition_on_previous_text
         )
         
         # 收集所有segment并打印时间段信息
@@ -145,6 +168,106 @@ class AudioTranscriber:
         logger.info("=" * 60)
         
         return segments_list, info
+
+    def _do_funasr_transcribe(self, model, audio_path: str, language: Optional[str]):
+        model_id = self.config.model
+        result = model.generate(
+            input=[audio_path],
+            cache={},
+            language=language or "auto",
+            batch_size=1
+        )
+            
+        segments, detected_language = self._parse_funasr_result(result, language)
+        info = SimpleNamespace(
+            language=detected_language,
+            language_probability=0.0
+        )
+        return segments, info
+
+    def _do_qwen_transcribe(self, model, audio_path: str, language: Optional[str]):
+        results = model.transcribe(
+            audio=audio_path,
+            language=language
+        )
+        segments, detected_language = self._parse_qwen_result(results, language)
+        info = SimpleNamespace(
+            language=detected_language,
+            language_probability=0.0
+        )
+        return segments, info
+
+    def _parse_funasr_result(self, result, fallback_language: Optional[str]):
+        detected_language = fallback_language or "unknown"
+        if isinstance(result, list) and result:
+            item = result[0] if isinstance(result[0], dict) else {}
+            detected_language = item.get("language") or item.get("lang") or detected_language
+            sentence_info = item.get("sentence_info") or item.get("sentences")
+            if sentence_info:
+                segments = []
+                for sentence in sentence_info:
+                    text = (sentence.get("text") or "").strip()
+                    if not text:
+                        continue
+                    start = self._normalize_timestamp(sentence.get("start") or sentence.get("start_time"), "ms")
+                    end = self._normalize_timestamp(sentence.get("end") or sentence.get("end_time"), "ms")
+                    segments.append(SimpleNamespace(start=start, end=end, text=text))
+                if segments:
+                    return segments, detected_language
+            text = (item.get("text") or "").strip()
+            if text:
+                return self._build_single_segment(text), detected_language
+        return self._build_single_segment(""), detected_language
+
+    def _parse_qwen_result(self, results, fallback_language: Optional[str]):
+        detected_language = fallback_language or "unknown"
+        if isinstance(results, list) and results:
+            res = results[0]
+            if isinstance(res, dict):
+                detected_language = res.get("language") or detected_language
+                segments_data = res.get("segments")
+                text = res.get("text")
+            else:
+                detected_language = getattr(res, "language", None) or detected_language
+                segments_data = getattr(res, "segments", None)
+                text = getattr(res, "text", None)
+            if segments_data:
+                segments = []
+                for seg in segments_data:
+                    if isinstance(seg, dict):
+                        seg_text = seg.get("text")
+                        start = seg.get("start_time", seg.get("start"))
+                        end = seg.get("end_time", seg.get("end"))
+                    else:
+                        seg_text = getattr(seg, "text", None)
+                        start = getattr(seg, "start_time", None) or getattr(seg, "start", None)
+                        end = getattr(seg, "end_time", None) or getattr(seg, "end", None)
+                    if not seg_text:
+                        continue
+                    segments.append(SimpleNamespace(
+                        start=self._normalize_timestamp(start, "s"),
+                        end=self._normalize_timestamp(end, "s"),
+                        text=seg_text.strip()
+                    ))
+                if segments:
+                    return segments, detected_language
+            if text:
+                return self._build_single_segment(str(text)), detected_language
+        return self._build_single_segment(""), detected_language
+
+    def _build_single_segment(self, text: str):
+        return [SimpleNamespace(start=0.0, end=0.0, text=text)]
+
+    def _normalize_timestamp(self, value, unit: str) -> float:
+        if value is None:
+            return 0.0
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if unit == "ms":
+            return number / 1000.0
+        return number
     
     def _format_transcript(
         self,
@@ -285,10 +408,10 @@ class AudioTranscriber:
             True if Whisper模型可用
         """
         try:
-            model = get_whisper_model()
+            model = get_asr_model()
             return model is not None
         except Exception as e:
-            logger.error(f"检查Whisper模型可用性失败: {e}")
+            logger.error(f"检查ASR模型可用性失败: {e}")
             return False
     
     @staticmethod
