@@ -2,7 +2,7 @@
 AI模型统一配置
 管理所有AI服务的配置参数
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 import os
 from pathlib import Path
@@ -42,6 +42,62 @@ class WhisperConfig:
         env_model_size = os.getenv("WHISPER_MODEL_SIZE")
         if env_model_size:
             self.model_size = env_model_size
+
+
+@dataclass
+class ASRConfig:
+    provider: str = "whisper"
+    model: Optional[str] = None
+    download_source: str = "huggingface"
+    model_dir: Optional[str] = None
+    device: str = "cpu"
+    compute_type: str = "int8"
+    whisper: WhisperConfig = field(default_factory=WhisperConfig)
+    
+    def __post_init__(self):
+        env_provider = os.getenv("ASR_PROVIDER")
+        if env_provider:
+            self.provider = env_provider.lower()
+        
+        env_model = os.getenv("ASR_MODEL")
+        if env_model:
+            self.model = env_model
+        
+        env_source = os.getenv("ASR_MODEL_SOURCE")
+        if env_source:
+            self.download_source = env_source.lower()
+        
+        env_model_dir = os.getenv("ASR_MODEL_DIR")
+        if env_model_dir:
+            self.model_dir = env_model_dir
+        
+        env_device = os.getenv("ASR_DEVICE")
+        if env_device:
+            self.device = env_device
+        
+        env_compute_type = os.getenv("ASR_COMPUTE_TYPE")
+        if env_compute_type:
+            self.compute_type = env_compute_type
+        
+        if self.provider == "whisper":
+            env_whisper_model = os.getenv("WHISPER_MODEL_SIZE")
+            if env_whisper_model:
+                self.model = env_whisper_model
+        
+        if not self.model:
+            if self.provider == "whisper":
+                self.model = "base"
+            elif self.provider == "funasr":
+                self.model = "SenseVoiceSmall"
+            elif self.provider == "qwen3":
+                self.model = "Qwen3-ASR-0.6B"
+            else:
+                self.model = "base"
+        
+        if self.provider == "whisper":
+            self.whisper.model_size = self.model
+            self.whisper.device = self.device
+            self.whisper.compute_type = self.compute_type
 
 
 @dataclass
@@ -92,7 +148,7 @@ class OpenAIConfig:
 @dataclass
 class AIServiceConfig:
     """AI服务统一配置"""
-    whisper: WhisperConfig
+    asr: ASRConfig
     openai: OpenAIConfig
     
     # 文本处理配置
@@ -124,15 +180,19 @@ class AIServiceConfig:
 
 # 创建全局配置实例
 ai_config = AIServiceConfig(
-    whisper=WhisperConfig(),
+    asr=ASRConfig(),
     openai=OpenAIConfig()
 )
+
+
+def get_asr_config() -> ASRConfig:
+    return ai_config.asr
 
 
 # 便捷访问函数
 def get_whisper_config() -> WhisperConfig:
     """获取Whisper配置"""
-    return ai_config.whisper
+    return ai_config.asr.whisper
 
 
 def get_openai_config() -> OpenAIConfig:

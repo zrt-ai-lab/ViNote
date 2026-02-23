@@ -10,37 +10,36 @@ dependencies = [
     "uvicorn[standard]>=0.27.0",
     "python-multipart>=0.0.9",
     "aiofiles>=24.1.0",
-    
     # Video & Audio Processing
     "yt-dlp>=2024.12.13",
     "faster-whisper>=1.1.0",
     "av>=16.0.0",
-    
     # AI & NLP
     "openai>=1.51.0",
     "pydantic>=2.7.0",
-    
+    "torch>=2.1.0",
+    "funasr>=1.0.0",
+    "modelscope>=1.12.0",
+    "huggingface_hub>=0.24.0",
+    "openai-whisper>=20231117",
     # ANP (Agent Network Protocol)
     "anp>=0.4.0",
     "aiohttp>=3.9.0",
     "cryptography>=46.0.0",
     "pyjwt>=2.8.0",
     "ecdsa>=0.19.0",
-    
     # Utilities
     "python-dotenv>=1.0.0",
     "requests>=2.32.0",
     "pyyaml>=6.0.0",
     "coloredlogs>=15.0.0",
     "typer-slim>=0.20.0",
+    "qwen-asr>=0.0.6",
+    "torchaudio>=2.10.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "httpx>=0.27.0",
-]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "httpx>=0.27.0"]
 
 [build-system]
 requires = ["hatchling"]
