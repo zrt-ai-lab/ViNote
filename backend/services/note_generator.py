@@ -99,7 +99,7 @@ class NoteGenerator:
             self._check_cancelled(cancel_check)
             
             # 步骤2: 转录音频
-            await self._update_progress(progress_callback, 37, "🤖 正在加载 Whisper 模型...")
+            await self._update_progress(progress_callback, 37, "🤖 正在加载 ASR 模型...")
             await asyncio.sleep(0.1)
             self._check_cancelled(cancel_check)
             
