@@ -1,17 +1,17 @@
 """
 AI客户端单例管理
-确保全局只有一个Whisper模型和OpenAI客户端实例
+确保全局只有一个ASR模型和OpenAI客户端实例
 """
 from typing import Optional
+from pathlib import Path
 import logging
 from openai import OpenAI, AsyncOpenAI
 from faster_whisper import WhisperModel
 
 import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from backend.config.ai_config import get_whisper_config, get_openai_config
+from backend.config.ai_config import get_asr_config, get_whisper_config, get_openai_config
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,119 @@ class WhisperModelSingleton:
         """清除实例（用于测试或重新加载）"""
         cls._instance = None
         cls._model_size = None
+
+
+def _normalize_source(source: str) -> str:
+    if source in {"modelscope", "ms"}:
+        return "modelscope"
+    if source in {"huggingface", "hf"}:
+        return "huggingface"
+    return "huggingface"
+
+
+def _resolve_funasr_model_id(model: str, source: str) -> str:
+    if "/" in model or model.startswith("."):
+        return model
+    normalized = model.replace("_", "-").lower()
+    if normalized in {"sensevoicesmall", "sensevoice-small"}:
+        return "iic/SenseVoiceSmall" if source == "modelscope" else "FunAudioLLM/SenseVoiceSmall"
+    return model
+
+
+def _resolve_qwen_model_id(model: str) -> str:
+    if "/" in model or model.startswith("."):
+        return model
+    normalized = model.replace("_", "-").lower()
+    if normalized in {"qwen3-asr-0.6b", "qwen3-asr-06b"}:
+        return "Qwen/Qwen3-ASR-0.6B"
+    if normalized in {"qwen3-asr-1.7b", "qwen3-asr-17b"}:
+        return "Qwen/Qwen3-ASR-1.7B"
+    return model
+
+
+def _download_model(model_id: str, source: str, cache_dir: Optional[str]) -> str:
+    if source == "modelscope":
+        from modelscope.hub.snapshot_download import snapshot_download
+        return snapshot_download(model_id, cache_dir=cache_dir)
+    from huggingface_hub import snapshot_download
+    return snapshot_download(repo_id=model_id, cache_dir=cache_dir)
+
+
+class ASRModelSingleton:
+    _instance = None
+    _key: Optional[str] = None
+    
+    @classmethod
+    def get_instance(cls):
+        config = get_asr_config()
+        source = _normalize_source(config.download_source)
+        key = f"{config.provider}:{config.model}:{source}:{config.model_dir}:{config.device}:{config.compute_type}"
+        if cls._instance is None or cls._key != key:
+            cls._instance = cls._load_model(config, source)
+            cls._key = key
+        return cls._instance
+    
+    @staticmethod
+    def _load_model(config, source: str):
+        provider = config.provider.lower()
+        if provider == "whisper":
+            logger.info(f"加载Whisper模型: {config.model}")
+            model = WhisperModel(
+                config.model,
+                device=config.device,
+                compute_type=config.compute_type
+            )
+            logger.info("Whisper模型加载完成")
+            return model
+        
+        if provider == "funasr":
+            from funasr import AutoModel
+            model_id = config.model_dir or _resolve_funasr_model_id(config.model, source)
+            hub = "ms" if source == "modelscope" else "hf"
+            
+            kwargs = {
+                "model": model_id,
+                "device": config.device,
+                "hub": hub,
+                "vad_model": "fsmn-vad",
+                "vad_kwargs": {"max_single_segment_time": 30000},
+                "trust_remote_code": True,
+                "disable_update": True
+            }
+            
+            model = AutoModel(**kwargs)
+            return model
+        
+        if provider == "qwen3":
+            # Monkey patch MAX_ASR_INPUT_SECONDS to avoid OOM on long audio
+            try:
+                import qwen_asr.inference.utils
+                import qwen_asr.inference.qwen3_asr
+                
+                # Reduce max chunk size (default is 1200s which causes OOM)
+                qwen_asr.inference.utils.MAX_ASR_INPUT_SECONDS = config.max_input_seconds
+                # Also patch the imported value in qwen3_asr module
+                qwen_asr.inference.qwen3_asr.MAX_ASR_INPUT_SECONDS = config.max_input_seconds
+                
+                logger.info(f"Successfully patched MAX_ASR_INPUT_SECONDS to {config.max_input_seconds}s")
+            except (ImportError, AttributeError) as e:
+                logger.warning(f"Failed to patch MAX_ASR_INPUT_SECONDS: {e}")
+
+            from qwen_asr import Qwen3ASRModel
+            model_id = config.model_dir or _resolve_qwen_model_id(config.model)
+            if config.model_dir:
+                model_path = model_id
+            else:
+                model_path = _download_model(model_id, source, config.model_dir)
+            model = Qwen3ASRModel.from_pretrained(
+                model_path,
+                device_map=config.device,
+                trust_remote_code=True,
+                max_inference_batch_size=config.batch_size,  # Force batch size to avoid OOM
+            )
+            return model
+        
+        raise ValueError(f"不支持的ASR提供方: {config.provider}")
 
 
 class OpenAIClientSingleton:
@@ -115,6 +228,10 @@ class OpenAIClientSingleton:
 def get_whisper_model() -> WhisperModel:
     """获取Whisper模型"""
     return WhisperModelSingleton.get_instance()
+
+
+def get_asr_model():
+    return ASRModelSingleton.get_instance()
 
 
 def get_openai_client() -> Optional[OpenAI]:
