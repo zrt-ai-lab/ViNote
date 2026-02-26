@@ -1,0 +1,70 @@
+# ============================================
+# ViNote Docker 忽略文件
+# ============================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.venv
+venv
+env
+.eggs
+*.egg-info
+dist
+build
+
+# Node
+web/node_modules
+web/.vite
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# 构建产物（Docker 内会重新构建）
+static-build
+
+# 环境和敏感文件（通过 env_file 或 volume 挂载）
+.env
+*.pem
+bilibili_cookies.txt
+douyin_cookies.txt
+cookies.txt
+
+# 文档和非必要文件
+*.md
+!README.md
+LICENSE
+overview_zh.png
+docs/
+
+# 下载和临时文件
+downloads/
+data/
+temp/
+*.mp4
+*.mp3
+*.wav
+*.webm
+
+# Docker 自身
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ANP 密钥（敏感）
+backend/anp/did_keys/
+backend/anp/jwt_keys/
+backend/anp/client_did_keys/
+
+# uv 缓存
+.uv

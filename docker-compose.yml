@@ -1,0 +1,42 @@
+# ============================================
+# ViNote Docker Compose 部署配置
+# ============================================
+# 使用方法:
+#   1. 复制 .env.example 为 .env 并填写配置
+#   2. docker compose up -d
+#   3. 访问 http://localhost:8999
+# ============================================
+
+services:
+  vinote:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vinote:latest
+    container_name: vinote
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8999}:8999"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # 持久化临时文件（下载的音频、转录结果等）
+      - vinote-temp:/app/temp
+      # 持久化应用数据（任务记录等）
+      - vinote-data:/app/data
+      # 挂载 B站 cookies 文件（用于需要登录的视频）
+      - ./bilibili_cookies.txt:/app/bilibili_cookies.txt
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8999/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  vinote-temp:
+    driver: local
+  vinote-data:
+    driver: local

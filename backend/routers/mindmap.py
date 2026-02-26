@@ -81,15 +81,32 @@ async def _video_to_mindmap_task(task_id: str, url: str, language: str):
             save_tasks(tasks)
             await broadcast_task_update(task_id, tasks[task_id])
 
-        await progress(10, "🎬 正在下载视频音频...")
         downloader = VideoDownloader()
-        audio_path, video_title = await downloader.download_video_audio(url, TEMP_DIR)
+        
+        # 先尝试提取字幕（无需下载音频）
+        await progress(5, "📄 正在检查视频字幕...")
+        subtitle_text = None
+        video_title = None
+        try:
+            subtitle_text, video_title = await downloader.extract_subtitles(url, TEMP_DIR)
+        except Exception as e:
+            logger.warning(f"字幕提取异常: {e}")
+        
+        if subtitle_text:
+            # 有字幕，跳过音频下载和转录
+            logger.info(f"✅ 使用视频字幕替代转录，跳过音频下载")
+            await progress(40, "✅ 已从字幕中提取文本，跳过音频下载")
+            transcript = subtitle_text
+        else:
+            # 无字幕，下载音频并转录
+            await progress(10, "🎬 无可用字幕，正在下载音频...")
+            audio_path, video_title = await downloader.download_video_audio(url, TEMP_DIR)
 
-        await progress(30, "🎤 正在转录音频...")
-        transcriber = AudioTranscriber()
-        transcript = await transcriber.transcribe_audio(
-            audio_path, video_title=video_title, video_url=url
-        )
+            await progress(30, "🎤 正在转录音频...")
+            transcriber = AudioTranscriber()
+            transcript = await transcriber.transcribe_audio(
+                audio_path, video_title=video_title, video_url=url
+            )
 
         await progress(80, "🧠 正在生成思维导图...")
         summarizer = ContentSummarizer()

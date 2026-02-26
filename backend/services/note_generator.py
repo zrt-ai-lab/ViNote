@@ -81,16 +81,48 @@ class NoteGenerator:
             }
         """
         try:
-            # 步骤1: 获取音频
+            audio_path = None
+            video_title = None
+            subtitle_text = None
+            
             if audio_path_override:
+                # 本地文件模式：直接使用提供的音频
                 audio_path = audio_path_override
                 video_title = video_title_override or Path(audio_path_override).stem
                 await self._update_progress(progress_callback, 35, "✅ 音频已就绪，开始处理...")
+            elif not video_url.startswith("file://"):
+                # 在线视频：先尝试提取字幕（无需下载音频）
+                await self._update_progress(progress_callback, 10, "📄 正在检查视频字幕...")
+                await asyncio.sleep(0.1)
+                self._check_cancelled(cancel_check)
+                
+                try:
+                    subtitle_text, video_title = await self.video_downloader.extract_subtitles(
+                        video_url, temp_dir
+                    )
+                except Exception as e:
+                    logger.warning(f"字幕提取异常: {e}")
+                    subtitle_text = None
+                
+                if not subtitle_text:
+                    # 无字幕，需要下载音频进行转录
+                    await self._update_progress(progress_callback, 15, "🎬 无可用字幕，正在下载音频...")
+                    await asyncio.sleep(0.1)
+                    self._check_cancelled(cancel_check)
+                    
+                    audio_path, video_title = await self.video_downloader.download_video_audio(
+                        video_url, temp_dir
+                    )
+                    await self._update_progress(progress_callback, 35, "✅ 音频下载完成，开始转录...")
+                else:
+                    logger.info(f"✅ 找到视频字幕，跳过音频下载")
+                    await self._update_progress(progress_callback, 30, "✅ 字幕提取成功，跳过音频下载")
             else:
+                # file:// 协议的本地文件
                 await self._update_progress(progress_callback, 10, "🎬 正在获取并分析视频资源...")
                 await asyncio.sleep(0.1)
                 self._check_cancelled(cancel_check)
-
+                
                 audio_path, video_title = await self.video_downloader.download_video_audio(
                     video_url, temp_dir
                 )
@@ -98,27 +130,55 @@ class NoteGenerator:
 
             self._check_cancelled(cancel_check)
             
-            # 步骤2: 转录音频
-            await self._update_progress(progress_callback, 37, "🤖 正在加载 ASR 模型...")
-            await asyncio.sleep(0.1)
-            self._check_cancelled(cancel_check)
+            # 步骤2: 根据字幕/音频情况生成转录文本
+            if subtitle_text:
+                # 使用字幕作为原始转录，跳过 ASR 转录
+                from datetime import datetime
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                
+                raw_transcript = f"""# 视频转录文本
+
+> 📹 **视频标题：** {video_title}
+> 
+> 📄 **来源：** 视频内嵌字幕（非语音识别）
+> 
+> 🔗 **视频来源：** [点击观看]({video_url})
+
+---
+
+## 📝 转录内容
+
+{subtitle_text}
+
+---
+
+*提取时间：{current_time}*  
+*由 ViNote 从视频字幕中提取*
+"""
+                logger.info(f"✅ 使用视频字幕替代语音转录，节省转录时间和音频下载")
+                await self._update_progress(progress_callback, 50, "✅ 已从视频字幕中提取文本")
+                
+                detected_language = self._detect_language_from_text(subtitle_text)
+            else:
+                # 无字幕，使用 ASR 转录
+                await self._update_progress(progress_callback, 37, "🤖 正在加载 ASR 模型...")
+                await asyncio.sleep(0.1)
+                self._check_cancelled(cancel_check)
+                
+                await self._update_progress(progress_callback, 40, "🎤 ViNote正在原文转录...")
+                await asyncio.sleep(0.2)
+                self._check_cancelled(cancel_check)
+                
+                raw_transcript = await self.audio_transcriber.transcribe_audio(
+                    audio_path,
+                    video_title=video_title,
+                    video_url=video_url,
+                    cancel_check=cancel_check
+                )
+                
+                detected_language = self.audio_transcriber.get_detected_language(raw_transcript)
             
-            await self._update_progress(progress_callback, 40, "🎤 ViNote正在原文转录...")
-            await asyncio.sleep(0.2)
             self._check_cancelled(cancel_check)
-            
-            # 转录任务（注意：这会在线程池中运行，无法被asyncio.CancelledError中断）
-            # 但我们在转录完成后会立即检查取消状态
-            raw_transcript = await self.audio_transcriber.transcribe_audio(
-                audio_path,
-                video_title=video_title,
-                video_url=video_url,
-                cancel_check=cancel_check
-            )
-            
-            # 转录完成后立即检查是否已取消（关键检查点）
-            self._check_cancelled(cancel_check)
-            detected_language = self.audio_transcriber.get_detected_language(raw_transcript)
             
             # 生成短ID和安全文件名
             import uuid
@@ -311,6 +371,60 @@ class NoteGenerator:
                     callback(progress, message)
             except Exception as e:
                 logger.warning(f"进度回调失败: {e}")
+    
+    def _detect_language_from_text(self, text: str) -> str:
+        """
+        通过简单的字符统计推断文本语言
+        
+        Args:
+            text: 文本内容
+            
+        Returns:
+            语言代码，如 'zh', 'en', 'ja', 'ko'
+        """
+        if not text:
+            return "unknown"
+        
+        # 移除 Markdown 格式和标点
+        clean = re.sub(r'[#*>\-\[\](){}|`~!@$%^&=+\n\r\t]', '', text)
+        clean = re.sub(r'\d+', '', clean)
+        clean = clean.strip()
+        
+        if not clean:
+            return "unknown"
+        
+        # 统计各类字符
+        cjk_count = 0  # 中文
+        hiragana_katakana = 0  # 日文
+        hangul = 0  # 韩文
+        latin = 0  # 英文/拉丁
+        
+        for ch in clean:
+            cp = ord(ch)
+            if 0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF:
+                cjk_count += 1
+            elif 0x3040 <= cp <= 0x30FF:
+                hiragana_katakana += 1
+            elif 0xAC00 <= cp <= 0xD7AF:
+                hangul += 1
+            elif 0x0041 <= cp <= 0x007A:
+                latin += 1
+        
+        total = cjk_count + hiragana_katakana + hangul + latin
+        if total == 0:
+            return "unknown"
+        
+        # 日文包含大量汉字，但也有假名
+        if hiragana_katakana > 0 and (hiragana_katakana + cjk_count) / total > 0.3:
+            return "ja"
+        if hangul / total > 0.3:
+            return "ko"
+        if cjk_count / total > 0.3:
+            return "zh"
+        if latin / total > 0.3:
+            return "en"
+        
+        return "unknown"
     
     def _sanitize_title(self, title: str) -> str:
         """清洗标题为安全的文件名"""

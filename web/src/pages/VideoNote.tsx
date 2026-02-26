@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { postFormData, fetchJSON, postJSON, deleteAPI, downloadFile, extractBilibiliUrl, proxyImageUrl, createSSE } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import ProgressBar from '../components/ProgressBar';
-import ProgressSteps from '../components/ProgressSteps';
+import ProgressSteps, { SUBTITLE_STEPS } from '../components/ProgressSteps';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Modal from '../components/Modal';
 import { toast } from '../components/Toast';
@@ -37,11 +37,13 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 function stepFromMessage(msg: string): string {
+  if (/字幕.*检查|检查.*字幕|subtitle.*check/i.test(msg)) return 'subtitle';
+  if (/字幕.*提取|字幕.*成功|跳过.*下载|subtitle.*extract/i.test(msg)) return 'subtitle_done';
   if (/下载|download/i.test(msg)) return 'download';
-  if (/转录|transcri|whisper/i.test(msg)) return 'transcribe';
-  if (/优化|optimi/i.test(msg)) return 'optimize';
-  if (/总结|summar/i.test(msg)) return 'summarize';
-  if (/完成|complet/i.test(msg)) return 'complete';
+  if (/转录|transcri|whisper|ASR|从视频字幕中提取/i.test(msg)) return 'transcribe';
+  if (/优化|optimi|整理/i.test(msg)) return 'optimize';
+  if (/总结|summar|摘要|提炼/i.test(msg)) return 'summarize';
+  if (/完成|complet|所有处理/i.test(msg)) return 'complete';
   return '';
 }
 
@@ -57,6 +59,7 @@ export default function VideoNote() {
   const [activeTab, setActiveTab] = useState<TabKey>('script');
   const [currentStep, setCurrentStep] = useState('');
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [useSubtitleFlow, setUseSubtitleFlow] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
   const [downloadId, setDownloadId] = useState<string | null>(null);
@@ -78,6 +81,7 @@ export default function VideoNote() {
     setTask(null);
     setCurrentStep('');
     setCompletedSteps([]);
+    setUseSubtitleFlow(false);
     try {
       const res = await postFormData<{ task_id: string }>('/api/process-video', {
         url,
@@ -89,11 +93,25 @@ export default function VideoNote() {
           const t = data as TaskStatus;
           setTask(t);
           const step = stepFromMessage(t.message || '');
+          
+          if (step === 'subtitle_done') {
+            // 检测到字幕提取成功，切换到字幕流程
+            setUseSubtitleFlow(true);
+          }
+          
           if (step) {
-            setCurrentStep(step);
+            // 根据是否使用字幕流程，选择不同的步骤序列
+            // 映射 subtitle 相关步骤到展示步骤
+            let mappedCurrentStep = step;
+            if (step === 'subtitle') mappedCurrentStep = 'download';
+            if (step === 'subtitle_done') mappedCurrentStep = 'transcribe';
+            setCurrentStep(mappedCurrentStep);
             setCompletedSteps(() => {
               const steps = ['download', 'transcribe', 'optimize', 'summarize', 'complete'];
-              const idx = steps.indexOf(step);
+              let mappedStep = step;
+              if (step === 'subtitle') mappedStep = 'download';
+              if (step === 'subtitle_done') mappedStep = 'transcribe';
+              const idx = steps.indexOf(mappedStep);
               return steps.slice(0, idx);
             });
           }
@@ -331,7 +349,7 @@ export default function VideoNote() {
         {(loading || task) && (
           <div className="mt-5 space-y-3">
             <ProgressBar progress={task?.progress ?? 0} />
-            <ProgressSteps currentStep={currentStep} completedSteps={completedSteps} />
+            <ProgressSteps currentStep={currentStep} completedSteps={completedSteps} steps={useSubtitleFlow ? SUBTITLE_STEPS : undefined} />
             {task?.message && (
               <p className="text-xs text-[var(--color-text-secondary)]">{task.message}</p>
             )}
