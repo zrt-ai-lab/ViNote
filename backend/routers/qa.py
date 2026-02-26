@@ -119,26 +119,43 @@ async def _transcribe_only_task(task_id: str, url: str):
         video_downloader = VideoDownloader()
         audio_transcriber = AudioTranscriber()
 
-        tasks[task_id].update({"progress": 5, "message": ""})
+        # 先尝试提取字幕（无需下载音频）
+        tasks[task_id].update({"progress": 5, "message": "📄 正在检查视频字幕..."})
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
-        audio_path, video_title = await video_downloader.download_video_audio(url, TEMP_DIR)
-
-        tasks[task_id].update({"progress": 40, "message": ""})
-        save_tasks(tasks)
-        await broadcast_task_update(task_id, tasks[task_id])
-
-        tasks[task_id].update({"progress": 45, "message": ""})
-        save_tasks(tasks)
-        await broadcast_task_update(task_id, tasks[task_id])
-
-        transcript = await audio_transcriber.transcribe_audio(audio_path)
-
+        subtitle_text = None
+        video_title = None
         try:
-            Path(audio_path).unlink()
-        except Exception:
-            pass
+            subtitle_text, video_title = await video_downloader.extract_subtitles(url, TEMP_DIR)
+        except Exception as e:
+            logger.warning(f"字幕提取异常: {e}")
+
+        if subtitle_text:
+            # 有字幕，跳过音频下载和转录
+            logger.info(f"✅ 使用视频字幕替代转录，跳过音频下载")
+            tasks[task_id].update({"progress": 80, "message": "✅ 已从字幕中提取文本"})
+            save_tasks(tasks)
+            await broadcast_task_update(task_id, tasks[task_id])
+            transcript = subtitle_text
+        else:
+            # 无字幕，下载音频并转录
+            tasks[task_id].update({"progress": 10, "message": "🎬 无可用字幕，正在下载音频..."})
+            save_tasks(tasks)
+            await broadcast_task_update(task_id, tasks[task_id])
+
+            audio_path, video_title = await video_downloader.download_video_audio(url, TEMP_DIR)
+
+            tasks[task_id].update({"progress": 40, "message": "🎤 正在转录音频..."})
+            save_tasks(tasks)
+            await broadcast_task_update(task_id, tasks[task_id])
+
+            transcript = await audio_transcriber.transcribe_audio(audio_path)
+
+            try:
+                Path(audio_path).unlink()
+            except Exception:
+                pass
 
         tasks[task_id].update({
             "status": "completed", "progress": 100, "message": "",

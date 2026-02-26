@@ -72,6 +72,87 @@ export default function SearchAgent() {
     });
   }, []);
 
+  const handleGenerateNotes = useCallback(
+    async (videoUrl: string, _videoTitle: string) => {
+      setGeneratingUrls((prev) => new Set(prev).add(videoUrl));
+
+      const aiMsg: ChatMsg = {
+        id: `notes-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        isStreaming: true,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+
+      streamPost(
+        '/api/search-agent-generate-notes',
+        { video_url: videoUrl, summary_language: 'zh' },
+        (raw) => {
+          const data = raw as AgentSSEData;
+          switch (data.type) {
+            case 'text_chunk':
+              updateLastMessage((m) => ({ ...m, content: m.content + (data.content || '') }));
+              break;
+            case 'progress':
+              updateLastMessage((m) => ({
+                ...m,
+                progress: { percent: data.progress || 0, message: data.message || '' },
+              }));
+              break;
+            case 'notes_complete':
+              updateLastMessage((m) => ({
+                ...m,
+                notesResult: data.data as AgentNotesData,
+                progress: undefined,
+              }));
+              setGeneratingUrls((prev) => {
+                const next = new Set(prev);
+                next.delete(videoUrl);
+                return next;
+              });
+              setGeneratedUrls((prev) => new Set(prev).add(videoUrl));
+              setCurrentGenerationId(null);
+              break;
+            case 'generation_id':
+              setCurrentGenerationId(data.generation_id || null);
+              break;
+            case 'error':
+            case 'cancelled':
+              updateLastMessage((m) => ({
+                ...m,
+                content: m.content + `\n\n${data.type === 'error' ? '❌' : '⚠️'} ${data.content || ''}`,
+              }));
+              setGeneratingUrls((prev) => {
+                const next = new Set(prev);
+                next.delete(videoUrl);
+                return next;
+              });
+              break;
+            case 'done':
+              break;
+          }
+        },
+        () => {
+          updateLastMessage((m) => ({ ...m, isStreaming: false }));
+        },
+        (err) => {
+          updateLastMessage((m) => ({
+            ...m,
+            content: m.content + `\n\n❌ ${err.message}`,
+            isStreaming: false,
+          }));
+          setGeneratingUrls((prev) => {
+            const next = new Set(prev);
+            next.delete(videoUrl);
+            return next;
+          });
+        },
+      );
+    },
+    [updateLastMessage],
+  );
+
   const sendMessage = useCallback(
     (text?: string) => {
       const msg = (text || input).trim();
@@ -179,88 +260,7 @@ export default function SearchAgent() {
         },
       );
     },
-    [input, loading, sessionId, updateLastMessage],
-  );
-
-  const handleGenerateNotes = useCallback(
-    async (videoUrl: string, _videoTitle: string) => {
-      setGeneratingUrls((prev) => new Set(prev).add(videoUrl));
-
-      const aiMsg: ChatMsg = {
-        id: `notes-${Date.now()}`,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        isStreaming: true,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-
-      streamPost(
-        '/api/search-agent-generate-notes',
-        { video_url: videoUrl, summary_language: 'zh' },
-        (raw) => {
-          const data = raw as AgentSSEData;
-          switch (data.type) {
-            case 'text_chunk':
-              updateLastMessage((m) => ({ ...m, content: m.content + (data.content || '') }));
-              break;
-            case 'progress':
-              updateLastMessage((m) => ({
-                ...m,
-                progress: { percent: data.progress || 0, message: data.message || '' },
-              }));
-              break;
-            case 'notes_complete':
-              updateLastMessage((m) => ({
-                ...m,
-                notesResult: data.data as AgentNotesData,
-                progress: undefined,
-              }));
-              setGeneratingUrls((prev) => {
-                const next = new Set(prev);
-                next.delete(videoUrl);
-                return next;
-              });
-              setGeneratedUrls((prev) => new Set(prev).add(videoUrl));
-              setCurrentGenerationId(null);
-              break;
-            case 'generation_id':
-              setCurrentGenerationId(data.generation_id || null);
-              break;
-            case 'error':
-            case 'cancelled':
-              updateLastMessage((m) => ({
-                ...m,
-                content: m.content + `\n\n${data.type === 'error' ? '❌' : '⚠️'} ${data.content || ''}`,
-              }));
-              setGeneratingUrls((prev) => {
-                const next = new Set(prev);
-                next.delete(videoUrl);
-                return next;
-              });
-              break;
-            case 'done':
-              break;
-          }
-        },
-        () => {
-          updateLastMessage((m) => ({ ...m, isStreaming: false }));
-        },
-        (err) => {
-          updateLastMessage((m) => ({
-            ...m,
-            content: m.content + `\n\n❌ ${err.message}`,
-            isStreaming: false,
-          }));
-          setGeneratingUrls((prev) => {
-            const next = new Set(prev);
-            next.delete(videoUrl);
-            return next;
-          });
-        },
-      );
-    },
-    [updateLastMessage],
+    [input, loading, sessionId, updateLastMessage, handleGenerateNotes],
   );
 
   const handleCancelGeneration = async () => {

@@ -1,4 +1,4 @@
-import { Check, Loader2, Download, Mic, Sparkles, BookOpen, CircleDot } from 'lucide-react';
+import { Check, Loader2, Download, Mic, Sparkles, BookOpen, CircleDot, Captions } from 'lucide-react';
 import clsx from 'clsx';
 
 export interface Step {
@@ -10,6 +10,14 @@ export interface Step {
 const DEFAULT_STEPS: Step[] = [
   { key: 'download', label: '下载', icon: <Download size={16} /> },
   { key: 'transcribe', label: '转录', icon: <Mic size={16} /> },
+  { key: 'optimize', label: '优化', icon: <Sparkles size={16} /> },
+  { key: 'summarize', label: '总结', icon: <BookOpen size={16} /> },
+  { key: 'complete', label: '完成', icon: <Check size={16} /> },
+];
+
+export const SUBTITLE_STEPS: Step[] = [
+  { key: 'download', label: '字幕', icon: <Captions size={16} /> },
+  { key: 'transcribe', label: '提取', icon: <Mic size={16} /> },
   { key: 'optimize', label: '优化', icon: <Sparkles size={16} /> },
   { key: 'summarize', label: '总结', icon: <BookOpen size={16} /> },
   { key: 'complete', label: '完成', icon: <Check size={16} /> },
