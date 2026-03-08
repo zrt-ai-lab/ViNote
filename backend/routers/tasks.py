@@ -25,6 +25,27 @@ async def process_video(
     summary_language: str = Form(default="zh"),
 ):
     try:
+        # 防御：如果收到本地文件路径，自动走本地处理流程
+        if os.path.exists(url) and os.path.isfile(url):
+            from backend.utils.file_handler import MEDIA_EXTENSIONS
+            file_ext = Path(url).suffix.lower()
+            if file_ext in MEDIA_EXTENSIONS:
+                task_id = str(uuid.uuid4())
+                tasks[task_id] = {
+                    "status": "processing",
+                    "progress": 0,
+                    "message": "开始处理本地文件...",
+                    "script": None,
+                    "summary": None,
+                    "error": None,
+                    "source": "local_path",
+                    "file_path": url,
+                }
+                save_tasks(tasks)
+                task = asyncio.create_task(_process_local_path_task(task_id, url, summary_language))
+                active_tasks[task_id] = task
+                return {"task_id": task_id, "message": "检测到本地文件，已自动切换本地处理模式"}
+
         if url in processing_urls:
             for tid, task in tasks.items():
                 if task.get("url") == url:
