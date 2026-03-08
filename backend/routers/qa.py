@@ -24,6 +24,11 @@ async def transcribe_only(
     file_path: Optional[str] = Form(None),
 ):
     try:
+        # 防御：如果 url 实际是本地文件路径，自动当作 file_path 处理
+        if url and not file_path and os.path.exists(url) and os.path.isfile(url):
+            file_path = url
+            url = None
+
         if not url and not file_path:
             raise HTTPException(status_code=400, detail="url或file_path参数必需")
         if url and file_path:

@@ -58,6 +58,26 @@ async def video_to_mindmap(
     language: str = Form(default="zh"),
 ):
     """视频 → 下载 → 转录 → 生成思维导图（跳过优化/摘要/翻译）"""
+    # 防御：如果收到本地文件路径，自动走本地处理流程
+    if os.path.exists(url) and os.path.isfile(url):
+        from backend.utils.file_handler import MEDIA_EXTENSIONS
+        file_ext = Path(url).suffix.lower()
+        if file_ext in MEDIA_EXTENSIONS:
+            task_id = str(uuid.uuid4())
+            tasks[task_id] = {
+                "status": "processing",
+                "progress": 0,
+                "message": "开始处理本地文件...",
+                "mindmap": None,
+                "error": None,
+                "source": "local_path",
+                "file_path": url,
+            }
+            save_tasks(tasks)
+            task = asyncio.create_task(_local_video_to_mindmap_task(task_id, url, language))
+            active_tasks[task_id] = task
+            return {"task_id": task_id}
+
     task_id = str(uuid.uuid4())
 
     tasks[task_id] = {
