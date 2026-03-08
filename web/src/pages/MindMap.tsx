@@ -10,10 +10,12 @@ import { BrainCircuit, Play, Loader2, Square } from 'lucide-react';
 const MarkmapView = lazy(() => import('../components/MarkmapView'));
 
 type InputMode = 'text' | 'video';
+type VideoSource = 'url' | 'local';
 
 export default function MindMap() {
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<InputMode>('text');
+  const [videoSource, setVideoSource] = useState<VideoSource>('url');
 
   const [textContent, setTextContent] = useState('');
   const [textLoading, setTextLoading] = useState(false);
@@ -70,19 +72,24 @@ export default function MindMap() {
     }
   };
 
-  // 场景2: 视频URL → 下载+转录+摘要+思维导图
+  // 场景2: 视频URL/本地文件 → 下载+转录+摘要+思维导图
   const handleVideoGenerate = async () => {
-    const extracted = extractBilibiliUrl(url.trim());
-    if (!extracted) return;
+    const input = videoSource === 'url' ? extractBilibiliUrl(url.trim()) : url.trim();
+    if (!input) return;
     setVideoLoading(true);
     setProgress(0);
     setStatusMessage('正在提交任务...');
     setMindmapContent('');
     try {
-      const res = await postFormData<{ task_id: string }>('/api/video-to-mindmap', {
-        url: extracted,
-        language: 'zh',
-      });
+      const res = videoSource === 'local'
+        ? await postJSON<{ task_id: string }>('/api/local-video-to-mindmap', {
+            file_path: input,
+            language: 'zh',
+          })
+        : await postFormData<{ task_id: string }>('/api/video-to-mindmap', {
+            url: input,
+            language: 'zh',
+          });
       setTaskId(res.task_id);
       connect(`/api/task-stream/${res.task_id}`, {
         onMessage: (data) => {
@@ -174,10 +181,29 @@ export default function MindMap() {
             </>
           ) : (
             <>
+              <div className="flex gap-1 mb-1">
+                {([
+                  { key: 'url' as VideoSource, label: '视频链接' },
+                  { key: 'local' as VideoSource, label: '本地路径' },
+                ]).map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => { setVideoSource(s.key); setUrl(''); }}
+                    disabled={videoLoading}
+                    className={`px-2 py-1 text-[11px] rounded font-medium transition-colors ${
+                      videoSource === s.key
+                        ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/30'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="粘贴视频链接 (YouTube, Bilibili...)"
+                placeholder={videoSource === 'url' ? '粘贴视频链接 (YouTube, Bilibili...)' : '输入本地视频文件路径'}
                 className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/20"
                 disabled={videoLoading}
               />
@@ -201,7 +227,9 @@ export default function MindMap() {
                 </button>
               )}
               <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-                下载视频 → 转录 → 直接生成思维导图，跳过摘要等步骤，更快
+                {videoSource === 'url'
+                  ? '下载视频 → 转录 → 直接生成思维导图，跳过摘要等步骤，更快'
+                  : '从本地视频提取音频 → 转录 → 生成思维导图'}
               </p>
             </>
           )}
@@ -231,10 +259,10 @@ export default function MindMap() {
               <BrainCircuit size={24} className="text-[var(--color-text-muted)]" />
             </div>
             <p className="text-sm text-[var(--color-text-secondary)] mb-1">
-              {mode === 'text' ? '粘贴文本内容，AI 生成思维导图' : '输入视频链接，自动生成思维导图'}
+              {mode === 'text' ? '粘贴文本内容，AI 生成思维导图' : '输入视频链接或本地路径，自动生成思维导图'}
             </p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {mode === 'text' ? '支持任意文本：笔记、文章、会议记录等' : '支持 YouTube、Bilibili 等平台'}
+              {mode === 'text' ? '支持任意文本：笔记、文章、会议记录等' : '支持 YouTube、Bilibili 等平台，或本地视频文件'}
             </p>
           </div>
         )}
