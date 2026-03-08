@@ -52,6 +52,7 @@ class NoteGenerator:
         cancel_check: Optional[Callable[[], bool]] = None,
         audio_path_override: Optional[str] = None,
         video_title_override: Optional[str] = None,
+        subtitle_text_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         生成完整的视频笔记
@@ -87,10 +88,15 @@ class NoteGenerator:
             
             # 检测裸本地路径，自动加 file:// 前缀
             import os
-            if not audio_path_override and not video_url.startswith(("http://", "https://", "file://")) and os.path.isfile(video_url):
+            if not audio_path_override and not subtitle_text_override and not video_url.startswith(("http://", "https://", "file://")) and os.path.isfile(video_url):
                 video_url = f"file://{video_url}"
 
-            if audio_path_override:
+            if subtitle_text_override:
+                # 本地文件字幕模式：直接使用提供的字幕文本
+                subtitle_text = subtitle_text_override
+                video_title = video_title_override or "untitled"
+                await self._update_progress(progress_callback, 35, "✅ 字幕已就绪，开始处理...")
+            elif audio_path_override:
                 # 本地文件模式：直接使用提供的音频
                 audio_path = audio_path_override
                 video_title = video_title_override or Path(audio_path_override).stem

@@ -72,26 +72,42 @@ async def transcribe_only(
 
 async def _transcribe_local_file_task(task_id: str, file_path: str):
     from backend.services.audio_transcriber import AudioTranscriber
-    from backend.utils.file_handler import extract_audio_from_file, cleanup_temp_audio
+    from backend.utils.file_handler import extract_audio_from_file, cleanup_temp_audio, extract_embedded_subtitles
 
     try:
-        audio_transcriber = AudioTranscriber()
         video_title = Path(file_path).stem
 
-        tasks[task_id].update({"progress": 5, "message": "正在提取音频..."})
+        # 先尝试提取内嵌字幕
+        tasks[task_id].update({"progress": 3, "message": "📄 正在检查内嵌字幕..."})
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
-        audio_path, needs_cleanup = await extract_audio_from_file(file_path, TEMP_DIR, task_id)
-
+        subtitle_text = None
         try:
-            tasks[task_id].update({"progress": 40, "message": "正在转录音频..."})
+            subtitle_text = await extract_embedded_subtitles(file_path)
+        except Exception as e:
+            logger.warning(f"内嵌字幕提取异常: {e}")
+
+        if subtitle_text:
+            logger.info(f"✅ 本地视频发现内嵌字幕，跳过音频提取和ASR")
+            transcript = subtitle_text
+        else:
+            tasks[task_id].update({"progress": 5, "message": "正在提取音频..."})
             save_tasks(tasks)
             await broadcast_task_update(task_id, tasks[task_id])
 
-            transcript = await audio_transcriber.transcribe_audio(audio_path)
-        finally:
-            cleanup_temp_audio(audio_path, needs_cleanup)
+            audio_path, needs_cleanup = await extract_audio_from_file(file_path, TEMP_DIR, task_id)
+
+            try:
+                audio_transcriber = AudioTranscriber()
+
+                tasks[task_id].update({"progress": 40, "message": "正在转录音频..."})
+                save_tasks(tasks)
+                await broadcast_task_update(task_id, tasks[task_id])
+
+                transcript = await audio_transcriber.transcribe_audio(audio_path)
+            finally:
+                cleanup_temp_audio(audio_path, needs_cleanup)
 
         tasks[task_id].update({
             "status": "completed", "progress": 100, "message": "",

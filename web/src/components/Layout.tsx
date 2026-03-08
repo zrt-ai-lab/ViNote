@@ -11,6 +11,7 @@ import {
   BrainCircuit,
   Sparkles,
   Clock,
+  FolderOpen,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Toast from './Toast';
@@ -40,6 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: '更多',
     items: [
       { to: '/history', icon: Clock, label: '历史记录' },
+      { to: '/tags', icon: FolderOpen, label: '笔记分类' },
       { to: '/dev-tools', icon: Wrench, label: '开发者工具' },
     ],
   },
@@ -107,7 +109,7 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="p-4 text-[11px] text-[var(--color-text-muted)] border-t border-[var(--color-border-light)]">v1.3.0</div>
+        <div className="p-4 text-[11px] text-[var(--color-text-muted)] border-t border-[var(--color-border-light)]">v1.4.0</div>
       </aside>
 
       <button

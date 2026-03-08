@@ -128,3 +128,76 @@ export interface QAStreamData {
   content?: string;
   done?: boolean;
 }
+
+// Batch processing types
+export interface BatchTaskInfo {
+  task_id: string;
+  short_id: string;
+  video_title: string;
+  status: 'processing' | 'completed' | 'error' | 'cancelled';
+  progress: number;
+  message: string;
+  error?: string;
+}
+
+export interface BatchStatus {
+  batch_id: string;
+  total: number;
+  completed: number;
+  failed: number;
+  processing: number;
+  tasks: BatchTaskInfo[];
+}
+
+// Directory scan types
+export interface ScannedFile {
+  path: string;
+  name: string;
+  size: number;
+  size_display: string;
+}
+
+export interface ScanResult {
+  directory: string;
+  files: ScannedFile[];
+  total: number;
+}
+
+// Tag stat type
+export interface TagStat {
+  name: string;
+  note_count: number;
+}
+
+// Category types
+export interface Category {
+  id: number;
+  name: string;
+  sort_order: number;
+  is_system: boolean;
+  created_at: string;
+  note_count: number;
+}
+
+// Completed task with inline tags/category (from SQLite)
+export interface CompletedTask {
+  task_id: string;
+  video_title: string;
+  type: 'notes' | 'qa';
+  has_summary: boolean;
+  has_transcript: boolean;
+  category: string;
+  category_id: number | null;
+  tags: string[];
+  created_at: string;
+  url: string;
+  source: string;
+  batch_id: string;
+}
+
+export interface CompletedTasksResponse {
+  tasks: CompletedTask[];
+  total: number;
+  page: number;
+  page_size: number;
+}
