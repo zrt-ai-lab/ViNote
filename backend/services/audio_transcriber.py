@@ -13,7 +13,8 @@ from backend.config.ai_config import get_asr_config
 
 logger = logging.getLogger(__name__)
 
-_transcribe_semaphore = asyncio.Semaphore(1)
+from backend.config.settings import get_settings
+_transcribe_semaphore = asyncio.Semaphore(get_settings().ASR_CONCURRENCY)
 
 
 class AudioTranscriber:

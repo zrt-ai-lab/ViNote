@@ -100,14 +100,13 @@ export default function KnowledgeCards() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [loadingContent, setLoadingContent] = useState(false);
-  const autoLoadedRef = useRef(false);
+  const autoLoadedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (autoLoadedRef.current) return;
     const taskId = searchParams.get('taskId');
     const field = searchParams.get('field') || 'summary';
-    if (!taskId) return;
-    autoLoadedRef.current = true;
+    if (!taskId || autoLoadedRef.current === taskId) return;
+    autoLoadedRef.current = taskId;
     setSource('text');
     fetchJSON<{ content: string }>(`/api/tasks/${taskId}/content?field=${field}`)
       .then((res) => {

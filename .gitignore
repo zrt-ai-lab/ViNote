@@ -217,6 +217,11 @@ temp/
 *.tmp
 *.temp
 
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
 # Downloaded videos and audio files
 *.mp4
 *.mp3

@@ -15,7 +15,6 @@ interface Message {
 }
 
 export default function VideoQA() {
-  const [mode, setMode] = useState<'url' | 'local'>('url');
   const [input, setInput] = useState('');
   const [transcript, setTranscript] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
@@ -35,9 +34,10 @@ export default function VideoQA() {
   }, [messages]);
 
   const handlePreprocess = async () => {
-    const url = mode === 'url' ? extractBilibiliUrl(input.trim()) : input.trim();
+    const url = extractBilibiliUrl(input.trim());
     if (!url) return;
-    if (mode === 'url' && !preview) {
+    // 尝试预览（仅在线URL有效，本地路径会静默失败）
+    if (!preview) {
       fetchJSON<{ success: boolean; data: VideoInfo }>(
         `/api/preview-video?url=${encodeURIComponent(url)}`,
       ).then((res) => setPreview(res.data)).catch(() => {});
@@ -46,8 +46,7 @@ export default function VideoQA() {
     setTask(null);
     setTranscript('');
     try {
-      const formData: Record<string, string> = mode === 'url' ? { url } : { file_path: url };
-      const res = await postFormData<{ task_id: string }>('/api/transcribe-only', formData);
+      const res = await postFormData<{ task_id: string }>('/api/transcribe-only', { url });
       setTaskId(res.task_id);
       connect(`/api/task-stream/${res.task_id}`, {
         onMessage: (data) => {
@@ -132,27 +131,11 @@ export default function VideoQA() {
       <div className="w-96 border-r border-[var(--color-border)] bg-[var(--color-surface)] p-6 overflow-y-auto shrink-0">
         <h2 className="text-lg font-semibold text-[var(--color-text)] mb-5">AI视频问答</h2>
 
-        <div className="flex gap-1.5 mb-4">
-          {(['url', 'local'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                mode === m
-                  ? 'bg-[var(--color-accent)] text-white'
-                  : 'bg-[var(--color-bg)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)]'
-              }`}
-            >
-              {m === 'url' ? '在线URL' : '本地路径'}
-            </button>
-          ))}
-        </div>
-
         <div className="space-y-3">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={mode === 'url' ? '粘贴视频链接' : '输入本地文件路径'}
+            placeholder="粘贴视频链接或本地文件路径"
             className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/20 disabled:bg-[var(--color-bg)] disabled:text-[var(--color-text-muted)]"
             disabled={!!transcript}
           />

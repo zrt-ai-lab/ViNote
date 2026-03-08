@@ -8,6 +8,7 @@ import DevTools from './pages/DevTools';
 import MindMap from './pages/MindMap';
 import KnowledgeCards from './pages/KnowledgeCards';
 import History from './pages/History';
+import TagManagement from './pages/TagManagement';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/mindmap" element={<MindMap />} />
           <Route path="/cards" element={<KnowledgeCards />} />
           <Route path="/history" element={<History />} />
+          <Route path="/tags" element={<TagManagement />} />
           <Route path="/search" element={<SearchAgent />} />
           <Route path="/dev-tools" element={<DevTools />} />
         </Route>

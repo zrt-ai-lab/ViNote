@@ -205,7 +205,7 @@ async def local_video_to_mindmap(request: Request):
 
 
 async def _local_video_to_mindmap_task(task_id: str, file_path: str, language: str):
-    from backend.utils.file_handler import extract_audio_from_file, cleanup_temp_audio
+    from backend.utils.file_handler import extract_audio_from_file, cleanup_temp_audio, extract_embedded_subtitles
 
     try:
         async def progress(pct: int, msg: str):
@@ -215,31 +215,44 @@ async def _local_video_to_mindmap_task(task_id: str, file_path: str, language: s
 
         video_title = Path(file_path).stem
 
-        await progress(5, "正在提取音频...")
-        audio_path, needs_cleanup = await extract_audio_from_file(file_path, TEMP_DIR, task_id)
-
+        # 先尝试提取内嵌字幕
+        await progress(3, "📄 正在检查内嵌字幕...")
+        subtitle_text = None
         try:
-            await progress(30, "🎤 正在转录音频...")
-            transcriber = AudioTranscriber()
-            transcript = await transcriber.transcribe_audio(
-                audio_path, video_title=video_title
-            )
+            subtitle_text = await extract_embedded_subtitles(file_path)
+        except Exception as e:
+            logger.warning(f"内嵌字幕提取异常: {e}")
 
-            await progress(80, "🧠 正在生成思维导图...")
-            summarizer = ContentSummarizer()
-            mindmap = await summarizer.generate_mindmap(transcript, language)
+        if subtitle_text:
+            logger.info(f"✅ 本地视频发现内嵌字幕，跳过音频提取和ASR")
+            await progress(40, "✅ 发现内嵌字幕，跳过音频转录")
+            transcript = subtitle_text
+        else:
+            await progress(5, "正在提取音频...")
+            audio_path, needs_cleanup = await extract_audio_from_file(file_path, TEMP_DIR, task_id)
 
-            tasks[task_id].update({
-                "status": "completed",
-                "progress": 100,
-                "message": "✨ 思维导图生成完成！",
-                "mindmap": mindmap or "",
-                "video_title": video_title,
-            })
-            save_tasks(tasks)
-            await broadcast_task_update(task_id, tasks[task_id])
-        finally:
-            cleanup_temp_audio(audio_path, needs_cleanup)
+            try:
+                await progress(30, "🎤 正在转录音频...")
+                transcriber = AudioTranscriber()
+                transcript = await transcriber.transcribe_audio(
+                    audio_path, video_title=video_title
+                )
+            finally:
+                cleanup_temp_audio(audio_path, needs_cleanup)
+
+        await progress(80, "🧠 正在生成思维导图...")
+        summarizer = ContentSummarizer()
+        mindmap = await summarizer.generate_mindmap(transcript, language)
+
+        tasks[task_id].update({
+            "status": "completed",
+            "progress": 100,
+            "message": "✨ 思维导图生成完成！",
+            "mindmap": mindmap or "",
+            "video_title": video_title,
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
 
     except asyncio.CancelledError:
         logger.info(f"本地思维导图任务 {task_id} 被取消")

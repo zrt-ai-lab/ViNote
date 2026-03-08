@@ -57,6 +57,11 @@ class Settings:
     
     # ========== 任务配置 ==========
     TASK_BACKUP_COUNT: int = 3
+    # 批量任务同时处理数（默认5）。值越大同时跑的任务越多，占用更多内存和API并发
+    BATCH_CONCURRENCY: int = int(os.getenv("BATCH_CONCURRENCY", "5"))
+    # ASR转录并发数（默认1）。模型共享单实例，并发不增加内存，但每个转录占1个CPU核。
+    # tiny/base可设3-5，small/medium设2-3，large设1-2
+    ASR_CONCURRENCY: int = int(os.getenv("ASR_CONCURRENCY", "1"))
     
     # ========== ANP服务配置 ==========
     ANP_SERVER_URL: str = os.getenv("ANP_SERVER_URL", "http://localhost:8000/ad.json")

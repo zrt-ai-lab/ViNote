@@ -180,3 +180,54 @@ def validate_download_filename(filename: str) -> bool:
 
 # ── 启动时加载 ────────────────────────────────────────
 tasks.update(load_tasks())
+
+
+# ── SQLite 持久化（已完成任务） ────────────────────────
+async def persist_completed_task(task_id: str, task_data: dict) -> None:
+    """将已完成任务写入 SQLite，然后从内存 dict 中移除"""
+    import re
+    from backend.services.note_repository import save_note
+
+    short_id = task_data.get("short_id") or task_id.replace("-", "")[:6]
+    title = task_data.get("video_title", "未命名")
+    url = task_data.get("url", "")
+    source = task_data.get("source", "url")
+    safe_title = task_data.get("safe_title", "")
+    has_summary = bool(task_data.get("summary"))
+    has_transcript = bool(task_data.get("script") or task_data.get("raw_script") or task_data.get("transcript"))
+    batch_id = task_data.get("batch_id")
+
+    # 扫描文件系统找对应的 .md 文件
+    note_file_re = re.compile(
+        r"^(summary|transcript|raw|mindmap|translation)_(.+)_" + re.escape(short_id) + r"\.md$"
+    )
+    files: dict[str, str] = {}
+    for f in TEMP_DIR.iterdir():
+        if f.is_file() and f.suffix == ".md":
+            match = note_file_re.match(f.name)
+            if match:
+                files[match.group(1)] = f.name
+
+    try:
+        await save_note(
+            short_id,
+            task_id=task_id,
+            url=url,
+            title=title,
+            safe_title=safe_title,
+            source=source,
+            summary_file=files.get("summary"),
+            transcript_file=files.get("transcript") or files.get("raw"),
+            mindmap_file=files.get("mindmap"),
+            translation_file=files.get("translation"),
+            has_summary=has_summary,
+            has_transcript=has_transcript,
+            batch_id=batch_id,
+        )
+        # 从内存 dict 移除已持久化的任务
+        if task_id in tasks:
+            del tasks[task_id]
+            save_tasks(tasks)
+        logger.info(f"任务 {short_id} 已持久化到 SQLite")
+    except Exception as e:
+        logger.error(f"持久化任务 {short_id} 失败: {e}")
