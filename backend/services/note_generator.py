@@ -85,6 +85,11 @@ class NoteGenerator:
             video_title = None
             subtitle_text = None
             
+            # 检测裸本地路径，自动加 file:// 前缀
+            import os
+            if not audio_path_override and not video_url.startswith(("http://", "https://", "file://")) and os.path.isfile(video_url):
+                video_url = f"file://{video_url}"
+
             if audio_path_override:
                 # 本地文件模式：直接使用提供的音频
                 audio_path = audio_path_override
