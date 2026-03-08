@@ -127,10 +127,12 @@ class CardGenerator:
         count = max(3, min(count, 10))
         style_cfg = STYLE_CONFIGS.get(style, STYLE_CONFIGS["keypoint"])
 
-        is_valid = await self.check_content_quality(content)
-        if not is_valid:
-            yield {"type": "error", "message": "未提取到有效知识内容。请提供包含具体知识点的文本（如课程笔记、技术文档、教程等），纯闲聊或无意义文本无法生成卡片。"}
-            return
+        # 从笔记/QA加载的内容已经是系统生成的有效内容，跳过质量检查
+        if source not in ("notes", "qa"):
+            is_valid = await self.check_content_quality(content)
+            if not is_valid:
+                yield {"type": "error", "message": "未提取到有效知识内容。请提供包含具体知识点的文本（如课程笔记、技术文档、教程等），纯闲聊或无意义文本无法生成卡片。"}
+                return
 
         source_hint = {
             "notes": "以下是视频笔记内容",

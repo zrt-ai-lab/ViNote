@@ -83,10 +83,15 @@ export default function VideoNote() {
     setCompletedSteps([]);
     setUseSubtitleFlow(false);
     try {
-      const res = await postFormData<{ task_id: string }>('/api/process-video', {
-        url,
-        summary_language: language,
-      });
+      const res = mode === 'local'
+        ? await postJSON<{ task_id: string }>('/api/process-local-path', {
+            file_path: url,
+            language,
+          })
+        : await postFormData<{ task_id: string }>('/api/process-video', {
+            url,
+            summary_language: language,
+          });
       setTaskId(res.task_id);
       connect(`/api/task-stream/${res.task_id}`, {
         onMessage: (data) => {
