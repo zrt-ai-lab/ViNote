@@ -9,6 +9,7 @@ from .ai_config import (
     get_asr_config,
     get_whisper_config,
     get_openai_config,
+    get_twelvelabs_config,
     get_language_name
 )
 
@@ -20,5 +21,6 @@ __all__ = [
     'get_asr_config',
     'get_whisper_config',
     'get_openai_config',
+    'get_twelvelabs_config',
     'get_language_name'
 ]

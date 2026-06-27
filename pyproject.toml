@@ -41,6 +41,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "httpx>=0.27.0"]
+# 可选：TwelveLabs 视频理解（Pegasus 视频问答 + Marengo 片段语义检索）
+# 安装: uv sync --extra twelvelabs
+twelvelabs = ["twelvelabs>=1.2.8"]
 
 [build-system]
 requires = ["hatchling"]

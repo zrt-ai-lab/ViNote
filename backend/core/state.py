@@ -54,8 +54,17 @@ def get_video_download_service():
 def get_video_qa_service():
     global _video_qa_service
     if _video_qa_service is None:
-        from backend.services.video_qa_service import VideoQAService
-        _video_qa_service = VideoQAService()
+        # 可选：当 VIDEO_QA_PROVIDER=twelvelabs 且已配置 key 时，
+        # 使用 Pegasus 直接对视频画面问答；否则保持默认的转录文本 + OpenAI 路径。
+        from backend.config.ai_config import get_twelvelabs_config
+        tl_config = get_twelvelabs_config()
+        if tl_config.use_for_qa and tl_config.is_configured:
+            from backend.services.twelvelabs_service import TwelveLabsVideoQAService
+            _video_qa_service = TwelveLabsVideoQAService()
+            logger.info("视频问答使用 TwelveLabs Pegasus provider")
+        else:
+            from backend.services.video_qa_service import VideoQAService
+            _video_qa_service = VideoQAService()
     return _video_qa_service
 
 
