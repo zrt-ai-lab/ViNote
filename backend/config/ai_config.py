@@ -162,10 +162,55 @@ class OpenAIConfig:
 
 
 @dataclass
+class TwelveLabsConfig:
+    """TwelveLabs 配置（可选，默认关闭）
+
+    需要可选依赖 ``twelvelabs`` 与环境变量 ``TWELVELABS_API_KEY``。
+    未配置时不影响任何现有功能，问答仍走默认的转录文本 + OpenAI 路径。
+    """
+    api_key: Optional[str] = None
+    # 是否将视频问答切换到 TwelveLabs Pegasus（直接理解视频画面，而非转录文本）
+    use_for_qa: bool = False
+    # Pegasus（视频理解 / 问答）
+    pegasus_model: str = "pegasus1.5"
+    qa_max_tokens: int = 2048
+    # Marengo（视频 / 文本多模态向量，512 维，用于片段语义检索）
+    marengo_model: str = "marengo3.0"
+
+    def __post_init__(self):
+        self.api_key = os.getenv("TWELVELABS_API_KEY")
+
+        env_use = os.getenv("VIDEO_QA_PROVIDER")
+        if env_use and env_use.strip().lower() == "twelvelabs":
+            self.use_for_qa = True
+
+        env_pegasus = os.getenv("TWELVELABS_PEGASUS_MODEL")
+        if env_pegasus:
+            self.pegasus_model = env_pegasus
+
+        env_marengo = os.getenv("TWELVELABS_MARENGO_MODEL")
+        if env_marengo:
+            self.marengo_model = env_marengo
+
+        env_max_tokens = os.getenv("TWELVELABS_QA_MAX_TOKENS")
+        if env_max_tokens:
+            try:
+                self.qa_max_tokens = max(512, int(env_max_tokens))
+            except ValueError:
+                pass
+
+    @property
+    def is_configured(self) -> bool:
+        """API key 已设置时视为可用。"""
+        return bool(self.api_key)
+
+
+@dataclass
 class AIServiceConfig:
     """AI服务统一配置"""
     asr: ASRConfig
     openai: OpenAIConfig
+    twelvelabs: TwelveLabsConfig
     
     # 文本处理配置
     max_chars_per_chunk: int = 4000
@@ -197,7 +242,8 @@ class AIServiceConfig:
 # 创建全局配置实例
 ai_config = AIServiceConfig(
     asr=ASRConfig(),
-    openai=OpenAIConfig()
+    openai=OpenAIConfig(),
+    twelvelabs=TwelveLabsConfig()
 )
 
 
@@ -214,6 +260,11 @@ def get_whisper_config() -> WhisperConfig:
 def get_openai_config() -> OpenAIConfig:
     """获取OpenAI配置"""
     return ai_config.openai
+
+
+def get_twelvelabs_config() -> TwelveLabsConfig:
+    """获取TwelveLabs配置（可选）"""
+    return ai_config.twelvelabs
 
 
 def get_ai_config() -> AIServiceConfig:

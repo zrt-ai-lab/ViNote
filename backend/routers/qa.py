@@ -211,7 +211,8 @@ async def video_qa_stream(request: Request):
 
         if not question:
             raise HTTPException(status_code=400, detail="问题不能为空")
-        if not transcript:
+        # 默认转录文本路径需要 transcript；TwelveLabs Pegasus 路径基于视频 URL，无需 transcript
+        if not transcript and not video_url:
             raise HTTPException(status_code=400, detail="转录文本不能为空")
         if not get_video_qa_service().is_available():
             raise HTTPException(status_code=503, detail="AI服务暂时不可用，请稍后重试")

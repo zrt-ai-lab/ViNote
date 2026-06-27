@@ -347,6 +347,31 @@ B站结果：8 个视频
 | `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base`                      | ✅ |
 | `APP_HOST` | 服务监听地址 | `0.0.0.0`                   | ❌ |
 | `APP_PORT` | 服务端口 | `8999`                      | ❌ |
+| `TWELVELABS_API_KEY` | TwelveLabs API 密钥（可选，启用视频问答增强） | -        | ❌ |
+| `VIDEO_QA_PROVIDER` | 视频问答 provider，设为 `twelvelabs` 启用 Pegasus | -    | ❌ |
+
+### 🎬 TwelveLabs 视频理解（可选增强）
+
+默认情况下，视频问答基于**转录文本** + OpenAI。如果希望模型直接理解**视频画面**
+（动作、场景、画面中的物体等转录文本无法表达的信息），可选启用 [TwelveLabs](https://twelvelabs.io)：
+
+- **Pegasus** —— 直接对视频内容进行问答；
+- **Marengo** —— 生成 512 维多模态向量，可对抽取出的视频片段做语义检索。
+
+启用步骤（完全可选，不配置时现有功能不受任何影响）：
+
+```bash
+# 1. 安装可选依赖
+uv sync --extra twelvelabs
+
+# 2. 在 .env 中配置（免费 key: https://twelvelabs.io，有较慷慨的免费额度）
+TWELVELABS_API_KEY=your-twelvelabs-key
+VIDEO_QA_PROVIDER=twelvelabs
+```
+
+> 说明：Pegasus 需要可公开访问的视频 URL（或先上传为 asset，direct 上传上限 200MB），
+> 且被分析的视频时长需 ≥ 4 秒。
+
 ### Whisper 模型选择
 
 | 模型 | 参数量 | GPU 显存需求 (fp16) | CPU 内存需求 (int8) | 相对速度 | 质量 | 推荐场景 |
