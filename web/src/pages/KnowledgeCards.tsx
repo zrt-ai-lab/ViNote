@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { streamPost, fetchJSON } from '../api/client';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import { Sparkles, ClipboardPaste, BookOpen, MessageSquare, Loader2, Check, FlipHorizontal2, ListChecks, Lightbulb, LayoutPanelLeft, Copy } from 'lucide-react';
 import clsx from 'clsx';
 

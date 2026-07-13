@@ -3,7 +3,6 @@
 """
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import aiosqlite
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchJSON, postJSON } from '../api/client';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import type { Category, CompletedTask, CompletedTasksResponse } from '../types';
 import {
   FolderOpen, Plus, X, Pencil, Check, Trash2, Loader2,

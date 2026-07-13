@@ -5,7 +5,6 @@
 import logging
 import asyncio
 import re
-from typing import Optional
 
 from backend.core.ai_client import get_openai_client, is_openai_available
 from backend.config.ai_config import get_openai_config

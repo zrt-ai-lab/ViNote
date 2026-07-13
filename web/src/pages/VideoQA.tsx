@@ -3,7 +3,7 @@ import { postFormData, fetchJSON, deleteAPI, extractBilibiliUrl, proxyImageUrl, 
 import { useSSE } from '../hooks/useSSE';
 import ProgressBar from '../components/ProgressBar';
 import ChatMessage from '../components/ChatMessage';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import type { TaskStatus, VideoInfo } from '../types';
 import { Loader2, Send, Trash2, Square } from 'lucide-react';
 

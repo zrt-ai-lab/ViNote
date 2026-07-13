@@ -4,7 +4,6 @@
 import json
 import logging
 import re
-from pathlib import Path
 
 from backend.db.connection import get_db, DB_PATH
 from backend.core.state import TEMP_DIR

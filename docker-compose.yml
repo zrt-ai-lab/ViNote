@@ -26,8 +26,8 @@ services:
       - vinote-temp:/app/temp
       # 持久化应用数据（任务记录等）
       - vinote-data:/app/data
-      # 挂载 B站 cookies 文件（用于需要登录的视频）
-      - ./bilibili_cookies.txt:/app/bilibili_cookies.txt
+      # 可选：挂载 B站 cookies 文件（启用前请先创建 bilibili_cookies.txt）
+      # - ./bilibili_cookies.txt:/app/bilibili_cookies.txt:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8999/health"]
       interval: 30s

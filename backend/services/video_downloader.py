@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import Tuple, Optional, List
 
 from backend.config.settings import get_settings
+from backend.utils.video_helpers import (
+    BILIBILI_COOKIES_PATH,
+    format_time_display,
+    get_cookies_for_url,
+    merge_and_format_segments,
+    timestamp_to_seconds,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -25,8 +32,8 @@ class VideoDownloader:
     def __init__(self):
         """初始化yt-dlp配置"""
         # 获取cookies文件路径（项目根目录）
-        self.project_root = Path(__file__).parent.parent.parent
-        self.bilibili_cookies = self.project_root / "bilibili_cookies.txt"
+        self.project_root = BILIBILI_COOKIES_PATH.parent
+        self.bilibili_cookies = BILIBILI_COOKIES_PATH
         
         # 基础配置（不含 cookies）- 移除可能导致YouTube问题的http_headers
         self.base_ydl_opts = {
@@ -54,15 +61,9 @@ class VideoDownloader:
             'noplaylist': True,  # 强制只下载单个视频，不下载播放列表
         }
     
-    def _get_cookies_for_url(self, url: str) -> str:
+    def _get_cookies_for_url(self, url: str) -> Optional[str]:
         """根据 URL 获取对应的 cookies 文件路径"""
-        # 仅B站使用 cookies，YouTube 不使用（避免认证问题）
-        if 'bilibili.com' in url or 'b23.tv' in url:
-            if self.bilibili_cookies.exists():
-                logger.info(f"使用 B站 cookies: {self.bilibili_cookies}")
-                return str(self.bilibili_cookies)
-        
-        return None
+        return get_cookies_for_url(url, self.bilibili_cookies, logger)
 
     async def download_video_audio(
         self,
@@ -496,18 +497,7 @@ class VideoDownloader:
 
     def _timestamp_to_seconds(self, timestamp: str) -> float:
         """将时间戳字符串转换为秒数"""
-        try:
-            parts = timestamp.replace(',', '.').split(':')
-            if len(parts) == 3:
-                h, m, s = parts
-                return int(h) * 3600 + int(m) * 60 + float(s)
-            elif len(parts) == 2:
-                m, s = parts
-                return int(m) * 60 + float(s)
-            else:
-                return float(parts[0])
-        except (ValueError, IndexError):
-            return 0.0
+        return timestamp_to_seconds(timestamp)
 
     def _merge_and_format_segments(self, segments: list) -> str:
         """
@@ -515,55 +505,11 @@ class VideoDownloader:
         
         字幕通常每行很短且有大量重叠，需要去重合并
         """
-        if not segments:
-            return ""
-
-        # 去重：移除完全相同的连续文本
-        deduped = []
-        prev_text = ""
-        for start, end, text in segments:
-            if text != prev_text:
-                deduped.append((start, end, text))
-                prev_text = text
-
-        # 按时间段合并相邻文本（每30秒为一段）
-        merged = []
-        current_start = deduped[0][0] if deduped else 0
-        current_end = deduped[0][1] if deduped else 0
-        current_texts = []
-        merge_interval = 30.0  # 每30秒合并为一段
-
-        for start, end, text in deduped:
-            if start - current_start > merge_interval and current_texts:
-                merged.append((current_start, current_end, ' '.join(current_texts)))
-                current_start = start
-                current_texts = []
-            current_end = end
-            current_texts.append(text)
-
-        if current_texts:
-            merged.append((current_start, current_end, ' '.join(current_texts)))
-
-        # 格式化为 Markdown
-        lines = []
-        for start, end, text in merged:
-            start_fmt = self._format_time_display(start)
-            end_fmt = self._format_time_display(end)
-            lines.append(f"**{start_fmt} - {end_fmt}**  ")
-            lines.append(text)
-            lines.append("")
-
-        return '\n'.join(lines)
+        return merge_and_format_segments(segments)
 
     def _format_time_display(self, seconds: float) -> str:
         """将秒数格式化为 HH:MM:SS 或 MM:SS"""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-        else:
-            return f"{minutes:02d}:{secs:02d}"
+        return format_time_display(seconds)
 
     async def _verify_and_fix_audio(
         self,

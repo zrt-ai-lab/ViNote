@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { postFormData, postJSON, fetchJSON, extractBilibiliUrl, deleteAPI } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import ProgressBar from '../components/ProgressBar';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import type { TaskStatus } from '../types';
 import { BrainCircuit, Play, Loader2, Square } from 'lucide-react';
 

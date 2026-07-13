@@ -37,13 +37,6 @@ export interface VideoInfo {
   formats?: { height: number; quality: string; filesize_string: string }[];
 }
 
-export interface DownloadStatus {
-  status: 'downloading' | 'completed' | 'error' | 'cancelled';
-  progress?: number;
-  filename?: string;
-  error?: string;
-}
-
 // Search Agent types
 export type AgentMessageType =
   | 'text_chunk'
@@ -119,16 +112,6 @@ export interface ChatMessage {
   isStreaming?: boolean;
 }
 
-export interface DevToolsSSEData {
-  content?: string;
-  done?: boolean;
-}
-
-export interface QAStreamData {
-  content?: string;
-  done?: boolean;
-}
-
 // Batch processing types
 export interface BatchTaskInfo {
   task_id: string;
@@ -161,12 +144,6 @@ export interface ScanResult {
   directory: string;
   files: ScannedFile[];
   total: number;
-}
-
-// Tag stat type
-export interface TagStat {
-  name: string;
-  note_count: number;
 }
 
 // Category types

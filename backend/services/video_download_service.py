@@ -7,9 +7,11 @@ import asyncio
 import uuid
 import threading
 from pathlib import Path
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional
 from datetime import datetime
 import yt_dlp
+
+from backend.utils.video_helpers import BILIBILI_COOKIES_PATH, get_cookies_for_url
 
 logger = logging.getLogger(__name__)
 
@@ -28,22 +30,15 @@ class VideoDownloadService:
         self.download_dir.mkdir(exist_ok=True)
         
         # 获取cookies文件路径（项目根目录）
-        project_root = Path(__file__).parent.parent.parent
-        self.bilibili_cookies = project_root / "bilibili_cookies.txt"
+        self.bilibili_cookies = BILIBILI_COOKIES_PATH
         
         self.active_downloads: Dict[str, Dict] = {}
         self.download_callbacks: Dict[str, list] = {}
         self._lock = threading.Lock()
     
-    def _get_cookies_for_url(self, url: str) -> str:
+    def _get_cookies_for_url(self, url: str) -> Optional[str]:
         """根据 URL 获取对应的 cookies 文件路径"""
-        # 仅B站使用 cookies，YouTube 不使用（避免认证问题）
-        if 'bilibili.com' in url or 'b23.tv' in url:
-            if self.bilibili_cookies.exists():
-                logger.info(f"使用 B站 cookies: {self.bilibili_cookies}")
-                return str(self.bilibili_cookies)
-        
-        return None
+        return get_cookies_for_url(url, self.bilibili_cookies, logger)
     
     async def start_download(self, url: str, quality: str, download_id: str = None) -> str:
         """

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { streamPost } from '../api/client';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import { Copy, Loader2, Play } from 'lucide-react';
 
 export default function DevTools() {

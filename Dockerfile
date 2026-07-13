@@ -27,7 +27,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 WORKDIR /app
 
 # 复制项目配置文件和最小源码结构（uv sync 需要）
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md VERSION ./
 COPY backend/__init__.py ./backend/__init__.py
 
 # 安装 Python 依赖（利用 Docker 层缓存）
@@ -45,9 +45,6 @@ COPY cookies.txt.example ./
 
 # 创建数据目录
 RUN mkdir -p /app/temp/downloads /app/temp/backups /app/data
-
-# 更新 yt-dlp 到最新版（视频下载依赖最新版本解析）
-RUN uv run python -m pip install --upgrade yt-dlp 2>/dev/null || true
 
 # 环境变量
 ENV PYTHONUNBUFFERED=1

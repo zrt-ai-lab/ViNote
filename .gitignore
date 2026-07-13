@@ -252,5 +252,8 @@ static-build/
 web/node_modules/
 web/dist/
 
+# Local isolated worktrees
+.worktrees/
+
 # Cookies (sensitive)
 douyin_cookies.txt

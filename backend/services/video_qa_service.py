@@ -3,8 +3,6 @@
 基于视频转录文本的智能问答
 """
 import logging
-import asyncio
-from typing import Optional
 
 from openai import AsyncOpenAI
 
