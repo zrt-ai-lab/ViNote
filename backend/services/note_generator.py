@@ -7,6 +7,7 @@
 import logging
 import asyncio
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Callable, Dict, Any
 import aiofiles
@@ -144,7 +145,6 @@ class NoteGenerator:
             # 步骤2: 根据字幕/音频情况生成转录文本
             if subtitle_text:
                 # 使用字幕作为原始转录，跳过 ASR 转录
-                from datetime import datetime
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
                 
                 raw_transcript = f"""# 视频转录文本
@@ -209,7 +209,6 @@ class NoteGenerator:
             optimized_transcript = await self.text_optimizer.optimize_transcript(raw_transcript)
             
             # 为优化后的转录添加标题和来源（简洁格式）
-            from datetime import datetime
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
             
             transcript_with_meta = f"""# {video_title}

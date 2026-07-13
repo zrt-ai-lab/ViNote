@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+from backend.version import VERSION
 
 PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
@@ -28,7 +29,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="ViNote", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="ViNote", version=VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

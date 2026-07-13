@@ -5,6 +5,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from backend.version import VERSION
 
 # 加载环境变量
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -28,11 +29,11 @@ class Settings:
     
     # ========== 应用配置 ==========
     APP_TITLE: str = "ViNote API"
-    APP_VERSION: str = "2.0.0"
+    APP_VERSION: str = VERSION
     APP_DESCRIPTION: str = "AI驱动的视频笔记生成系统"
     
     HOST: str = os.getenv("APP_HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("APP_PORT", "8000"))
+    PORT: int = int(os.getenv("APP_PORT", "8999"))
     DEBUG: bool = os.getenv("APP_DEBUG", "false").lower() == "true"
     
     # ========== CORS配置 ==========

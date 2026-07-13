@@ -13,7 +13,6 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
     "markmap-lib": "^0.18.12",
-    "markmap-toolbar": "^0.18.12",
     "markmap-view": "^0.18.12",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

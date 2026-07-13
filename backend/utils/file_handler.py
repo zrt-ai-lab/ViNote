@@ -10,6 +10,11 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from backend.utils.video_helpers import (
+    merge_and_format_segments as _merge_and_format_segments,
+    timestamp_to_seconds as _timestamp_to_seconds,
+)
+
 logger = logging.getLogger(__name__)
 
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv"}
@@ -201,78 +206,6 @@ def _parse_srt_to_markdown(content: str) -> str:
             segments.append((start_sec, end_sec, text))
 
     return _merge_and_format_segments(segments)
-
-
-def _timestamp_to_seconds(timestamp: str) -> float:
-    """将 HH:MM:SS.mmm 或 MM:SS.mmm 转为秒"""
-    try:
-        parts = timestamp.replace(",", ".").split(":")
-        if len(parts) == 3:
-            h, m, s = parts
-            return int(h) * 3600 + int(m) * 60 + float(s)
-        elif len(parts) == 2:
-            m, s = parts
-            return int(m) * 60 + float(s)
-        else:
-            return float(parts[0])
-    except (ValueError, IndexError):
-        return 0.0
-
-
-def _merge_and_format_segments(segments: list[tuple[float, float, str]]) -> str:
-    """去重+合并相邻字幕段（每 30 秒），格式化为 Markdown"""
-    if not segments:
-        return ""
-
-    # 去重：移除完全相同的连续文本
-    deduped: list[tuple[float, float, str]] = []
-    prev_text = ""
-    for start, end, text in segments:
-        if text != prev_text:
-            deduped.append((start, end, text))
-            prev_text = text
-
-    if not deduped:
-        return ""
-
-    # 按 30 秒合并
-    merged: list[tuple[float, float, str]] = []
-    current_start = deduped[0][0]
-    current_end = deduped[0][1]
-    current_texts: list[str] = []
-    merge_interval = 30.0
-
-    for start, end, text in deduped:
-        if start - current_start > merge_interval and current_texts:
-            merged.append((current_start, current_end, " ".join(current_texts)))
-            current_start = start
-            current_texts = []
-        current_end = end
-        current_texts.append(text)
-
-    if current_texts:
-        merged.append((current_start, current_end, " ".join(current_texts)))
-
-    # 格式化
-    lines: list[str] = []
-    for start, end, text in merged:
-        start_fmt = _format_time_display(start)
-        end_fmt = _format_time_display(end)
-        lines.append(f"**{start_fmt} - {end_fmt}**  ")
-        lines.append(text)
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def _format_time_display(seconds: float) -> str:
-    """秒数格式化为 HH:MM:SS 或 MM:SS"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    if hours > 0:
-        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
 
 
 def sanitize_filename(filename: str, max_length: int = 80, default: str = "untitled") -> str:

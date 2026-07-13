@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { postFormData, fetchJSON, postJSON, deleteAPI, downloadFile, extractBilibiliUrl, proxyImageUrl, createSSE } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import ProgressBar from '../components/ProgressBar';
-import ProgressSteps, { SUBTITLE_STEPS } from '../components/ProgressSteps';
+import ProgressSteps from '../components/ProgressSteps';
+import { SUBTITLE_STEPS } from '../components/progressStepData';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Modal from '../components/Modal';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import type { TaskStatus, VideoInfo, BatchStatus, BatchTaskInfo, ScanResult, ScannedFile } from '../types';
 import { Play, Download, Square, Sparkles, BrainCircuit, List, CheckCircle2, XCircle, Loader2, Clock, FolderSearch, Layers } from 'lucide-react';
 
@@ -172,7 +173,11 @@ export default function VideoNote() {
   const toggleFileSelection = (path: string) => {
     setSelectedFiles((prev) => {
       const next = new Set(prev);
-      next.has(path) ? next.delete(path) : next.add(path);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
       return next;
     });
   };
@@ -373,7 +378,7 @@ export default function VideoNote() {
                     <input
                       value={dirPath}
                       onChange={(e) => setDirPath(e.target.value)}
-                      placeholder="输入目录路径，如 /Users/xxx/课程"
+                      placeholder="输入目录路径，如 /path/to/课程"
                       className="flex-1 border border-[var(--color-border)] rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:border-[var(--color-accent)]"
                     />
                     <button
@@ -421,7 +426,7 @@ export default function VideoNote() {
                 <textarea
                   value={batchInput}
                   onChange={(e) => setBatchInput(e.target.value)}
-                  placeholder={'每行一个视频链接或本地文件路径：\nhttps://www.youtube.com/watch?v=xxx\nhttps://www.bilibili.com/video/BVxxx\n/Users/xxx/课程/第1课.mp4'}
+                  placeholder={'每行一个视频链接或本地文件路径：\nhttps://www.youtube.com/watch?v=xxx\nhttps://www.bilibili.com/video/BVxxx\n/path/to/课程/第1课.mp4'}
                   rows={5}
                   className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/20 resize-none font-mono"
                 />

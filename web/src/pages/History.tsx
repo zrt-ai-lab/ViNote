@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchJSON, postJSON } from '../api/client';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import type { CompletedTask, CompletedTasksResponse, Category } from '../types';
 import {

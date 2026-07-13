@@ -5,7 +5,7 @@ import ChatMessage from '../components/ChatMessage';
 import VideoCard from '../components/VideoCard';
 import ProgressBar from '../components/ProgressBar';
 import MarkdownRenderer from '../components/MarkdownRenderer';
-import { toast } from '../components/Toast';
+import { toast } from '../components/toastStore';
 import type { AgentSSEData, AgentVideo, AgentVideoListData, AgentNotesData, AgentGenerateCommand } from '../types';
 import { Send, Trash2, Loader2, Search, FileText, MessageCircle, Globe, ChevronDown, ChevronUp, Download, Brain, Maximize2, X } from 'lucide-react';
 
@@ -53,15 +53,6 @@ export default function SearchAgent() {
     msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    const q = searchParams.get('q');
-    if (q && !initialQuerySent.current && messages.length === 0) {
-      initialQuerySent.current = true;
-      setInput('');
-      setTimeout(() => sendMessage(q), 100);
-    }
-  }, [searchParams]);
-
   const updateLastMessage = useCallback((updater: (msg: ChatMsg) => ChatMsg) => {
     setMessages((prev) => {
       const copy = [...prev];
@@ -73,7 +64,7 @@ export default function SearchAgent() {
   }, []);
 
   const handleGenerateNotes = useCallback(
-    async (videoUrl: string, _videoTitle: string) => {
+    async (videoUrl: string) => {
       setGeneratingUrls((prev) => new Set(prev).add(videoUrl));
 
       const aiMsg: ChatMsg = {
@@ -229,7 +220,7 @@ export default function SearchAgent() {
             case 'generate_notes_command': {
               const cmd = data.data as AgentGenerateCommand;
               if (cmd?.video_url) {
-                handleGenerateNotes(cmd.video_url, cmd.video_title);
+                handleGenerateNotes(cmd.video_url);
               }
               break;
             }
@@ -262,6 +253,16 @@ export default function SearchAgent() {
     },
     [input, loading, sessionId, updateLastMessage, handleGenerateNotes],
   );
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q && !initialQuerySent.current && messages.length === 0) {
+      initialQuerySent.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve immediate clearing before the delayed initial send.
+      setInput('');
+      setTimeout(() => sendMessage(q), 100);
+    }
+  }, [messages.length, searchParams, sendMessage]);
 
   const handleCancelGeneration = async () => {
     if (!currentGenerationId) return;
@@ -435,7 +436,7 @@ export default function SearchAgent() {
                             <VideoCard
                               key={vi}
                               video={v}
-                              onGenerateNotes={(url, title) => handleGenerateNotes(url, title)}
+                              onGenerateNotes={(url) => handleGenerateNotes(url)}
                               generating={generatingUrls.has(v.url)}
                               generated={generatedUrls.has(v.url)}
                             />

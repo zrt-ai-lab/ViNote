@@ -1,20 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 import clsx from 'clsx';
-
-type ToastType = 'success' | 'error' | 'info';
+import { setToastHandler, type ToastType } from './toastStore';
 
 interface ToastItem {
   id: number;
   message: string;
   type: ToastType;
   leaving?: boolean;
-}
-
-let addToastFn: ((message: string, type: ToastType) => void) | null = null;
-
-export function toast(message: string, type: ToastType = 'info') {
-  addToastFn?.(message, type);
 }
 
 let nextId = 0;
@@ -34,9 +27,9 @@ export default function Toast() {
   }, []);
 
   useEffect(() => {
-    addToastFn = addToast;
+    setToastHandler(addToast);
     return () => {
-      addToastFn = null;
+      setToastHandler(null);
     };
   }, [addToast]);
 

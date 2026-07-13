@@ -52,7 +52,7 @@ class ASRConfig:
     model_dir: Optional[str] = None
     device: str = "cpu"
     compute_type: str = "int8"
-    max_input_seconds: int = 1200
+    max_input_seconds: int = 60
     batch_size: int = 1
     whisper: WhisperConfig = field(default_factory=WhisperConfig)
     
@@ -121,7 +121,7 @@ class OpenAIConfig:
     """OpenAI API配置"""
     api_key: Optional[str] = None
     base_url: str = "https://api.openai.com/v1"
-    model: str = "cortex-4"
+    model: str = "gpt-4o"
     
     # 通用参数
     default_temperature: float = 0.3
