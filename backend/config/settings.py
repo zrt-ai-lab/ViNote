@@ -32,13 +32,19 @@ class Settings:
     APP_VERSION: str = VERSION
     APP_DESCRIPTION: str = "AI驱动的视频笔记生成系统"
     
-    HOST: str = os.getenv("APP_HOST", "0.0.0.0")
+    HOST: str = os.getenv("APP_HOST", "127.0.0.1")
     PORT: int = int(os.getenv("APP_PORT", "8999"))
     DEBUG: bool = os.getenv("APP_DEBUG", "false").lower() == "true"
     
     # ========== CORS配置 ==========
-    CORS_ORIGINS: list = ["*"]
-    CORS_CREDENTIALS: bool = True
+    CORS_ORIGINS: list = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+        if origin.strip()
+    ]
+    CORS_CREDENTIALS: bool = False
     CORS_METHODS: list = ["*"]
     CORS_HEADERS: list = ["*"]
     

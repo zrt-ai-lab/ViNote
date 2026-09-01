@@ -98,7 +98,7 @@ echo [√] .env 已就绪
 exit /b 0
 
 :read_config
-set "APP_HOST=0.0.0.0"
+set "APP_HOST=127.0.0.1"
 set "APP_PORT=8999"
 set "VIDEO_SEARCH_PROVIDERS=local"
 set "OPENAI_API_KEY_VALUE="

@@ -1,13 +1,17 @@
 const BASE = '';
 
+async function responseError(res: Response, fallback: string): Promise<Error> {
+  const payload = await res.json().catch(() => null) as { detail?: string; message?: string } | null;
+  return new Error(payload?.detail || payload?.message || `${fallback} (${res.status})`);
+}
+
 export async function fetchJSON<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error((err as { detail?: string }).detail || `Request failed (${res.status})`);
+    throw await responseError(res, '请求失败');
   }
   return res.json() as Promise<T>;
 }
@@ -19,8 +23,7 @@ export function postFormData<T>(path: string, data: Record<string, string>): Pro
   }
   return fetch(`${BASE}${path}`, { method: 'POST', body: fd }).then(async (res) => {
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error((err as { detail?: string }).detail || `Request failed (${res.status})`);
+      throw await responseError(res, '请求失败');
     }
     return res.json() as Promise<T>;
   });
@@ -33,10 +36,9 @@ export function postJSON<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
-export function deleteAPI(path: string): Promise<void> {
-  return fetch(`${BASE}${path}`, { method: 'DELETE' }).then((res) => {
-    if (!res.ok) throw new Error(`Delete failed (${res.status})`);
-  });
+export async function deleteAPI(path: string): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' });
+  if (!res.ok) throw await responseError(res, '删除失败');
 }
 
 export function streamPost(
@@ -55,28 +57,34 @@ export function streamPost(
   })
     .then(async (res) => {
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error((err as { detail?: string }).detail || `Stream failed (${res.status})`);
+        throw await responseError(res, '流式请求失败');
       }
       const reader = res.body?.getReader();
-      if (!reader) return;
+      if (!reader) throw new Error('流式响应不可用');
       const decoder = new TextDecoder();
       let buffer = '';
+      const consumeLines = (flush = false) => {
+        const lines = buffer.split(/\r?\n/);
+        buffer = flush ? '' : (lines.pop() ?? '');
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trimStart();
+          if (!payload) continue;
+          try {
+            onLine(JSON.parse(payload));
+          } catch {
+            /* ignore malformed server events */
+          }
+        }
+      };
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            onLine(JSON.parse(line.slice(6)));
-          } catch {
-            /* skip */
-          }
-        }
+        consumeLines();
       }
+      buffer += decoder.decode();
+      consumeLines(true);
       onDone?.();
     })
     .catch((err: unknown) => {
@@ -90,13 +98,16 @@ export function createSSE(
   path: string,
   onMessage: (data: unknown) => void,
   onError?: () => void,
+  onOpen?: () => void,
 ): EventSource {
   const es = new EventSource(`${BASE}${path}`);
+  es.onopen = () => onOpen?.();
   es.onmessage = (e) => {
     try {
-      onMessage(JSON.parse(e.data));
+      const data = JSON.parse(e.data);
+      if (data?.type !== 'heartbeat') onMessage(data);
     } catch {
-      /* skip */
+      /* ignore malformed server events */
     }
   };
   es.onerror = () => {

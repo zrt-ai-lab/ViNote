@@ -101,7 +101,13 @@ class LocalSearchProvider(SearchProvider):
 
         except Exception as e:
             logger.error(f"Bilibili search failed: {e}")
-            return {"success": False, "error": str(e), "results": [], "count": 0, "provider": self.name}
+            return {
+                "success": False,
+                "error": "Bilibili 搜索服务暂时不可用",
+                "results": [],
+                "count": 0,
+                "provider": self.name,
+            }
 
     async def _search_ytdlp(self, query: str, platform: str, **kwargs) -> Dict[str, Any]:
         max_results = kwargs.get("max_results", 10)
@@ -147,7 +153,13 @@ class LocalSearchProvider(SearchProvider):
             return {"success": False, "error": "Search timed out", "results": [], "count": 0, "provider": self.name}
         except Exception as e:
             logger.error(f"Local search failed: {e}")
-            return {"success": False, "error": str(e), "results": [], "count": 0, "provider": self.name}
+            return {
+                "success": False,
+                "error": "视频搜索服务暂时不可用",
+                "results": [],
+                "count": 0,
+                "provider": self.name,
+            }
 
     def get_tools(self) -> List[Dict[str, Any]]:
         return [{

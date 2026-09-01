@@ -27,8 +27,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         client_ip = request.client.host if request.client else "unknown"
 
-        excluded_paths = ["/", "/static", "/api/task-stream", "/api/download-stream"]
-        if any(request.url.path.startswith(path) for path in excluded_paths):
+        path = request.url.path
+        excluded_paths = {"/", "/health"}
+        excluded_prefixes = ("/assets/", "/api/task-stream/", "/api/download-stream/")
+        if path in excluded_paths or path.startswith(excluded_prefixes):
             return await call_next(request)
 
         now = datetime.now()

@@ -24,4 +24,4 @@ if __name__ == "__main__":
     print("🌐 启动客户端 DID 服务器")
     print("   端口: 9000")
     print("   DID 文档: http://localhost:9000/client/video-search-client/did.json")
-    uvicorn.run(client_app, host="0.0.0.0", port=9000)
+    uvicorn.run(client_app, host="127.0.0.1", port=9000)

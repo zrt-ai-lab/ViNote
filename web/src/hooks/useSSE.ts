@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { createSSE } from '../api/client';
 
 interface UseSSEOptions {
   onMessage: (data: unknown) => void;
@@ -11,28 +12,17 @@ export function useSSE() {
 
   const connect = useCallback((path: string, opts: UseSSEOptions) => {
     esRef.current?.close();
-    const es = new EventSource(path);
+    const es = createSSE(
+      path,
+      opts.onMessage,
+      () => {
+        setConnected(false);
+        opts.onError?.();
+        esRef.current = null;
+      },
+      () => setConnected(true),
+    );
     esRef.current = es;
-
-    es.onopen = () => {
-      setConnected(true);
-    };
-
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === 'heartbeat') return;
-        opts.onMessage(data);
-      } catch {
-        /* skip */
-      }
-    };
-
-    es.onerror = () => {
-      setConnected(false);
-      opts.onError?.();
-      es.close();
-    };
   }, []);
 
   const disconnect = useCallback(() => {
@@ -41,11 +31,7 @@ export function useSSE() {
     setConnected(false);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      esRef.current?.close();
-    };
-  }, []);
+  useEffect(() => disconnect, [disconnect]);
 
   return { connect, disconnect, connected };
 }

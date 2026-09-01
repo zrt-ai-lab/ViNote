@@ -56,9 +56,19 @@ function BatchTaskStatusIcon({ status }: { status: string }) {
       return <XCircle size={14} className="text-red-500 shrink-0" />;
     case 'processing':
       return <Loader2 size={14} className="text-[var(--color-accent)] animate-spin shrink-0" />;
+    case 'cancelled':
+      return <Square size={14} className="text-amber-500 shrink-0" />;
     default:
       return <Clock size={14} className="text-[var(--color-text-muted)] shrink-0" />;
   }
+}
+
+function batchTaskStatusText(task: BatchTaskInfo): string {
+  if (task.status === 'completed') return '已完成';
+  if (task.status === 'error') return '失败';
+  if (task.status === 'cancelled') return '已取消';
+  if (task.status === 'queued') return task.message || '排队中';
+  return task.message || '处理中';
 }
 
 export default function VideoNote() {
@@ -113,7 +123,8 @@ export default function VideoNote() {
           if (data.processing === 0) {
             setBatchLoading(false);
             if (batchPollRef.current) clearInterval(batchPollRef.current);
-            toast(`批量处理完成: ${data.completed} 成功, ${data.failed} 失败`, data.failed > 0 ? 'error' : 'success');
+            const summary = `批量处理结束: ${data.completed} 完成, ${data.failed} 失败, ${data.cancelled} 取消`;
+            toast(summary, data.failed > 0 ? 'error' : data.cancelled > 0 ? 'info' : 'success');
           }
         })
         .catch(() => {});
@@ -142,6 +153,21 @@ export default function VideoNote() {
     } catch (e) {
       toast(e instanceof Error ? e.message : '批量提交失败', 'error');
       setBatchLoading(false);
+    }
+  };
+
+  const handleCancelBatch = async () => {
+    if (!batchId) return;
+    try {
+      await deleteAPI(`/api/batch/${batchId}`);
+      if (batchPollRef.current) clearInterval(batchPollRef.current);
+      setBatchLoading(false);
+      toast('批量任务已取消', 'info');
+      fetchJSON<BatchStatus>(`/api/batch-status/${batchId}`)
+        .then(setBatchStatus)
+        .catch((error) => toast(error instanceof Error ? error.message : '刷新批次状态失败', 'error'));
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '取消批量任务失败', 'error');
     }
   };
 
@@ -226,7 +252,9 @@ export default function VideoNote() {
       const data = await fetchJSON<TaskStatus>(`/api/task-status/${bt.task_id}`);
       setBatchTaskContent(data);
       setActiveTab('script');
-    } catch { toast('加载笔记失败', 'error'); }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '加载笔记失败', 'error');
+    }
   };
 
   // ── Single handlers ───────────────────────────────
@@ -265,7 +293,7 @@ export default function VideoNote() {
           if (t.status === 'completed') {
             setCompletedSteps(['download', 'transcribe', 'optimize', 'summarize', 'complete']);
             setCurrentStep(''); disconnect(); setLoading(false);
-            toast('笔记生成完成！', 'success');
+            toast(t.warnings?.length ? '笔记已生成，部分 AI 能力已降级' : '笔记生成完成！', t.warnings?.length ? 'info' : 'success');
           } else if (t.status === 'error') {
             disconnect(); setLoading(false); toast(t.error || '生成失败', 'error');
           }
@@ -284,7 +312,9 @@ export default function VideoNote() {
       disconnect(); setLoading(false);
       setTask((prev) => (prev ? { ...prev, status: 'cancelled', message: '已取消' } : null));
       toast('已取消', 'info');
-    } catch { /* ignore */ }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '取消任务失败', 'error');
+    }
   };
 
   const handleDownloadFile = useCallback((filename: string) => {
@@ -320,10 +350,12 @@ export default function VideoNote() {
   const handleCancelDownload = async () => {
     if (!downloadId) return;
     try {
-      downloadSSERef.current?.close();
       await deleteAPI(`/api/cancel-download/${downloadId}`);
+      downloadSSERef.current?.close();
       setDownloadStatus('idle'); setDownloadId(null); toast('下载已取消', 'info');
-    } catch { /* ignore */ }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '取消下载失败', 'error');
+    }
   };
 
   const qualityOptions = preview?.formats?.length
@@ -549,23 +581,26 @@ export default function VideoNote() {
 
           {/* 操作按钮 */}
           {isBatch ? (
-            <button
-              onClick={showDirScan && scannedFiles.length > 0 ? handleBatchFromScan : handleBatchSubmit}
-              disabled={batchLoading || (showDirScan && scannedFiles.length > 0
-                ? selectedFiles.size === 0
-                : playlist ? selectedPlaylistUrls.size === 0 : !batchInput.trim())}
-              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-40 transition-colors"
-            >
-              {batchLoading ? (
-                <><Loader2 size={13} className="animate-spin" />处理中...</>
-              ) : (
+            batchLoading ? (
+              <button onClick={handleCancelBatch}
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                <Square size={13} /> 取消批量任务
+              </button>
+            ) : (
+              <button
+                onClick={showDirScan && scannedFiles.length > 0 ? handleBatchFromScan : handleBatchSubmit}
+                disabled={showDirScan && scannedFiles.length > 0
+                  ? selectedFiles.size === 0
+                  : playlist ? selectedPlaylistUrls.size === 0 : !batchInput.trim()}
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-40 transition-colors"
+              >
                 <><List size={13} />
                   {showDirScan && scannedFiles.length > 0
                     ? `批量处理 ${selectedFiles.size} 个文件`
                     : '批量生成笔记'}
                 </>
-              )}
-            </button>
+              </button>
+            )
           ) : loading ? (
             <button onClick={handleCancel}
               className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
@@ -607,7 +642,7 @@ export default function VideoNote() {
         {/* 批量进度 */}
         {isBatch && batchStatus && (
           <div className="mt-5 space-y-3">
-            <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="grid grid-cols-5 gap-2 text-center">
               <div className="bg-[var(--color-bg)] rounded-lg p-2">
                 <p className="text-lg font-semibold text-[var(--color-text)]">{batchStatus.total}</p>
                 <p className="text-[10px] text-[var(--color-text-muted)]">总计</p>
@@ -624,9 +659,13 @@ export default function VideoNote() {
                 <p className="text-lg font-semibold text-red-500">{batchStatus.failed}</p>
                 <p className="text-[10px] text-[var(--color-text-muted)]">失败</p>
               </div>
+              <div className="bg-[var(--color-bg)] rounded-lg p-2">
+                <p className="text-lg font-semibold text-amber-500">{batchStatus.cancelled}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)]">取消</p>
+              </div>
             </div>
 
-            <ProgressBar progress={batchStatus.total > 0 ? Math.round(((batchStatus.completed + batchStatus.failed) / batchStatus.total) * 100) : 0} />
+            <ProgressBar progress={batchStatus.total > 0 ? Math.round(((batchStatus.completed + batchStatus.failed + batchStatus.cancelled) / batchStatus.total) * 100) : 0} />
 
             <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
               {batchStatus.tasks.map((bt) => (
@@ -649,7 +688,7 @@ export default function VideoNote() {
                         </div>
                       )}
                       <p className="text-[10px] text-[var(--color-text-muted)] shrink-0">
-                        {bt.status === 'completed' ? '已完成' : bt.status === 'error' ? '失败' : bt.message || '处理中'}
+                        {batchTaskStatusText(bt)}
                       </p>
                     </div>
                   </div>
@@ -680,26 +719,37 @@ export default function VideoNote() {
               </div>
             </div>
 
+            {activeTask.warnings && activeTask.warnings.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                <p className="font-medium mb-1">部分 AI 能力已降级，以下内容使用备用流程生成：</p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {activeTask.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              </div>
+            )}
+
             <div className="flex border-b border-[var(--color-border)] mb-4 gap-0">
               {TABS.map((tab) => {
                 const content = getTabContent(tab.key);
                 const filename = getTabFilename(tab.key);
                 if (!content && tab.key !== 'script') return null;
                 return (
-                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                  <div key={tab.key}
+                    className={`flex items-center border-b-2 transition-colors ${
                       activeTab === tab.key
                         ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
                         : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
                     }`}>
-                    {tab.label}
+                    <button onClick={() => setActiveTab(tab.key)} className="px-4 py-2.5 pr-2 text-xs font-medium">
+                      {tab.label}
+                    </button>
                     {filename && content && (
                       <button onClick={(e) => { e.stopPropagation(); handleDownloadFile(filename); }}
-                        className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]" title="下载">
+                        className="py-2.5 pr-4 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]" title="下载">
                         <Download size={12} />
                       </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

@@ -25,6 +25,7 @@ tasks_lock = threading.Lock()
 tasks: Dict = {}
 processing_urls: Set[str] = set()
 active_tasks: Dict = {}
+active_batches: Dict = {}
 sse_connections: Dict[str, List] = {}
 sse_connection_last_activity: Dict[str, datetime] = {}
 
@@ -221,6 +222,7 @@ async def persist_completed_task(task_id: str, task_data: dict) -> None:
             mindmap_file=files.get("mindmap"),
             translation_file=files.get("translation"),
             raw_transcript_file=files.get("raw"),
+            warnings=task_data.get("warnings", []),
             has_summary=has_summary,
             has_transcript=has_transcript,
             batch_id=batch_id,

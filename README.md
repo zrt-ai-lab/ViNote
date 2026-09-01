@@ -93,7 +93,7 @@ git clone https://github.com/zrt-ai-lab/ViNote.git
 cd ViNote
 
 cp .env.example .env
-# 编辑 .env。OPENAI_API_KEY 为空时基础界面可以启动，但 AI 总结、问答和翻译不可用。
+# 按需编辑 .env。OPENAI_API_KEY 可留空，服务仍可启动；依赖大模型的能力会明确提示降级。
 
 docker compose up -d --build
 curl -f http://localhost:8999/health
@@ -165,7 +165,7 @@ cd ViNote
 start.bat
 ```
 
-首次运行生成 `.env` 后，编辑配置再执行同一个启动命令。启动后验证：
+首次运行生成 `.env` 后，确认配置再执行同一个启动命令；暂不使用大模型时可保持 `OPENAI_API_KEY` 为空。启动后验证：
 
 ```bash
 curl -f http://localhost:8999/health
@@ -177,7 +177,7 @@ open http://localhost:8999
 ```bash
 uv sync --frozen
 cd web && npm ci && npm run build && cd ..
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8999 --workers 1
+uv run uvicorn backend.main:app --host 127.0.0.1 --port 8999 --workers 1
 ```
 
 当前任务状态和 SSE 连接保存在单进程内存中，生产运行也保持 `--workers 1`。
@@ -191,10 +191,7 @@ ANP_SERVER_URL=http://localhost:8000/ad.json
 
 随后重新运行 `./start.sh` 或 `start.bat`，脚本会启动 DID 服务和 ANP 搜索服务，并等待它们就绪。
 
----
-
-8. **访问应用**
-打开浏览器访问: http://localhost:8999
+浏览器访问地址：<http://localhost:8999>。
 
 ---
 
@@ -295,8 +292,9 @@ B站结果：8 个视频
 
 | 变量名 | 说明 | 默认值                         | 必需 |
 |--------|------|-----------------------------|------|
-| `APP_HOST` | 服务监听地址 | `0.0.0.0` | 否 |
+| `APP_HOST` | 服务监听地址；需要局域网访问时可设为 `0.0.0.0` | `127.0.0.1` | 否 |
 | `APP_PORT` | 服务端口 | `8999` | 否 |
+| `CORS_ORIGINS` | 跨域开发来源，逗号分隔；生产构建默认同源 | `http://localhost:5173,http://127.0.0.1:5173` | 否 |
 | `OPENAI_API_KEY` | OpenAI 兼容 API 密钥；为空时基础界面可启动，AI 功能不可用 | 空 | AI 功能需要 |
 | `OPENAI_BASE_URL` | OpenAI 兼容 API 地址 | `https://api.openai.com/v1` | 否 |
 | `OPENAI_MODEL` | 使用的 LLM 模型 | `gpt-4o` | 否 |

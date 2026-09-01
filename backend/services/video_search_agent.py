@@ -234,7 +234,7 @@ class VideoSearchAgent:
 
         except Exception as e:
             logger.error(f"Process message failed: {e}", exc_info=True)
-            yield {"type": "error", "content": f"处理失败: {str(e)}"}
+            yield {"type": "error", "content": "搜索处理失败，请重试"}
 
     async def _handle_generate_notes(self, tool_call, tool_args, session_id, messages):
         video_index = tool_args.get("video_index")
@@ -316,8 +316,12 @@ class VideoSearchAgent:
             messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": "笔记生成已取消"})
         except Exception as e:
             logger.error(f"Generation failed: {e}")
-            yield {"type": "error", "content": f"生成笔记失败: {str(e)}"}
-            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": f"失败: {str(e)}"})
+            yield {"type": "error", "content": "生成笔记失败，请重试"}
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": "生成笔记失败",
+            })
         finally:
             self.active_generation_tasks.pop(generation_id, None)
             self.generation_cancel_flags.pop(generation_id, None)
@@ -385,7 +389,7 @@ class VideoSearchAgent:
             yield {"type": "cancelled", "content": "任务已取消"}
         except Exception as e:
             logger.error(f"generate_notes_for_video failed: {e}")
-            yield {"type": "error", "content": f"生成笔记失败: {str(e)}"}
+            yield {"type": "error", "content": "生成笔记失败，请重试"}
         finally:
             self.active_generation_tasks.pop(generation_id, None)
             self.generation_cancel_flags.pop(generation_id, None)

@@ -3,7 +3,7 @@
 // ============================================================
 
 export interface TaskStatus {
-  status: 'processing' | 'completed' | 'error' | 'cancelled';
+  status: 'queued' | 'processing' | 'completed' | 'error' | 'cancelled';
   progress: number;
   message: string;
   type?: string;
@@ -25,6 +25,7 @@ export interface TaskStatus {
   translation?: string;
   translation_path?: string;
   translation_filename?: string;
+  warnings?: string[];
 }
 
 export interface VideoInfo {
@@ -117,7 +118,7 @@ export interface BatchTaskInfo {
   task_id: string;
   short_id: string;
   video_title: string;
-  status: 'processing' | 'completed' | 'error' | 'cancelled';
+  status: 'queued' | 'processing' | 'completed' | 'error' | 'cancelled';
   progress: number;
   message: string;
   error?: string;
@@ -128,6 +129,7 @@ export interface BatchStatus {
   total: number;
   completed: number;
   failed: number;
+  cancelled: number;
   processing: number;
   tasks: BatchTaskInfo[];
 }

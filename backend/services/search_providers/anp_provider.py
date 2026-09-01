@@ -95,7 +95,13 @@ class ANPSearchProvider(SearchProvider):
 
         except Exception as e:
             logger.error(f"ANP search failed: {e}")
-            return {"success": False, "error": str(e), "results": [], "count": 0, "provider": self.name}
+            return {
+                "success": False,
+                "error": "ANP 搜索服务暂时不可用",
+                "results": [],
+                "count": 0,
+                "provider": self.name,
+            }
 
     def get_tools(self) -> List[Dict[str, Any]]:
         return list(self.openai_tools)

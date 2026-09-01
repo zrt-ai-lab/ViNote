@@ -118,7 +118,7 @@ setup_env() {
 }
 
 validate_config() {
-    APP_HOST="$(read_env_value APP_HOST "0.0.0.0")"
+    APP_HOST="$(read_env_value APP_HOST "127.0.0.1")"
     APP_PORT="$(read_env_value APP_PORT "8999")"
     VIDEO_SEARCH_PROVIDERS="$(read_env_value VIDEO_SEARCH_PROVIDERS "local")"
     OPENAI_API_KEY_VALUE="$(read_env_value OPENAI_API_KEY "")"

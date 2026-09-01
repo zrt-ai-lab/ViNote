@@ -269,16 +269,17 @@ export default function SearchAgent() {
     try {
       await deleteAPI(`/api/search-agent-cancel-generation/${currentGenerationId}`);
       toast('已取消生成', 'info');
-    } catch {
-      toast('取消失败', 'error');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '取消失败', 'error');
     }
   };
 
   const handleClear = async () => {
     try {
       await postJSON('/api/search-agent-clear-session', { session_id: sessionId });
-    } catch {
-      /* ignore */
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '清空会话失败', 'error');
+      return;
     }
     abortRef.current?.abort();
     setMessages([]);

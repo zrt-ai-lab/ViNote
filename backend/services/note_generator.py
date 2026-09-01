@@ -17,6 +17,7 @@ from backend.services.audio_transcriber import AudioTranscriber
 from backend.services.text_optimizer import TextOptimizer
 from backend.services.content_summarizer import ContentSummarizer
 from backend.services.text_translator import TextTranslator
+from backend.services.media_ingestion import cleanup_downloaded_audio
 from backend.utils.file_handler import sanitize_filename
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ class NoteGenerator:
                 }
             }
         """
+        owned_audio_path = None
         try:
             audio_path = None
             video_title = None
@@ -125,6 +127,7 @@ class NoteGenerator:
                     audio_path, video_title = await self.video_downloader.download_video_audio(
                         video_url, temp_dir
                     )
+                    owned_audio_path = audio_path
                     await self._update_progress(progress_callback, 35, "✅ 音频下载完成，开始转录...")
                 else:
                     logger.info(f"✅ 找到视频字幕，跳过音频下载")
@@ -138,6 +141,7 @@ class NoteGenerator:
                 audio_path, video_title = await self.video_downloader.download_video_audio(
                     video_url, temp_dir
                 )
+                owned_audio_path = audio_path
                 await self._update_progress(progress_callback, 35, "✅ 解析视频成功，开始处理...")
 
             self._check_cancelled(cancel_check)
@@ -196,7 +200,7 @@ class NoteGenerator:
             
             # 生成短ID和安全文件名
             import uuid
-            short_id = str(uuid.uuid4()).replace("-", "")[:6]
+            short_id = uuid.uuid4().hex
             safe_title = self._sanitize_title(video_title)
             
             # 保存原始转录
@@ -215,6 +219,10 @@ class NoteGenerator:
             
             # 为优化后的转录添加标题和来源（简洁格式）
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+            transcript_footer = (
+                "由 ViNote 基础整理生成（AI 已降级）"
+                if self.text_optimizer.warnings else "由 ViNote AI 自动生成"
+            )
             
             transcript_with_meta = f"""# {video_title}
 
@@ -227,7 +235,7 @@ class NoteGenerator:
 ---
 
 *整理时间：{current_time}*  
-*由 ViNote AI 自动生成*
+*{transcript_footer}*
 """
             
             # 保存优化后的转录
@@ -303,7 +311,11 @@ class NoteGenerator:
                 mindmap_filename = f"mindmap_{safe_title}_{short_id}.md"
                 mindmap_path = temp_dir / mindmap_filename
                 await self._save_file(mindmap_path, mindmap)
-            
+            summary_footer = (
+                "由 ViNote 备用摘要生成（AI 已降级）"
+                if self.content_summarizer.warnings else "由 ViNote AI 自动生成"
+            )
+
             summary_with_meta = f"""# {video_title}
 
 > 🔗 **视频来源：** [点击观看]({video_url})
@@ -315,7 +327,7 @@ class NoteGenerator:
 ---
 
 *生成时间：{current_time}*  
-*由 ViNote AI 自动生成*
+*{summary_footer}*
 """
             
             summary_filename = f"summary_{safe_title}_{short_id}.md"
@@ -346,7 +358,11 @@ class NoteGenerator:
                     "mindmap_filename": mindmap_filename,
                 }
             }
-            
+            result["warnings"] = list(dict.fromkeys([
+                *self.text_optimizer.warnings,
+                *self.content_summarizer.warnings,
+            ]))
+
             if translation_content and translation_path and translation_with_meta:
                 result["translation"] = translation_with_meta
                 result["files"]["translation_path"] = translation_path
@@ -364,9 +380,12 @@ class NoteGenerator:
         except Exception as e:
             logger.error(f"生成笔记失败: {str(e)}")
             await self._update_progress(
-                progress_callback, -1, f"❌ 处理失败: {str(e)}"
+                progress_callback, -1, "❌ 处理失败，请查看服务日志"
             )
             raise
+        finally:
+            if owned_audio_path:
+                cleanup_downloaded_audio(owned_audio_path, temp_dir)
     
     def _check_cancelled(self, cancel_check: Optional[Callable[[], bool]]):
         """检查是否已取消"""

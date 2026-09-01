@@ -3,6 +3,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from backend.core.errors import internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -80,15 +81,15 @@ async def generate_cookies_stream(request: Request):
                 logger.info("Cookies转换流式输出完成")
             except Exception as e:
                 logger.error(f"流式转换失败: {e}")
-                yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'error': 'Cookies 转换失败，请重试'}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             event_generator(),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*"},
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Cookies转换失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"转换失败: {str(e)}")
+        raise internal_error("Cookies 转换失败")

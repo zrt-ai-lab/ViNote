@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS notes (
     batch_id        TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at    TEXT,
-    raw_transcript_file TEXT
+    raw_transcript_file TEXT,
+    warnings_json   TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -105,6 +106,10 @@ async def init_db():
         note_columns = {row[1] for row in await cursor.fetchall()}
         if "raw_transcript_file" not in note_columns:
             await db.execute("ALTER TABLE notes ADD COLUMN raw_transcript_file TEXT")
+        if "warnings_json" not in note_columns:
+            await db.execute(
+                "ALTER TABLE notes ADD COLUMN warnings_json TEXT NOT NULL DEFAULT '[]'"
+            )
 
         # 兼容升级前已存在的 raw_*.md，不要求用户重新转录。
         cursor = await db.execute(
@@ -157,7 +162,7 @@ async def migrate_from_json():
 
     # 同时扫描 temp 目录中的 .md 文件，补充文件系统中的笔记
     note_file_re = re.compile(
-        r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6})\.md$"
+        r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6,32})\.md$"
     )
     fs_notes: dict[str, dict] = {}  # short_id -> {files, title}
     for f in TEMP_DIR.iterdir():

@@ -22,6 +22,11 @@ class TextOptimizer:
     def __init__(self):
         """初始化文本优化服务"""
         self.config = get_openai_config()
+        self.warnings: list[str] = []
+
+    def _warn(self, message: str) -> None:
+        if message not in self.warnings:
+            self.warnings.append(message)
     
     async def optimize_transcript(self, raw_transcript: str) -> str:
         """
@@ -33,9 +38,11 @@ class TextOptimizer:
         Returns:
             优化后的转录文本（Markdown格式）
         """
+        self.warnings.clear()
         try:
             if not is_openai_available():
                 logger.warning("OpenAI API不可用，返回清理后的原始转录")
+                self._warn("LLM 未配置，完整笔记使用基础清理")
                 return self._basic_transcript_cleanup(raw_transcript)
             
             # 预处理：移除时间戳与元信息
@@ -53,11 +60,13 @@ class TextOptimizer:
             if optimized.strip():
                 return optimized
             logger.warning("AI 返回空的整理结果，回退到基础清理")
+            self._warn("LLM 返回空内容，完整笔记使用基础清理")
             return self._basic_transcript_cleanup(raw_transcript)
                 
         except Exception as e:
             logger.error(f"优化转录文本失败: {str(e)}")
             logger.info("返回清理后的原始转录文本")
+            self._warn("LLM 整理失败，完整笔记使用基础清理")
             return self._basic_transcript_cleanup(raw_transcript)
     
     def _remove_timestamps_and_meta(self, text: str) -> str:
@@ -150,12 +159,14 @@ class TextOptimizer:
             )
             optimized_text = response.choices[0].message.content or ""
             if not optimized_text.strip():
+                self._warn("LLM 返回空内容，完整笔记使用基础清理")
                 return self._basic_transcript_cleanup(chunk_text)
             optimized_text = remove_transcript_headings(optimized_text)
             enforced = enforce_paragraph_length(optimized_text.strip(), max_chars=400)
             return format_markdown_paragraphs(enforced)
         except Exception as e:
             logger.error(f"单块文本优化失败: {e}")
+            self._warn("LLM 整理失败，完整笔记使用基础清理")
             return self._basic_transcript_cleanup(chunk_text)
     
     async def _format_long_transcript_in_chunks(
@@ -201,6 +212,7 @@ class TextOptimizer:
 
         merged = "\n\n".join(deduped)
         if not merged.strip():
+            self._warn("LLM 返回空内容，完整笔记使用基础清理")
             return self._basic_transcript_cleanup(raw_transcript)
         merged = remove_transcript_headings(merged)
         enforced = enforce_paragraph_length(merged, max_chars=400)

@@ -6,12 +6,16 @@ import logging
 from datetime import datetime, timedelta
 
 from backend.core.state import (
+    active_batches,
+    active_tasks,
+    save_tasks,
     sse_connections,
     sse_connection_last_activity,
     tasks,
 )
 
 logger = logging.getLogger(__name__)
+_background_tasks: set[asyncio.Task] = set()
 
 
 async def cleanup_stale_sse_connections():
@@ -57,57 +61,19 @@ async def cleanup_stale_sse_connections():
             logger.error(f"清理SSE连接时出错: {e}")
 
 
-async def check_openai_connection():
-    """检查 OpenAI API 连接性"""
-    from backend.core.ai_client import get_openai_client
-    from backend.config.ai_config import get_openai_config
-
-    config = get_openai_config()
-
-    if not config.is_configured:
-        logger.warning("OpenAI API 未配置，AI功能不可用")
-        return
-
-    try:
-        client = get_openai_client()
-        if client is None:
-            logger.error("❌ OpenAI 客户端初始化失败")
-            return
-
-        response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=config.model,
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=5,
-            timeout=10,
-        )
-
-        logger.info(f"OpenAI API 就绪 ({config.model})")
-
-    except Exception as e:
-        error_msg = str(e)
-        if "API key" in error_msg or "Unauthorized" in error_msg:
-            logger.error("OpenAI API Key 无效")
-        elif "timeout" in error_msg.lower():
-            logger.error("OpenAI API 连接超时")
-        elif "Connection" in error_msg or "connect" in error_msg.lower():
-            logger.error(f"OpenAI API 无法连接: {config.base_url}")
-        else:
-            logger.error(f"OpenAI API 异常: {error_msg}")
-
-
 async def repair_note_file_links():
-    """修复 notes 表中文件名字段为 NULL 的记录（short_id 不匹配导致的历史问题）"""
+    """保守修复 notes 表中文件名字段，避免同标题笔记互相覆盖。"""
+    from collections import Counter
     import re
     from backend.db.connection import get_db
     from backend.core.state import TEMP_DIR
 
     note_file_re = re.compile(
-        r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6})\.md$"
+        r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6,32})\.md$"
     )
 
-    # 扫描 temp 目录，建立 safe_title → {short_id, files} 索引
-    fs_index: dict[str, dict] = {}  # safe_title -> {short_id, files: {type: filename}}
+    # safe_title 只用于兼容旧的 short_id 错配；重复标题绝不自动猜测。
+    fs_index: dict[str, dict[str, dict[str, str]]] = {}
     for f in TEMP_DIR.iterdir():
         if not f.is_file() or f.suffix != ".md":
             continue
@@ -115,9 +81,7 @@ async def repair_note_file_links():
         if not match:
             continue
         file_type, safe_title, short_id = match.group(1), match.group(2), match.group(3)
-        if safe_title not in fs_index:
-            fs_index[safe_title] = {"short_id": short_id, "files": {}}
-        fs_index[safe_title]["files"][file_type] = f.name
+        fs_index.setdefault(safe_title, {}).setdefault(short_id, {})[file_type] = f.name
 
     if not fs_index:
         return
@@ -129,17 +93,23 @@ async def repair_note_file_links():
                WHERE summary_file IS NULL AND transcript_file IS NULL"""
         )
         broken_notes = await cursor.fetchall()
+        broken_title_counts = Counter(row[2] for row in broken_notes if row[2])
 
         repaired = 0
         for note_id, db_short_id, safe_title in broken_notes:
             if not safe_title:
                 continue
-            fs_info = fs_index.get(safe_title)
-            if not fs_info:
+            candidates = fs_index.get(safe_title, {})
+            if not candidates:
                 continue
-
-            real_short_id = fs_info["short_id"]
-            files = fs_info["files"]
+            if db_short_id in candidates:
+                real_short_id = db_short_id
+                files = candidates[db_short_id]
+            elif len(candidates) == 1 and broken_title_counts[safe_title] == 1:
+                real_short_id, files = next(iter(candidates.items()))
+            else:
+                logger.warning("跳过标题重复的笔记文件自动修复: %s", safe_title)
+                continue
 
             # 检查 real_short_id 是否已被其他 note 占用
             cursor = await db.execute(
@@ -176,46 +146,6 @@ async def repair_note_file_links():
             logger.info(f"修复了 {repaired} 条笔记的文件关联")
 
 
-async def cleanup_orphan_notes():
-    """删除没有文件且磁盘上已有同 safe_title 文件的孤立笔记"""
-    import re
-    from backend.db.connection import get_db
-    from backend.core.state import TEMP_DIR
-
-    # 扫描磁盘，收集所有 safe_title（已有文件）
-    note_file_re = re.compile(
-        r"^(?:summary|transcript|raw|mindmap|translation)_(.+)_[a-f0-9]{6}\.md$"
-    )
-    titles_with_files: set[str] = set()
-    for f in TEMP_DIR.iterdir():
-        if f.is_file() and f.suffix == ".md":
-            match = note_file_re.match(f.name)
-            if match:
-                titles_with_files.add(match.group(1))
-
-    if not titles_with_files:
-        return
-
-    async with get_db() as db:
-        cursor = await db.execute(
-            """SELECT id, short_id, safe_title FROM notes
-               WHERE summary_file IS NULL AND transcript_file IS NULL"""
-        )
-        orphans = await cursor.fetchall()
-        if not orphans:
-            return
-
-        deleted = 0
-        for note_id, short_id, safe_title in orphans:
-            if safe_title and safe_title in titles_with_files:
-                await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-                deleted += 1
-
-        if deleted:
-            await db.commit()
-            logger.info(f"清理了 {deleted} 条无文件的重复笔记")
-
-
 async def startup_event():
     # 初始化 SQLite 数据库 + 自动迁移 JSON 数据
     from backend.db.schema import init_db, migrate_from_json
@@ -225,8 +155,43 @@ async def startup_event():
     # 修复历史数据中 short_id 不匹配导致的文件关联丢失
     await repair_note_file_links()
 
-    # 清理无文件的重复笔记记录
-    await cleanup_orphan_notes()
+    interrupted = False
+    for task_data in tasks.values():
+        if task_data.get("status") in {"queued", "processing"}:
+            task_data.update({
+                "status": "error",
+                "error": "应用上次运行已中断",
+                "message": "任务因应用重启而中断，请重新提交",
+            })
+            interrupted = True
+    if interrupted:
+        save_tasks(tasks)
 
-    asyncio.create_task(cleanup_stale_sse_connections())
-    asyncio.create_task(check_openai_connection())
+    from backend.config.ai_config import get_openai_config
+    if get_openai_config().is_configured:
+        logger.info("LLM 已配置，将在首次使用时建立连接")
+    else:
+        logger.warning("LLM 未配置，AI 功能将使用可用的基础回退")
+
+    cleanup_task = asyncio.create_task(cleanup_stale_sse_connections())
+    _background_tasks.add(cleanup_task)
+    cleanup_task.add_done_callback(_background_tasks.discard)
+
+
+async def shutdown_event():
+    """取消由应用拥有的后台任务，等待清理逻辑完成。"""
+    owned_tasks = {
+        *_background_tasks,
+        *active_batches.values(),
+        *active_tasks.values(),
+    }
+    for task in owned_tasks:
+        if not task.done():
+            task.cancel()
+    if owned_tasks:
+        await asyncio.gather(*owned_tasks, return_exceptions=True)
+    _background_tasks.clear()
+    active_batches.clear()
+    active_tasks.clear()
+    sse_connections.clear()
+    sse_connection_last_activity.clear()
