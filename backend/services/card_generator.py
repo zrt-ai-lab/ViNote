@@ -172,6 +172,8 @@ class CardGenerator:
             card_count = 0
 
             for chunk in response:
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta
                 if delta.content:
                     buffer += delta.content

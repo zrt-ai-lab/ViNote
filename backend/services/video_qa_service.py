@@ -84,14 +84,17 @@ class VideoQAService:
 
             chunk_count = 0
             async for chunk in stream:  # 注意: async for
-                if chunk.choices[0].delta.content:
+                if not chunk.choices:
+                    continue
+                choice = chunk.choices[0]
+                if choice.delta.content:
                     chunk_count += 1
-                    yield chunk.choices[0].delta.content
+                    yield choice.delta.content
 
                     # 然后检查是否结束（但不在这里break，让循环自然结束）
-                if chunk.choices[0].finish_reason:
-                    logger.info(f"问答完成，原因: {chunk.choices[0].finish_reason}, 共{chunk_count}个片段")
-                    if chunk.choices[0].finish_reason == "length":
+                if choice.finish_reason:
+                    logger.info(f"问答完成，原因: {choice.finish_reason}, 共{chunk_count}个片段")
+                    if choice.finish_reason == "length":
                         logger.warning("回答因达到长度限制而截断")
             
         except Exception as e:

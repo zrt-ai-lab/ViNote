@@ -70,6 +70,8 @@ async def generate_cookies_stream(request: Request):
                 )
 
                 async for chunk in stream:
+                    if not chunk.choices:
+                        continue
                     if chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
                         yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"

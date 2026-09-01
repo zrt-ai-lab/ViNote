@@ -114,6 +114,8 @@ class VideoSearchAgent:
             tool_calls_data: list = []
 
             async for chunk in response:
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta
 
                 if delta.content:
@@ -213,6 +215,8 @@ class VideoSearchAgent:
                     )
                     final_content = ""
                     async for chunk in final_resp:
+                        if not chunk.choices:
+                            continue
                         if chunk.choices[0].delta.content:
                             c = chunk.choices[0].delta.content
                             final_content += c
