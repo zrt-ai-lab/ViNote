@@ -1,0 +1,86 @@
+{
+  "schema_version": 2,
+  "harness_version": "2.0",
+  "hook_template_version": 6,
+  "mode": "harness-managed",
+  "profile": "fullstack",
+  "evidence_owner": "delivery-evidence",
+  "summary_owner": "delivery-evidence",
+  "legacy_gate_enabled": false,
+  "development_documents_required": false,
+  "efficiency_summary": ".claude/artifacts/_summary.md",
+  "efficiency_ledger": ".claude/artifacts/_commit-metrics.jsonl",
+  "expected_map_paths": [
+    ".claude/CLAUDE.md",
+    ".claude/docs/",
+    "web/CLAUDE.md",
+    "web/.panorama/"
+  ],
+  "allowed_map_paths": [
+    ".claude/CLAUDE.md",
+    ".claude/docs/",
+    "web/CLAUDE.md",
+    "web/.panorama/",
+    "CLAUDE.md",
+    ".panorama/"
+  ],
+  "map_paths": [],
+  "workspaces": [
+    {
+      "root": ".",
+      "profile": "backend",
+      "expected_map_paths": [
+        ".claude/CLAUDE.md",
+        ".claude/docs/"
+      ],
+      "map_paths": [],
+      "map_action": "create",
+      "map_health_manifests": [
+        ".claude/docs/_map-health.json"
+      ],
+      "existing_map_health_manifests": [],
+      "map_health_action": "create-with-map",
+      "sources": [
+        "marker"
+      ]
+    },
+    {
+      "root": "web",
+      "profile": "frontend",
+      "expected_map_paths": [
+        "web/CLAUDE.md",
+        "web/.panorama/"
+      ],
+      "map_paths": [],
+      "map_action": "create",
+      "map_health_manifests": [
+        "web/.panorama/_map-health.json"
+      ],
+      "existing_map_health_manifests": [],
+      "map_health_action": "create-with-map",
+      "sources": [
+        "marker"
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "id": "web",
+      "root": "web",
+      "kind": "app",
+      "package_file": "web/package.json",
+      "source": "package",
+      "map_index": "web/CLAUDE.md",
+      "map_root": "web/.panorama/",
+      "workspace_root": "."
+    }
+  ],
+  "map_required": false,
+  "notes_ref": "refs/notes/ai-engineering-harness",
+  "notes_sync": {
+    "remote": "origin",
+    "pull_on_install": false,
+    "push_after_commit": false,
+    "retries": 3
+  }
+}

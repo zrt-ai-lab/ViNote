@@ -220,6 +220,7 @@ async def persist_completed_task(task_id: str, task_data: dict) -> None:
             transcript_file=files.get("transcript") or files.get("raw"),
             mindmap_file=files.get("mindmap"),
             translation_file=files.get("translation"),
+            raw_transcript_file=files.get("raw"),
             has_summary=has_summary,
             has_transcript=has_transcript,
             batch_id=batch_id,

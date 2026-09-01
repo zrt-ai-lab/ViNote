@@ -47,6 +47,8 @@ export default function History() {
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const [cleaning, setCleaning] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [regeneratingTaskId, setRegeneratingTaskId] = useState<string | null>(null);
+  const [selectedForQA, setSelectedForQA] = useState<Set<string>>(new Set());
 
   // Filters
   const [filterCategory, setFilterCategory] = useState('');
@@ -195,6 +197,51 @@ export default function History() {
       toast('删除失败', 'error');
     } finally {
       setDeletingTaskId(null);
+    }
+  };
+
+  const handleRegenerate = async (task: CompletedTask, includeTranscript: boolean) => {
+    setRegeneratingTaskId(task.task_id);
+    try {
+      const targets = includeTranscript
+        ? ['transcript', 'summary', 'mindmap']
+        : ['summary', 'mindmap'];
+      await postJSON(`/api/notes/${task.task_id}/regenerate`, { targets, language: 'zh' });
+      toast(includeTranscript ? '笔记、摘要和导图已重新生成' : '摘要和导图已重新生成', 'success');
+      loadTasks();
+      if (selectedTaskId === task.task_id && contentField) {
+        const refreshed = await fetchJSON<{ content: string }>(
+          `/api/tasks/${task.task_id}/content?field=${contentField}`,
+        );
+        setContent(refreshed.content);
+      }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '重新生成失败', 'error');
+    } finally {
+      setRegeneratingTaskId(null);
+    }
+  };
+
+  const toggleQASelection = (shortId: string) => {
+    setSelectedForQA((previous) => {
+      const next = new Set(previous);
+      if (next.has(shortId)) next.delete(shortId);
+      else if (next.size < 5) next.add(shortId);
+      else toast('单次问答最多选择5条笔记', 'error');
+      return next;
+    });
+  };
+
+  const handleCreateQASession = async () => {
+    if (selectedForQA.size === 0) return;
+    try {
+      const session = await postJSON<{ id: string }>('/api/qa/sessions', {
+        source_note_ids: Array.from(selectedForQA),
+        content_field: 'transcript',
+      });
+      navigate(`/qa?sessionId=${session.id}`);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '创建问答会话失败', 'error');
     }
   };
 
@@ -431,6 +478,21 @@ export default function History() {
         )}
 
         {/* 任务列表 */}
+        {selectedForQA.size > 0 && (
+          <div className="mb-3 p-3 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent-light)]">
+            <p className="text-xs text-[var(--color-text-secondary)] mb-2">已选择 {selectedForQA.size}/5 条笔记</p>
+            <div className="flex gap-2">
+              <button onClick={handleCreateQASession}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)]">
+                <MessageCircle size={12} /> 基于所选内容问答
+              </button>
+              <button onClick={() => setSelectedForQA(new Set())}
+                className="px-3 py-2 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg">
+                清空
+              </button>
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 text-xs text-[var(--color-text-muted)]">
             <Loader2 size={20} className="animate-spin mb-2" />
@@ -463,6 +525,13 @@ export default function History() {
                 >
                   <div className="px-4 py-3.5">
                     <div className="flex items-start gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedForQA.has(task.task_id)}
+                        onChange={() => toggleQASelection(task.task_id)}
+                        className="mt-1 rounded border-[var(--color-border)]"
+                        title="选择用于知识问答"
+                      />
                       <span className="flex-1 text-sm font-medium text-[var(--color-text)] leading-snug line-clamp-2">
                         {task.video_title}
                       </span>
@@ -590,6 +659,23 @@ export default function History() {
                       >
                         <BrainCircuit size={11} />
                         生成导图
+                      </button>
+                      <button
+                        onClick={() => handleRegenerate(task, false)}
+                        disabled={regeneratingTaskId === task.task_id || !task.has_transcript}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-[var(--color-surface)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-40 transition-colors"
+                        title="基于现有笔记重新生成摘要和导图"
+                      >
+                        {regeneratingTaskId === task.task_id ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                        重做摘要
+                      </button>
+                      <button
+                        onClick={() => handleRegenerate(task, true)}
+                        disabled={regeneratingTaskId === task.task_id || !task.has_transcript}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-[var(--color-surface)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-40 transition-colors"
+                        title="从原始转录重新整理笔记，并生成摘要和导图"
+                      >
+                        <RefreshCw size={11} /> 重做笔记
                       </button>
                     </div>
                   </div>

@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS notes (
     has_transcript  INTEGER NOT NULL DEFAULT 0,
     batch_id        TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    completed_at    TEXT
+    completed_at    TEXT,
+    raw_transcript_file TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -59,10 +60,38 @@ CREATE TABLE IF NOT EXISTS note_tags (
     PRIMARY KEY (note_id, tag_id)
 );
 
+CREATE TABLE IF NOT EXISTS qa_sessions (
+    id         TEXT PRIMARY KEY,
+    title      TEXT NOT NULL DEFAULT '知识问答',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qa_session_sources (
+    session_id    TEXT NOT NULL REFERENCES qa_sessions(id) ON DELETE CASCADE,
+    note_id       INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    content_field TEXT NOT NULL DEFAULT 'transcript'
+                  CHECK (content_field IN ('summary', 'transcript')),
+    position      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, note_id)
+);
+
+CREATE TABLE IF NOT EXISTS qa_messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES qa_sessions(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content    TEXT NOT NULL,
+    sequence   INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (session_id, sequence)
+);
+
 CREATE INDEX IF NOT EXISTS idx_notes_short_id ON notes(short_id);
 CREATE INDEX IF NOT EXISTS idx_notes_category_id ON notes(category_id);
 CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at);
 CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title);
+CREATE INDEX IF NOT EXISTS idx_qa_sessions_updated_at ON qa_sessions(updated_at);
+CREATE INDEX IF NOT EXISTS idx_qa_messages_session ON qa_messages(session_id, sequence);
 """
 
 
@@ -70,6 +99,24 @@ async def init_db():
     """初始化数据库：建表 + 预置分类"""
     async with get_db() as db:
         await db.executescript(CREATE_TABLES_SQL)
+
+        # v1.5: 老数据库无损补充原始转录文件索引。
+        cursor = await db.execute("PRAGMA table_info(notes)")
+        note_columns = {row[1] for row in await cursor.fetchall()}
+        if "raw_transcript_file" not in note_columns:
+            await db.execute("ALTER TABLE notes ADD COLUMN raw_transcript_file TEXT")
+
+        # 兼容升级前已存在的 raw_*.md，不要求用户重新转录。
+        cursor = await db.execute(
+            "SELECT short_id FROM notes WHERE raw_transcript_file IS NULL"
+        )
+        for row in await cursor.fetchall():
+            matches = list(TEMP_DIR.glob(f"raw_*_{row[0]}.md"))
+            if matches:
+                await db.execute(
+                    "UPDATE notes SET raw_transcript_file = ? WHERE short_id = ?",
+                    (matches[0].name, row[0]),
+                )
 
         # 预置系统分类（幂等）
         for i, cat_name in enumerate(PREDEFINED_CATEGORIES):
@@ -169,11 +216,13 @@ async def migrate_from_json():
                 """INSERT OR IGNORE INTO notes
                    (short_id, task_id, url, title, safe_title, source, status,
                     category_id, summary_file, transcript_file, mindmap_file,
-                    translation_file, has_summary, has_transcript, batch_id)
-                   VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    translation_file, has_summary, has_transcript, batch_id,
+                    raw_transcript_file)
+                   VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (short_id, task_id, url, title, safe_title, source,
                  category_id, summary_file, transcript_file, mindmap_file,
-                 translation_file, has_summary, has_transcript, batch_id),
+                 translation_file, has_summary, has_transcript, batch_id,
+                 files.get("raw")),
             )
 
             # 迁移标签
@@ -214,12 +263,12 @@ async def migrate_from_json():
                 """INSERT OR IGNORE INTO notes
                    (short_id, title, source, status, category_id,
                     summary_file, transcript_file, mindmap_file, translation_file,
-                    has_summary, has_transcript)
-                   VALUES (?, ?, 'url', 'completed', ?, ?, ?, ?, ?, ?, ?)""",
+                    has_summary, has_transcript, raw_transcript_file)
+                   VALUES (?, ?, 'url', 'completed', ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (short_id, title, category_id,
                  files.get("summary"), files.get("transcript") or files.get("raw"),
                  files.get("mindmap"), files.get("translation"),
-                 has_summary, has_transcript),
+                 has_summary, has_transcript, files.get("raw")),
             )
 
             for tag_name in tag_entry.get("tags", []):

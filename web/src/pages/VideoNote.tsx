@@ -8,7 +8,7 @@ import { SUBTITLE_STEPS } from '../components/progressStepData';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Modal from '../components/Modal';
 import { toast } from '../components/toastStore';
-import type { TaskStatus, VideoInfo, BatchStatus, BatchTaskInfo, ScanResult, ScannedFile } from '../types';
+import type { TaskStatus, VideoInfo, BatchStatus, BatchTaskInfo, ScanResult, ScannedFile, PlaylistInfo } from '../types';
 import { Play, Download, Square, Sparkles, BrainCircuit, List, CheckCircle2, XCircle, Loader2, Clock, FolderSearch, Layers } from 'lucide-react';
 
 const MarkmapView = lazy(() => import('../components/MarkmapView'));
@@ -99,6 +99,9 @@ export default function VideoNote() {
   const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
+  const [playlist, setPlaylist] = useState<PlaylistInfo | null>(null);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [selectedPlaylistUrls, setSelectedPlaylistUrls] = useState<Set<string>>(new Set());
 
   // Poll batch status
   useEffect(() => {
@@ -124,7 +127,9 @@ export default function VideoNote() {
 
   // ── Batch handlers ────────────────────────────────
   const handleBatchSubmit = async () => {
-    const urls = batchInput.split('\n').map((l) => l.trim()).filter(Boolean);
+    const urls = playlist
+      ? Array.from(selectedPlaylistUrls)
+      : batchInput.split('\n').map((l) => l.trim()).filter(Boolean);
     if (urls.length === 0) return;
     if (urls.length > 20) { toast('单次最多支持20个', 'error'); return; }
     setBatchLoading(true); setBatchStatus(null); setSelectedBatchTask(null); setBatchTaskContent(null);
@@ -138,6 +143,34 @@ export default function VideoNote() {
       toast(e instanceof Error ? e.message : '批量提交失败', 'error');
       setBatchLoading(false);
     }
+  };
+
+  const handleExpandPlaylist = async () => {
+    const url = extractBilibiliUrl(batchInput.trim());
+    if (!url) return;
+    setPlaylistLoading(true);
+    try {
+      const data = await postJSON<PlaylistInfo>('/api/playlists/expand', { url });
+      setPlaylist(data);
+      setSelectedPlaylistUrls(new Set(data.entries.slice(0, 20).map((entry) => entry.url)));
+      toast(`已解析 ${data.total} 个视频，请选择本次处理内容`, 'success');
+    } catch (error) {
+      setPlaylist(null);
+      setSelectedPlaylistUrls(new Set());
+      toast(error instanceof Error ? error.message : '合集解析失败', 'error');
+    } finally {
+      setPlaylistLoading(false);
+    }
+  };
+
+  const togglePlaylistEntry = (url: string) => {
+    setSelectedPlaylistUrls((previous) => {
+      const next = new Set(previous);
+      if (next.has(url)) next.delete(url);
+      else if (next.size < 20) next.add(url);
+      else toast('单次最多选择20个视频', 'error');
+      return next;
+    });
   };
 
   const handleScanDir = async () => {
@@ -423,19 +456,52 @@ export default function VideoNote() {
 
               {/* 批量文本输入 */}
               {!(showDirScan && scannedFiles.length > 0) && (
-                <textarea
-                  value={batchInput}
-                  onChange={(e) => setBatchInput(e.target.value)}
-                  placeholder={'每行一个视频链接或本地文件路径：\nhttps://www.youtube.com/watch?v=xxx\nhttps://www.bilibili.com/video/BVxxx\n/path/to/课程/第1课.mp4'}
-                  rows={5}
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/20 resize-none font-mono"
-                />
+                <>
+                  <textarea
+                    value={batchInput}
+                    onChange={(e) => { setBatchInput(e.target.value); setPlaylist(null); }}
+                    placeholder={'粘贴合集链接，或每行一个视频链接/本地路径'}
+                    rows={4}
+                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/20 resize-none font-mono"
+                  />
+                  <button
+                    onClick={handleExpandPlaylist}
+                    disabled={!batchInput.trim() || batchInput.includes('\n') || playlistLoading}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-[var(--color-accent)] border border-[var(--color-accent)]/30 rounded-lg hover:bg-[var(--color-accent-light)] disabled:opacity-40 transition-colors"
+                  >
+                    {playlistLoading ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />}
+                    {playlistLoading ? '正在解析合集...' : '解析合集/播放列表'}
+                  </button>
+                </>
+              )}
+
+              {playlist && (
+                <div className="p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-[var(--color-text)] truncate">{playlist.title}</p>
+                    <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
+                      已选 {selectedPlaylistUrls.size}/{playlist.total}
+                    </span>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto space-y-0.5">
+                    {playlist.entries.map((entry) => (
+                      <label key={`${entry.id}-${entry.index}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--color-surface)] cursor-pointer">
+                        <input type="checkbox" checked={selectedPlaylistUrls.has(entry.url)} onChange={() => togglePlaylistEntry(entry.url)} />
+                        <span className="text-[10px] text-[var(--color-text-muted)] w-6 shrink-0">{entry.index}</span>
+                        <span className="text-xs text-[var(--color-text)] truncate">{entry.title}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {playlist.truncated && <p className="text-[10px] text-amber-600">合集较大，当前显示前100条</p>}
+                </div>
               )}
 
               <p className="text-[11px] text-[var(--color-text-muted)]">
                 {showDirScan && scannedFiles.length > 0
                   ? `已选 ${selectedFiles.size} 个文件（最多20个）`
-                  : `${batchInput.split('\n').filter((l) => l.trim()).length} 条（最多20条）· 自动识别在线链接和本地路径`}
+                  : playlist
+                    ? `已从合集中选择 ${selectedPlaylistUrls.size} 条（最多20条）`
+                    : `${batchInput.split('\n').filter((l) => l.trim()).length} 条（最多20条）· 自动识别在线链接和本地路径`}
               </p>
             </>
           ) : (
@@ -485,7 +551,9 @@ export default function VideoNote() {
           {isBatch ? (
             <button
               onClick={showDirScan && scannedFiles.length > 0 ? handleBatchFromScan : handleBatchSubmit}
-              disabled={batchLoading || (showDirScan && scannedFiles.length > 0 ? selectedFiles.size === 0 : !batchInput.trim())}
+              disabled={batchLoading || (showDirScan && scannedFiles.length > 0
+                ? selectedFiles.size === 0
+                : playlist ? selectedPlaylistUrls.size === 0 : !batchInput.trim())}
               className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-40 transition-colors"
             >
               {batchLoading ? (

@@ -68,13 +68,17 @@ class ContentSummarizer:
             
             if estimated_tokens <= max_summarize_tokens:
                 # 短文本直接摘要
-                return await self._summarize_single_text(transcript, target_language, video_title)
+                summary = await self._summarize_single_text(transcript, target_language, video_title)
             else:
                 # 长文本分块摘要
                 logger.info(f"文本较长({estimated_tokens} tokens)，启用分块摘要")
-                return await self._summarize_with_chunks(
+                summary = await self._summarize_with_chunks(
                     transcript, target_language, video_title, max_summarize_tokens
                 )
+            if summary and summary.strip():
+                return summary
+            logger.warning("AI 返回空摘要，生成备用摘要")
+            return self._generate_fallback_summary(transcript, target_language, video_title)
             
         except Exception as e:
             logger.error(f"生成摘要失败: {str(e)}")

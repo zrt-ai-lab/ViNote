@@ -47,9 +47,13 @@ class TextOptimizer:
             
             if len(preprocessed) > max_chars_per_chunk:
                 logger.info(f"文本较长({len(preprocessed)} chars)，启用分块优化")
-                return await self._format_long_transcript_in_chunks(preprocessed, detected_lang, max_chars_per_chunk)
+                optimized = await self._format_long_transcript_in_chunks(preprocessed, detected_lang, max_chars_per_chunk)
             else:
-                return await self._format_single_chunk(preprocessed, detected_lang)
+                optimized = await self._format_single_chunk(preprocessed, detected_lang)
+            if optimized.strip():
+                return optimized
+            logger.warning("AI 返回空的整理结果，回退到基础清理")
+            return self._basic_transcript_cleanup(raw_transcript)
                 
         except Exception as e:
             logger.error(f"优化转录文本失败: {str(e)}")
@@ -145,6 +149,8 @@ class TextOptimizer:
                 temperature=self.config.optimization_temperature
             )
             optimized_text = response.choices[0].message.content or ""
+            if not optimized_text.strip():
+                return self._basic_transcript_cleanup(chunk_text)
             optimized_text = remove_transcript_headings(optimized_text)
             enforced = enforce_paragraph_length(optimized_text.strip(), max_chars=400)
             return format_markdown_paragraphs(enforced)
@@ -194,6 +200,8 @@ class TextOptimizer:
                 deduped.append(cur_txt)
 
         merged = "\n\n".join(deduped)
+        if not merged.strip():
+            return self._basic_transcript_cleanup(raw_transcript)
         merged = remove_transcript_headings(merged)
         enforced = enforce_paragraph_length(merged, max_chars=400)
         return format_markdown_paragraphs(enforced)
