@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from backend.services.card_generator import CardGenerator
+from backend.core.errors import internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -58,7 +59,7 @@ async def generate_cards(request: Request):
                     yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
             except Exception as e:
                 logger.error(f"卡片生成流异常: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'message': '卡片生成失败，请重试'}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             event_stream(),
@@ -66,7 +67,6 @@ async def generate_cards(request: Request):
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "Access-Control-Allow-Origin": "*",
             },
         )
 
@@ -74,4 +74,4 @@ async def generate_cards(request: Request):
         raise
     except Exception as e:
         logger.error(f"生成知识卡片失败: {e}")
-        raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
+        raise internal_error("知识卡片生成失败")

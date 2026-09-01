@@ -24,6 +24,7 @@ class ContentSummarizer:
         """初始化摘要服务"""
         self.config = get_openai_config()
         self.client = get_openai_client()
+        self.warnings: list[str] = []
         
         # 支持的语言映射
         self.language_map = {
@@ -39,6 +40,10 @@ class ContentSummarizer:
             "ko": "한국어",
             "ar": "العربية"
         }
+
+    def _warn(self, message: str) -> None:
+        if message not in self.warnings:
+            self.warnings.append(message)
     
     async def summarize(
         self,
@@ -57,9 +62,11 @@ class ContentSummarizer:
         Returns:
             摘要文本（Markdown格式）
         """
+        self.warnings.clear()
         try:
             if not self.client:
                 logger.warning("OpenAI API不可用，生成备用摘要")
+                self._warn("LLM 未配置，摘要使用备用版本")
                 return self._generate_fallback_summary(transcript, target_language, video_title)
             
             # 估算转录文本长度
@@ -78,10 +85,12 @@ class ContentSummarizer:
             if summary and summary.strip():
                 return summary
             logger.warning("AI 返回空摘要，生成备用摘要")
+            self._warn("LLM 返回空内容，摘要使用备用版本")
             return self._generate_fallback_summary(transcript, target_language, video_title)
             
         except Exception as e:
             logger.error(f"生成摘要失败: {str(e)}")
+            self._warn("LLM 摘要失败，摘要使用备用版本")
             return self._generate_fallback_summary(transcript, target_language, video_title)
     
     async def _summarize_single_text(
@@ -187,6 +196,7 @@ Avoid using any subheadings or decorative separators, output content only."""
                     return response.choices[0].message.content
                 except Exception as e:
                     logger.error(f"摘要第 {i+1} 块失败: {e}")
+                    self._warn("部分摘要生成失败，已使用原文片段")
                     return f"第{i+1}部分内容概述：" + chunk[:200] + "..."
 
         chunk_summaries = await asyncio.gather(*[_summarize_chunk(i, c) for i, c in enumerate(chunks)])
@@ -255,6 +265,7 @@ Requirements:
             
         except Exception as e:
             logger.error(f"整合摘要失败: {e}")
+            self._warn("摘要整合失败，已保留分块结果")
             return combined_summaries
     
     async def _integrate_hierarchical_summaries(
@@ -496,6 +507,7 @@ Requirements:
         """
         try:
             if not self.client:
+                self._warn("LLM 未配置，思维导图未生成")
                 return ""
             
             language_name = self.language_map.get(target_language, "中文（简体）")
@@ -537,4 +549,5 @@ Output ONLY the markdown content."""
             
         except Exception as e:
             logger.error(f"生成思维导图失败: {e}")
+            self._warn("LLM 思维导图生成失败")
             return ""

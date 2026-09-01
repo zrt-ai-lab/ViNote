@@ -1,6 +1,7 @@
 """
 笔记数据访问层 — SQLite CRUD + 分页/筛选/排序
 """
+import json
 import logging
 from typing import Optional
 
@@ -27,6 +28,7 @@ async def save_note(
     batch_id: Optional[str] = None,
     completed_at: Optional[str] = None,
     raw_transcript_file: Optional[str] = None,
+    warnings: Optional[list[str]] = None,
 ) -> int:
     """保存或更新一条笔记。返回 note id。"""
     async with get_db() as db:
@@ -41,13 +43,13 @@ async def save_note(
                     category_id=?, summary_file=?, transcript_file=?,
                     mindmap_file=?, translation_file=?,
                     has_summary=?, has_transcript=?, batch_id=?, completed_at=?,
-                    raw_transcript_file=?
+                    raw_transcript_file=?, warnings_json=?
                    WHERE short_id=?""",
                 (task_id, url, title, safe_title, source,
                  category_id, summary_file, transcript_file,
                  mindmap_file, translation_file,
                  int(has_summary), int(has_transcript), batch_id, completed_at,
-                 raw_transcript_file,
+                 raw_transcript_file, json.dumps(warnings or [], ensure_ascii=False),
                  short_id),
             )
             await db.commit()
@@ -58,12 +60,13 @@ async def save_note(
                    (short_id, task_id, url, title, safe_title, source, status,
                     category_id, summary_file, transcript_file, mindmap_file,
                     translation_file, has_summary, has_transcript, batch_id, completed_at,
-                    raw_transcript_file)
-                   VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    raw_transcript_file, warnings_json)
+                   VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (short_id, task_id, url, title, safe_title, source,
                  category_id, summary_file, transcript_file, mindmap_file,
                  translation_file, int(has_summary), int(has_transcript),
-                 batch_id, completed_at, raw_transcript_file),
+                 batch_id, completed_at, raw_transcript_file,
+                 json.dumps(warnings or [], ensure_ascii=False)),
             )
             await db.commit()
             return cursor.lastrowid
@@ -132,18 +135,22 @@ async def list_notes(
         cursor = await db.execute(query_sql, [*params, page_size, offset])
         rows = await cursor.fetchall()
 
+        tags_by_note: dict[int, list[str]] = {}
+        if rows:
+            note_ids = [row[0] for row in rows]
+            placeholders = ",".join("?" for _ in note_ids)
+            tag_cursor = await db.execute(
+                f"SELECT nt.note_id, t.name FROM note_tags nt "
+                f"JOIN tags t ON nt.tag_id=t.id WHERE nt.note_id IN ({placeholders})",
+                note_ids,
+            )
+            for note_id, tag_name in await tag_cursor.fetchall():
+                tags_by_note.setdefault(note_id, []).append(tag_name)
+
         tasks = []
         for row in rows:
             note_id = row[0]
             short_id = row[1]
-
-            # Fetch tags for this note
-            tag_cursor = await db.execute(
-                "SELECT t.name FROM note_tags nt JOIN tags t ON nt.tag_id=t.id WHERE nt.note_id=?",
-                (note_id,),
-            )
-            tag_rows = await tag_cursor.fetchall()
-            note_tags = [r[0] for r in tag_rows]
 
             tasks.append({
                 "task_id": short_id,
@@ -153,7 +160,7 @@ async def list_notes(
                 "has_transcript": bool(row[9]),
                 "category": row[13] or "",  # category_name
                 "category_id": row[14],
-                "tags": note_tags,
+                "tags": tags_by_note.get(note_id, []),
                 "created_at": row[11],  # created_at
                 "url": row[3] or "",
                 "source": row[6] or "url",
@@ -207,6 +214,13 @@ async def _row_to_note(db, row) -> dict:
     )
     tag_rows = await tag_cursor.fetchall()
 
+    try:
+        warnings = json.loads(row[19] or "[]")
+        if not isinstance(warnings, list):
+            warnings = []
+    except (json.JSONDecodeError, TypeError):
+        warnings = []
+
     return {
         "id": row[0],
         "short_id": row[1],
@@ -228,6 +242,7 @@ async def _row_to_note(db, row) -> dict:
         "created_at": row[16],
         "completed_at": row[17],
         "raw_transcript_file": row[18],
+        "warnings": warnings,
         "tags": [r[0] for r in tag_rows],
     }
 

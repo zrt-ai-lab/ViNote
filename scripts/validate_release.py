@@ -297,8 +297,9 @@ def main() -> int:
 
     env_values = parse_env_example(read(".env.example", errors))
     expected_env = {
-        "APP_HOST": "0.0.0.0",
+        "APP_HOST": "127.0.0.1",
         "APP_PORT": "8999",
+        "CORS_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
         "OPENAI_API_KEY": "",
         "OPENAI_BASE_URL": "https://api.openai.com/v1",
         "OPENAI_MODEL": "gpt-4o",

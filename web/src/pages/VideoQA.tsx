@@ -106,8 +106,8 @@ export default function VideoQA() {
       disconnect();
       setPreprocessLoading(false);
       toast('已取消预处理', 'info');
-    } catch {
-      /* ignore */
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '取消预处理失败', 'error');
     }
   };
 

@@ -96,13 +96,19 @@ class SearchProviderManager:
 
         for provider, outcome in zip(self.providers, outcomes):
             if isinstance(outcome, Exception):
-                errors.append(f"{provider.name}: {outcome}")
+                logger.error("Search provider '%s' failed: %s", provider.name, outcome)
+                errors.append(provider.name)
                 continue
             if outcome.get("success"):
                 all_results.extend(outcome.get("results", []))
                 providers_used.append(provider.name)
             else:
-                errors.append(f"{provider.name}: {outcome.get('error', 'unknown')}")
+                logger.warning(
+                    "Search provider '%s' returned an error: %s",
+                    provider.name,
+                    outcome.get("error", "unknown"),
+                )
+                errors.append(provider.name)
 
         seen_urls = set()
         deduplicated = []
@@ -112,10 +118,12 @@ class SearchProviderManager:
                 seen_urls.add(url)
                 deduplicated.append(v)
 
+        success = len(deduplicated) > 0 or not errors
         return {
-            "success": len(deduplicated) > 0 or not errors,
+            "success": success,
             "results": deduplicated,
             "count": len(deduplicated),
             "providers": providers_used,
-            "errors": errors if errors else None,
+            "error": None if success else "视频搜索服务暂时不可用",
+            "failed_providers": errors,
         }

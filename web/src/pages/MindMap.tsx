@@ -117,7 +117,12 @@ export default function MindMap() {
 
   const handleCancelVideo = async () => {
     if (taskId) {
-      try { await deleteAPI(`/api/task/${taskId}`); } catch { /* ignore */ }
+      try {
+        await deleteAPI(`/api/task/${taskId}`);
+      } catch (error) {
+        toast(error instanceof Error ? error.message : '取消任务失败', 'error');
+        return;
+      }
     }
     disconnect();
     setVideoLoading(false);

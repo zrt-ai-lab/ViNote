@@ -132,8 +132,8 @@ export default function History() {
     try {
       const res = await fetchJSON<{ content: string }>(`/api/tasks/${task.task_id}/content?field=${field}`);
       setContent(res.content);
-    } catch {
-      toast('加载内容失败', 'error');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '加载内容失败', 'error');
       setContent('');
     } finally {
       setLoadingContent(false);
@@ -173,8 +173,8 @@ export default function History() {
         setContentField(null);
         loadTasks();
       }
-    } catch {
-      toast('清理失败', 'error');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '清理失败', 'error');
     } finally {
       setCleaning(false);
     }
@@ -193,8 +193,8 @@ export default function History() {
       }
       loadTasks();
       loadStorageStats();
-    } catch {
-      toast('删除失败', 'error');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '删除失败', 'error');
     } finally {
       setDeletingTaskId(null);
     }
@@ -253,8 +253,8 @@ export default function History() {
         body: JSON.stringify({ category_id: categoryId }),
       });
       loadTasks();
-    } catch {
-      toast('修改分类失败', 'error');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '修改分类失败', 'error');
     }
   };
 
@@ -269,8 +269,8 @@ export default function History() {
       });
       setEditingTaskTags(null);
       loadTasks();
-    } catch {
-      toast('保存标签失败', 'error');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '保存标签失败', 'error');
     }
   };
 

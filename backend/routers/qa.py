@@ -14,6 +14,8 @@ from backend.core.state import (
     tasks, active_tasks, save_tasks, broadcast_task_update, TEMP_DIR,
     get_video_qa_service,
 )
+from backend.core.errors import internal_error, task_failure
+from backend.services.media_ingestion import transcribe_local_media, transcribe_remote_media
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -184,51 +186,29 @@ async def transcribe_only(
         raise
     except Exception as e:
         logger.error(f"创建转录任务时出错: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"创建任务失败: {str(e)}")
+        raise internal_error("转录任务创建失败")
 
 
 async def _transcribe_local_file_task(task_id: str, file_path: str):
-    from backend.services.audio_transcriber import AudioTranscriber
-    from backend.utils.file_handler import extract_audio_from_file, cleanup_temp_audio, extract_embedded_subtitles
-
     try:
-        video_title = Path(file_path).stem
-
-        # 先尝试提取内嵌字幕
-        tasks[task_id].update({"progress": 3, "message": "📄 正在检查内嵌字幕..."})
-        save_tasks(tasks)
-        await broadcast_task_update(task_id, tasks[task_id])
-
-        subtitle_text = None
-        try:
-            subtitle_text = await extract_embedded_subtitles(file_path)
-        except Exception as e:
-            logger.warning(f"内嵌字幕提取异常: {e}")
-
-        if subtitle_text:
-            logger.info(f"✅ 本地视频发现内嵌字幕，跳过音频提取和ASR")
-            transcript = subtitle_text
-        else:
-            tasks[task_id].update({"progress": 5, "message": "正在提取音频..."})
+        async def on_stage(stage: str):
+            progress = {
+                "checking_subtitles": (3, "📄 正在检查内嵌字幕..."),
+                "subtitle_ready": (80, "✅ 已从内嵌字幕中提取文本"),
+                "extracting_audio": (5, "正在提取音频..."),
+                "transcribing_audio": (40, "正在转录音频..."),
+            }.get(stage)
+            if not progress:
+                return
+            tasks[task_id].update({"progress": progress[0], "message": progress[1]})
             save_tasks(tasks)
             await broadcast_task_update(task_id, tasks[task_id])
 
-            audio_path, needs_cleanup = await extract_audio_from_file(file_path, TEMP_DIR, task_id)
-
-            try:
-                audio_transcriber = AudioTranscriber()
-
-                tasks[task_id].update({"progress": 40, "message": "正在转录音频..."})
-                save_tasks(tasks)
-                await broadcast_task_update(task_id, tasks[task_id])
-
-                transcript = await audio_transcriber.transcribe_audio(audio_path)
-            finally:
-                cleanup_temp_audio(audio_path, needs_cleanup)
+        result = await transcribe_local_media(file_path, TEMP_DIR, task_id, on_stage)
 
         tasks[task_id].update({
             "status": "completed", "progress": 100, "message": "",
-            "transcript": transcript, "video_title": video_title,
+            "transcript": result.transcript, "video_title": result.video_title,
         })
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
@@ -244,60 +224,31 @@ async def _transcribe_local_file_task(task_id: str, file_path: str):
     except Exception as e:
         logger.error(f"本地文件转录任务 {task_id} 失败: {str(e)}")
         active_tasks.pop(task_id, None)
-        tasks[task_id].update({"status": "error", "error": str(e), "message": f"转录失败: {str(e)}"})
+        tasks[task_id].update(task_failure("本地文件转录失败，请重试"))
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
 
 async def _transcribe_only_task(task_id: str, url: str):
-    from backend.services.video_downloader import VideoDownloader
-    from backend.services.audio_transcriber import AudioTranscriber
-
     try:
-        video_downloader = VideoDownloader()
-        audio_transcriber = AudioTranscriber()
-
-        # 先尝试提取字幕（无需下载音频）
-        tasks[task_id].update({"progress": 5, "message": "📄 正在检查视频字幕..."})
-        save_tasks(tasks)
-        await broadcast_task_update(task_id, tasks[task_id])
-
-        subtitle_text = None
-        video_title = None
-        try:
-            subtitle_text, video_title = await video_downloader.extract_subtitles(url, TEMP_DIR)
-        except Exception as e:
-            logger.warning(f"字幕提取异常: {e}")
-
-        if subtitle_text:
-            # 有字幕，跳过音频下载和转录
-            logger.info(f"✅ 使用视频字幕替代转录，跳过音频下载")
-            tasks[task_id].update({"progress": 80, "message": "✅ 已从字幕中提取文本"})
-            save_tasks(tasks)
-            await broadcast_task_update(task_id, tasks[task_id])
-            transcript = subtitle_text
-        else:
-            # 无字幕，下载音频并转录
-            tasks[task_id].update({"progress": 10, "message": "🎬 无可用字幕，正在下载音频..."})
+        async def on_stage(stage: str):
+            progress = {
+                "checking_subtitles": (5, "📄 正在检查视频字幕..."),
+                "subtitle_ready": (80, "✅ 已从字幕中提取文本"),
+                "downloading_audio": (10, "🎬 无可用字幕，正在下载音频..."),
+                "transcribing_audio": (40, "🎤 正在转录音频..."),
+            }.get(stage)
+            if not progress:
+                return
+            tasks[task_id].update({"progress": progress[0], "message": progress[1]})
             save_tasks(tasks)
             await broadcast_task_update(task_id, tasks[task_id])
 
-            audio_path, video_title = await video_downloader.download_video_audio(url, TEMP_DIR)
-
-            tasks[task_id].update({"progress": 40, "message": "🎤 正在转录音频..."})
-            save_tasks(tasks)
-            await broadcast_task_update(task_id, tasks[task_id])
-
-            transcript = await audio_transcriber.transcribe_audio(audio_path)
-
-            try:
-                Path(audio_path).unlink()
-            except Exception:
-                pass
+        result = await transcribe_remote_media(url, TEMP_DIR, on_stage)
 
         tasks[task_id].update({
             "status": "completed", "progress": 100, "message": "",
-            "transcript": transcript, "video_title": video_title,
+            "transcript": result.transcript, "video_title": result.video_title,
         })
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
@@ -313,7 +264,7 @@ async def _transcribe_only_task(task_id: str, url: str):
     except Exception as e:
         logger.error(f"转录任务 {task_id} 失败: {str(e)}")
         active_tasks.pop(task_id, None)
-        tasks[task_id].update({"status": "error", "error": str(e), "message": f"转录失败: {str(e)}"})
+        tasks[task_id].update(task_failure("视频转录失败，请重试"))
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
@@ -349,10 +300,10 @@ async def video_qa_stream(request: Request):
         return StreamingResponse(
             event_generator(),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*"},
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"视频问答失败: {str(e)}")
-        raise HTTPException(status_code=500, detail="问答请求处理失败")
+        raise internal_error("问答请求处理失败")

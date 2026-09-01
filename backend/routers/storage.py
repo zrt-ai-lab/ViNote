@@ -22,8 +22,13 @@ AUDIO_EXTENSIONS = {".m4a", ".wav", ".webm", ".mp3", ".ogg", ".part"}
 
 # Markdown 笔记文件正则 (summary/transcript/raw/mindmap/translation)
 NOTE_FILE_RE = re.compile(
-    r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6})\.md$"
+    r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6,32})\.md$"
 )
+
+
+def _note_id_for_task(task_id: str) -> str:
+    task_short_id = tasks.get(task_id, {}).get("short_id")
+    return str(task_short_id or task_id.replace("-", "")[:6])
 
 
 def _file_age_days(path: Path) -> float:
@@ -146,9 +151,12 @@ class CleanupRequest(BaseModel):
 @router.post("/storage/cleanup")
 async def cleanup_storage(req: CleanupRequest):
     """清理临时文件（音频缓存、下载视频、备份、笔记）"""
+    if req.clean_audio and active_tasks:
+        raise HTTPException(status_code=409, detail="有任务正在处理，请结束后再清理音频缓存")
+
     active_short_ids = set()
     for tid in active_tasks:
-        active_short_ids.add(tid.replace("-", "")[:8])
+        active_short_ids.add(_note_id_for_task(tid))
 
     deleted_files = []
     freed_bytes = 0
@@ -205,14 +213,14 @@ async def cleanup_storage(req: CleanupRequest):
                 logger.warning(f"删除文件失败 {f.name}: {e}")
 
     if req.clean_all_notes and TEMP_DIR.exists():
-        active_short_ids_6 = {tid.replace("-", "")[:6] for tid in active_tasks}
+        active_note_ids = {_note_id_for_task(tid) for tid in active_tasks}
         for f in TEMP_DIR.iterdir():
             if not f.is_file() or f.suffix != ".md":
                 continue
             match = NOTE_FILE_RE.match(f.name)
             if not match:
                 continue
-            if match.group(3) in active_short_ids_6:
+            if match.group(3) in active_note_ids:
                 continue
             if req.older_than_days > 0 and _file_age_days(f) < req.older_than_days:
                 continue
@@ -229,7 +237,7 @@ async def cleanup_storage(req: CleanupRequest):
         completed_tids = [
             tid for tid, t in tasks.items()
             if t.get("status") in ("completed", "error", "cancelled")
-            and tid.replace("-", "")[:6] not in active_short_ids_6
+            and _note_id_for_task(tid) not in active_note_ids
         ]
         for tid in completed_tids:
             del tasks[tid]
@@ -255,11 +263,11 @@ async def cleanup_storage(req: CleanupRequest):
 @router.delete("/storage/task/{short_id}")
 async def delete_task_files(short_id: str):
     """删除指定任务的所有文件和数据库记录"""
-    if not re.match(r"^[a-f0-9]{6}$", short_id):
+    if not re.fullmatch(r"[a-f0-9]{6,32}", short_id):
         raise HTTPException(status_code=400, detail="无效的任务ID格式")
 
     for tid in active_tasks:
-        if tid.replace("-", "")[:6] == short_id:
+        if _note_id_for_task(tid) == short_id:
             raise HTTPException(status_code=409, detail="任务正在处理中，无法删除")
 
     deleted_files = []
@@ -283,7 +291,7 @@ async def delete_task_files(short_id: str):
     # 从内存 tasks dict 中移除（兼容未迁移的）
     task_ids_to_remove = [
         tid for tid in tasks
-        if tid.replace("-", "")[:6] == short_id
+        if _note_id_for_task(tid) == short_id
     ]
     for tid in task_ids_to_remove:
         del tasks[tid]

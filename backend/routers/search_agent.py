@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from backend.core.state import get_video_search_agent, TEMP_DIR
+from backend.core.errors import internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -31,18 +32,18 @@ async def search_agent_chat(request: Request):
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             except Exception as e:
                 logger.error(f"Agent聊天异常: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '搜索对话失败，请重试'}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             event_generator(),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*"},
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"搜索Agent聊天失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+        raise internal_error("搜索对话处理失败")
 
 
 @router.post("/search-agent-generate-notes")
@@ -70,18 +71,18 @@ async def search_agent_generate_notes(request: Request):
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             except Exception as e:
                 logger.error(f"生成笔记异常: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '笔记生成失败，请重试'}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             event_generator(),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*"},
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"生成笔记失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+        raise internal_error("搜索笔记生成失败")
 
 
 @router.delete("/search-agent-cancel-generation/{generation_id}")
@@ -93,9 +94,11 @@ async def cancel_note_generation(generation_id: str):
             return {"message": "任务已取消", "generation_id": generation_id}
         else:
             raise HTTPException(status_code=404, detail="任务不存在或已完成")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"取消笔记生成失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"取消失败: {str(e)}")
+        raise internal_error("取消笔记生成失败")
 
 
 @router.post("/search-agent-clear-session")
@@ -108,4 +111,4 @@ async def search_agent_clear_session(request: Request):
         return {"message": "会话已清空", "session_id": session_id}
     except Exception as e:
         logger.error(f"清空会话失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
+        raise internal_error("清空搜索会话失败")

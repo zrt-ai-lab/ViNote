@@ -201,7 +201,7 @@ class CardGenerator:
 
         except Exception as e:
             logger.error(f"生成知识卡片失败: {e}")
-            yield {"type": "error", "message": f"生成失败: {str(e)}"}
+            yield {"type": "error", "message": "知识卡片生成失败，请重试"}
 
     @staticmethod
     def _try_parse_card(text: str, style_cfg: dict) -> Optional[dict]:

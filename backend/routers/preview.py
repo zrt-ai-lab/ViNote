@@ -1,6 +1,7 @@
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from backend.core.state import get_video_preview_service
+from backend.core.errors import internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -13,4 +14,4 @@ async def preview_video(url: str):
         return {"success": True, "data": video_info}
     except Exception as e:
         logger.error(f"预览视频失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
+        raise internal_error("视频预览失败")

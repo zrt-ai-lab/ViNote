@@ -7,8 +7,6 @@ import re
 import yt_dlp
 import logging
 import asyncio
-import subprocess
-import shlex
 import uuid
 from pathlib import Path
 from typing import Tuple, Optional, List
@@ -85,13 +83,13 @@ class VideoDownloader:
         """
         if output_dir is None:
             output_dir = settings.TEMP_DIR
+        unique_id = uuid.uuid4().hex[:8]
 
         try:
             # 创建输出目录
-            output_dir.mkdir(exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             # 生成唯一的文件名
-            unique_id = str(uuid.uuid4())[:8]
             output_template = str(output_dir / f"audio_{unique_id}.%(ext)s")
 
             # 更新yt-dlp选项
@@ -141,8 +139,21 @@ class VideoDownloader:
             return audio_file, video_title
 
         except Exception as e:
+            self._cleanup_audio_attempt(output_dir, unique_id)
             logger.error(f"❌ 音频提取失败: {str(e)}")
             raise Exception(f"音频提取失败: {str(e)}")
+
+    @staticmethod
+    def _cleanup_audio_attempt(output_dir: Path, unique_id: str) -> None:
+        """下载失败时只清理本次唯一前缀产生的文件。"""
+        try:
+            root = output_dir.resolve()
+            for candidate in output_dir.glob(f"audio_{unique_id}*"):
+                resolved = candidate.resolve()
+                if resolved.is_relative_to(root) and resolved.is_file():
+                    resolved.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("清理失败的音频下载 %s 时出错: %s", unique_id, exc)
 
     async def extract_subtitles(
         self,
@@ -530,13 +541,7 @@ class VideoDownloader:
         Returns:
             音频文件路径（可能是修复后的新文件）
         """
-        try:
-            # 获取实际时长
-            probe_cmd = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {shlex.quote(audio_file)}"
-            out = subprocess.check_output(probe_cmd, shell=True).decode().strip()
-            actual_duration = float(out) if out else 0.0
-        except Exception:
-            actual_duration = 0.0
+        actual_duration = await self._probe_audio_duration(audio_file)
 
         # 检查时长差异
         if expected_duration and actual_duration and abs(actual_duration - expected_duration) / expected_duration > 0.1:
@@ -544,21 +549,40 @@ class VideoDownloader:
                 f"音频时长异常，期望{expected_duration}s，实际{actual_duration}s，尝试重封装修复…"
             )
             try:
+                original_path = audio_file
                 fixed_path = str(output_dir / f"audio_{unique_id}_fixed.m4a")
-                fix_cmd = f"ffmpeg -y -i {shlex.quote(audio_file)} -vn -c:a aac -b:a 160k -movflags +faststart {shlex.quote(fixed_path)}"
-                subprocess.check_call(fix_cmd, shell=True)
-
-                # 用修复后的文件替换
-                audio_file = fixed_path
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y", "-i", audio_file, "-vn", "-c:a", "aac",
+                    "-b:a", "160k", "-movflags", "+faststart", fixed_path,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise RuntimeError(f"ffmpeg 重封装失败: {stderr.decode(errors='replace')[:200]}")
 
                 # 重新探测
-                out2 = subprocess.check_output(
-                    probe_cmd.replace(shlex.quote(audio_file.rsplit('.', 1)[0] + '.m4a'), shlex.quote(audio_file)),
-                    shell=True
-                ).decode().strip()
-                actual_duration2 = float(out2) if out2 else 0.0
+                actual_duration2 = await self._probe_audio_duration(fixed_path)
+                Path(original_path).unlink(missing_ok=True)
+                audio_file = fixed_path
                 logger.info(f"重封装完成，新时长≈{actual_duration2:.2f}s")
             except Exception as e:
                 logger.error(f"重封装失败：{e}")
 
         return audio_file
+
+    @staticmethod
+    async def _probe_audio_duration(audio_file: str) -> float:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", audio_file,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await proc.communicate()
+            if proc.returncode != 0:
+                return 0.0
+            return float(stdout.decode().strip() or 0)
+        except (OSError, ValueError):
+            return 0.0

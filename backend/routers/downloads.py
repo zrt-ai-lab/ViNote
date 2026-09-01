@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from backend.core.state import (
     get_video_download_service, validate_download_filename, TEMP_DIR,
 )
+from backend.core.errors import internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -34,7 +35,7 @@ async def start_download(data: dict):
         raise
     except Exception as e:
         logger.error(f"开始下载失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
+        raise internal_error("下载任务启动失败")
 
 
 @router.get("/download-stream/{download_id}")
@@ -56,12 +57,12 @@ async def download_stream(download_id: str):
             logger.info(f"下载流连接被取消: {download_id}")
         except Exception as e:
             logger.error(f"下载流异常: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'error': '下载状态读取失败'})}\n\n"
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*"},
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
 
 
@@ -74,6 +75,8 @@ async def get_download_file(download_id: str):
 
         filename = Path(file_path).name
         encoded_filename = quote(filename, safe="")
+        ascii_filename = filename.encode("ascii", "ignore").decode("ascii")
+        ascii_filename = ascii_filename.replace("\r", "").replace("\n", "").replace('"', "")
 
         return FileResponse(
             file_path,
@@ -81,14 +84,16 @@ async def get_download_file(download_id: str):
             media_type="application/octet-stream",
             headers={
                 "Content-Disposition": (
-                    f"attachment; filename=\"{filename.encode('ascii', 'ignore').decode('ascii')}\"; "
+                    f"attachment; filename=\"{ascii_filename or 'download'}\"; "
                     f"filename*=UTF-8''{encoded_filename}"
                 )
             },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取下载文件失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"获取文件失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="获取文件失败")
 
 
 @router.delete("/cancel-download/{download_id}")
@@ -99,9 +104,11 @@ async def cancel_download(download_id: str):
             return {"message": "下载已取消"}
         else:
             raise HTTPException(status_code=404, detail="下载任务不存在")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"取消下载失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"取消失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="取消下载失败")
 
 
 @router.get("/download/{filename}")
@@ -129,4 +136,4 @@ async def download_file(filename: str):
         raise
     except Exception as e:
         logger.error(f"下载文件失败: {e}")
-        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="文件下载失败")

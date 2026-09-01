@@ -2,11 +2,12 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+from backend.config.settings import get_settings
 from backend.version import VERSION
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -24,19 +25,23 @@ logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    from backend.core.lifecycle import startup_event
+    from backend.core.lifecycle import shutdown_event, startup_event
     await startup_event()
-    yield
+    try:
+        yield
+    finally:
+        await shutdown_event()
 
 
+settings = get_settings()
 app = FastAPI(title="ViNote", version=VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=settings.CORS_CREDENTIALS,
+    allow_methods=settings.CORS_METHODS,
+    allow_headers=settings.CORS_HEADERS,
 )
 
 from backend.core.middleware import RateLimitMiddleware
@@ -81,15 +86,18 @@ async def health_check():
 @app.get("/")
 @app.get("/{path:path}")
 async def serve_spa(path: str = ""):
+    if path == "api" or path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
     spa_dir = PROJECT_ROOT / "static-build"
-    if path and (spa_dir / path).is_file():
-        return FileResponse(str(spa_dir / path))
+    requested_file = (spa_dir / path).resolve()
+    if path and requested_file.is_relative_to(spa_dir.resolve()) and requested_file.is_file():
+        return FileResponse(str(requested_file))
     spa_index = spa_dir / "index.html"
     if spa_index.exists():
         return FileResponse(str(spa_index))
-    return FileResponse(str(spa_dir / "index.html"))
+    raise HTTPException(status_code=503, detail="Frontend build is unavailable")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8999)
+    uvicorn.run(app, host=settings.HOST, port=settings.PORT)

@@ -11,10 +11,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.core.state import (
-    tasks, processing_urls, active_tasks, sse_connections,
+    tasks, processing_urls, active_tasks, active_batches, sse_connections,
     save_tasks, broadcast_task_update, persist_completed_task,
     TEMP_DIR,
 )
+from backend.core.errors import internal_error, task_failure
 from backend.services.note_generator import NoteGenerator
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ async def process_video(
         return {"task_id": task_id, "message": "任务已创建，正在处理中..."}
     except Exception as e:
         logger.error(f"处理视频时出错: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+        raise internal_error("视频处理任务创建失败")
 
 
 async def _process_video_task(task_id: str, url: str, summary_language: str):
@@ -117,7 +118,10 @@ async def _process_video_task(task_id: str, url: str, summary_language: str):
         task_result = {
             "status": "completed",
             "progress": 100,
-            "message": "🎉 笔记生成完成！",
+            "message": (
+                "处理完成（部分 AI 能力已降级）"
+                if result.get("warnings") else "🎉 笔记生成完成！"
+            ),
             "video_title": result["video_title"],
             "script": result["optimized_transcript"],
             "summary": result["summary"],
@@ -131,6 +135,7 @@ async def _process_video_task(task_id: str, url: str, summary_language: str):
             "raw_script_filename": result["files"]["raw_transcript_filename"],
             "mindmap": result.get("mindmap", ""),
             "mindmap_filename": result["files"].get("mindmap_filename"),
+            "warnings": result.get("warnings", []),
         }
 
         if "translation" in result:
@@ -159,16 +164,6 @@ async def _process_video_task(task_id: str, url: str, summary_language: str):
         except Exception as e:
             logger.warning(f"自动标签失败: {e}")
 
-        # 清理本次生成产生的音频缓存文件
-        try:
-            for f in TEMP_DIR.iterdir():
-                if f.is_file() and f.suffix.lower() in (".m4a", ".wav", ".webm", ".mp3", ".ogg"):
-                    if "audio_" in f.name:
-                        f.unlink()
-                        logger.info(f"自动清理音频缓存: {f.name}")
-        except Exception as e:
-            logger.warning(f"清理音频缓存时出错: {e}")
-
     except asyncio.CancelledError:
         logger.info(f"任务 {task_id} 被取消")
         processing_urls.discard(url)
@@ -182,7 +177,7 @@ async def _process_video_task(task_id: str, url: str, summary_language: str):
         logger.error(f"任务 {task_id} 处理失败: {str(e)}")
         processing_urls.discard(url)
         active_tasks.pop(task_id, None)
-        tasks[task_id].update({"status": "error", "error": str(e), "message": f"处理失败: {str(e)}"})
+        tasks[task_id].update(task_failure("视频处理失败，请重试"))
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
@@ -207,32 +202,17 @@ async def get_task_status(task_id: str):
         result = {
             "status": "completed",
             "progress": 100,
-            "message": "已完成",
+            "message": (
+                "处理完成（部分 AI 能力已降级）"
+                if note.get("warnings") else "已完成"
+            ),
             "video_title": note.get("title", ""),
             "short_id": note["short_id"],
             "safe_title": note.get("safe_title", ""),
+            "warnings": note.get("warnings", []),
         }
 
-        # 确定要尝试的 short_id 列表（自身 + 同标题的 sibling）
-        short_ids_to_try = [short_id]
-        # 如果当前笔记无文件，尝试找同标题的有文件笔记
-        if not note.get("summary_file") and not note.get("transcript_file"):
-            note_title = note.get("title", "")
-            if note_title:
-                from backend.db.connection import get_db
-                async with get_db() as db:
-                    cursor = await db.execute(
-                        """SELECT short_id FROM notes
-                           WHERE title = ? AND short_id != ?
-                             AND (summary_file IS NOT NULL OR transcript_file IS NOT NULL)
-                           LIMIT 1""",
-                        (note_title, short_id),
-                    )
-                    sibling = await cursor.fetchone()
-                if sibling:
-                    short_ids_to_try.append(sibling[0])
-
-        for sid in short_ids_to_try:
+        for sid in [short_id]:
             for field, prefix in [("summary", "summary"), ("script", "transcript"), ("raw_script", "raw"), ("translation", "translation"), ("mindmap", "mindmap")]:
                 if field in result and field not in ("status", "progress", "message", "video_title", "short_id", "safe_title"):
                     continue  # 已找到则跳过
@@ -287,9 +267,6 @@ async def task_stream(task_id: str):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Cache-Control",
         },
     )
 
@@ -349,10 +326,12 @@ async def get_completed_tasks(
 async def get_task_content(task_id: str, field: str = "summary"):
     import re
 
+    if field not in {"summary", "script", "transcript", "raw"}:
+        raise HTTPException(status_code=400, detail="不支持的内容类型")
     field_to_prefix = {
         "summary": "summary",
         "script": "transcript",
-        "transcript": "raw",
+        "transcript": "transcript",
         "raw": "raw",
     }
     prefix = field_to_prefix.get(field, field)
@@ -373,7 +352,7 @@ async def get_task_content(task_id: str, field: str = "summary"):
             field_map = {
                 "summary": t.get("summary", ""),
                 "script": t.get("script", ""),
-                "transcript": t.get("transcript") or t.get("raw_script", ""),
+                "transcript": t.get("script") or t.get("transcript") or t.get("raw_script", ""),
             }
             content = field_map.get(field, "")
             if content:
@@ -412,43 +391,6 @@ async def get_task_content(task_id: str, field: str = "summary"):
                     content = f.read_text(encoding="utf-8")
                     if content.strip():
                         return {"content": content}
-
-        # 5. 同标题的其他笔记可能有文件（历史重复记录场景）
-        note_title = note.get("title", "")
-        if note_title:
-            from backend.db.connection import get_db
-            async with get_db() as db:
-                cursor = await db.execute(
-                    """SELECT short_id, summary_file, transcript_file, mindmap_file, translation_file
-                       FROM notes
-                       WHERE title = ? AND short_id != ?
-                         AND (summary_file IS NOT NULL OR transcript_file IS NOT NULL)
-                       LIMIT 1""",
-                    (note_title, task_id),
-                )
-                sibling = await cursor.fetchone()
-            if sibling:
-                sibling_short_id = sibling[0]
-                sibling_file_map = {
-                    "summary": sibling[1],
-                    "script": sibling[2],
-                    "transcript": sibling[2],
-                }
-                db_filename = sibling_file_map.get(field)
-                if db_filename:
-                    fpath = TEMP_DIR / db_filename
-                    if fpath.exists():
-                        content = fpath.read_text(encoding="utf-8")
-                        if content.strip():
-                            return {"content": content}
-                # 用 sibling 的 short_id 扫文件系统
-                for f in TEMP_DIR.iterdir():
-                    if not f.is_file() or f.suffix != ".md":
-                        continue
-                    if re.match(rf"^{re.escape(prefix)}_.+_{re.escape(sibling_short_id)}\.md$", f.name):
-                        content = f.read_text(encoding="utf-8")
-                        if content.strip():
-                            return {"content": content}
 
     raise HTTPException(status_code=404, detail=f"未找到 {field} 内容")
 
@@ -493,7 +435,7 @@ async def process_local_path(request: Request):
         raise
     except Exception as e:
         logger.error(f"处理本地路径时出错: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+        raise internal_error("本地文件处理任务创建失败")
 
 
 async def _process_local_path_task(task_id: str, file_path: str, summary_language: str):
@@ -567,7 +509,10 @@ async def _process_local_path_task(task_id: str, file_path: str, summary_languag
         task_result = {
             "status": "completed",
             "progress": 100,
-            "message": "🎉 处理完成！",
+            "message": (
+                "处理完成（部分 AI 能力已降级）"
+                if result.get("warnings") else "🎉 处理完成！"
+            ),
             "video_title": result["video_title"],
             "script": result["optimized_transcript"],
             "summary": result["summary"],
@@ -581,6 +526,7 @@ async def _process_local_path_task(task_id: str, file_path: str, summary_languag
             "raw_script_filename": result["files"]["raw_transcript_filename"],
             "mindmap": result.get("mindmap", ""),
             "mindmap_filename": result["files"].get("mindmap_filename"),
+            "warnings": result.get("warnings", []),
         }
 
         if "translation" in result:
@@ -617,7 +563,7 @@ async def _process_local_path_task(task_id: str, file_path: str, summary_languag
     except Exception as e:
         logger.error(f"本地文件处理任务 {task_id} 失败: {str(e)}")
         active_tasks.pop(task_id, None)
-        tasks[task_id].update({"status": "error", "error": str(e), "message": f"处理失败: {str(e)}"})
+        tasks[task_id].update(task_failure("本地文件处理失败，请重试"))
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
@@ -631,15 +577,16 @@ class BatchRequest(BaseModel):
 
 @router.post("/batch-process")
 async def batch_process(req: BatchRequest):
-    urls = [u.strip() for u in req.urls if u.strip()]
+    urls = list(dict.fromkeys(u.strip() for u in req.urls if u.strip()))
     if not urls:
         raise HTTPException(status_code=400, detail="URL列表不能为空")
     if len(urls) > 20:
         raise HTTPException(status_code=400, detail="单次最多支持20个URL")
 
-    batch_id = uuid.uuid4().hex[:6]
+    batch_id = uuid.uuid4().hex
     from backend.config.settings import get_settings
-    semaphore = asyncio.Semaphore(get_settings().BATCH_CONCURRENCY)
+    concurrency = max(1, min(get_settings().BATCH_CONCURRENCY, len(urls)))
+    semaphore = asyncio.Semaphore(concurrency)
 
     # Collect task info before creating tasks (to avoid auto-start race)
     task_entries: list[tuple[str, str]] = []  # (url, summary_language)
@@ -652,7 +599,7 @@ async def batch_process(req: BatchRequest):
         is_local = os.path.exists(url) and os.path.isfile(url)
         task_id = str(uuid.uuid4())
         task_data = {
-            "status": "processing",
+            "status": "queued",
             "progress": 0,
             "message": "排队等待中...",
             "script": None,
@@ -668,7 +615,10 @@ async def batch_process(req: BatchRequest):
         task_ids.append(task_id)
 
     save_tasks(tasks)
-    asyncio.create_task(_batch_process(batch_id, task_ids, task_entries, semaphore))
+    coordinator = asyncio.create_task(
+        _batch_process(batch_id, task_ids, task_entries, semaphore)
+    )
+    active_batches[batch_id] = coordinator
 
     return {"batch_id": batch_id, "task_ids": task_ids, "total": len(task_ids)}
 
@@ -682,26 +632,86 @@ async def _batch_process(
     """Run batch sub-tasks with concurrency control via semaphore."""
 
     async def _run_one(tid: str, url: str, lang: str):
-        async with semaphore:
-            is_local = os.path.exists(url) and os.path.isfile(url)
-            if is_local:
-                coro = _process_local_path_task(tid, url, lang)
-            else:
-                if url not in processing_urls:
-                    processing_urls.add(url)
-                coro = _process_video_task(tid, url, lang)
-            inner = asyncio.create_task(coro)
-            active_tasks[tid] = inner
-            try:
-                await inner
-            except Exception as e:
-                logger.error(f"批次 {batch_id} 子任务 {tid} 异常: {e}")
+        try:
+            async with semaphore:
+                if tid not in tasks or tasks[tid].get("status") == "cancelled":
+                    return
+                tasks[tid].update({"status": "processing", "message": "开始处理..."})
+                save_tasks(tasks)
+                await broadcast_task_update(tid, tasks[tid])
 
-    await asyncio.gather(
-        *[_run_one(tid, url, lang) for tid, (url, lang) in zip(task_ids, task_entries)],
-        return_exceptions=True,
+                is_local = os.path.exists(url) and os.path.isfile(url)
+                if is_local:
+                    coro = _process_local_path_task(tid, url, lang)
+                else:
+                    if url in processing_urls:
+                        tasks[tid].update({
+                            "status": "error",
+                            "error": "视频正在处理中",
+                            "message": "跳过重复任务",
+                        })
+                        save_tasks(tasks)
+                        await broadcast_task_update(tid, tasks[tid])
+                        return
+                    processing_urls.add(url)
+                    coro = _process_video_task(tid, url, lang)
+                inner = asyncio.create_task(coro)
+                active_tasks[tid] = inner
+                try:
+                    await inner
+                finally:
+                    active_tasks.pop(tid, None)
+        except asyncio.CancelledError:
+            if tid in tasks and tasks[tid].get("status") in {"queued", "processing"}:
+                tasks[tid].update({
+                    "status": "cancelled", "error": "用户取消批次", "message": "批次已取消",
+                })
+                save_tasks(tasks)
+                await broadcast_task_update(tid, tasks[tid])
+            raise
+        except Exception as e:
+            logger.error(f"批次 {batch_id} 子任务 {tid} 异常: {e}")
+
+    try:
+        await asyncio.gather(
+            *[_run_one(tid, url, lang) for tid, (url, lang) in zip(task_ids, task_entries)],
+            return_exceptions=True,
+        )
+        logger.info(f"批次 {batch_id} 全部处理完成")
+    finally:
+        active_batches.pop(batch_id, None)
+
+
+@router.delete("/batch/{batch_id}")
+async def cancel_batch(batch_id: str):
+    matching = [(tid, task) for tid, task in tasks.items() if task.get("batch_id") == batch_id]
+    coordinator = active_batches.get(batch_id)
+    if not matching and not coordinator:
+        raise HTTPException(status_code=404, detail="批次不存在")
+
+    if coordinator and not coordinator.done():
+        coordinator.cancel()
+        try:
+            await coordinator
+        except asyncio.CancelledError:
+            pass
+
+    cancelled = 0
+    for tid, task_data in matching:
+        if task_data.get("status") not in {"queued", "processing"}:
+            continue
+        running = active_tasks.get(tid)
+        if running and not running.done():
+            running.cancel()
+        task_data.update({"status": "cancelled", "error": "用户取消批次", "message": "批次已取消"})
+        await broadcast_task_update(tid, task_data)
+        cancelled += 1
+    if cancelled:
+        save_tasks(tasks)
+    cancelled_total = sum(
+        1 for _, task in matching if task.get("status") == "cancelled"
     )
-    logger.info(f"批次 {batch_id} 全部处理完成")
+    return {"message": "批次已取消", "cancelled": cancelled_total}
 
 
 @router.get("/batch-status/{batch_id}")
@@ -748,13 +758,15 @@ async def get_batch_status(batch_id: str):
     total = len(batch_tasks)
     completed = sum(1 for t in batch_tasks if t["status"] == "completed")
     failed = sum(1 for t in batch_tasks if t["status"] == "error")
-    processing = sum(1 for t in batch_tasks if t["status"] == "processing")
+    processing = sum(1 for t in batch_tasks if t["status"] in {"queued", "processing"})
+    cancelled = sum(1 for t in batch_tasks if t["status"] == "cancelled")
 
     return {
         "batch_id": batch_id,
         "total": total,
         "completed": completed,
         "failed": failed,
+        "cancelled": cancelled,
         "processing": processing,
         "tasks": batch_tasks,
     }

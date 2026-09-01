@@ -18,3 +18,9 @@
 1. 历史页调用 `POST /api/notes/{short_id}/regenerate`。
 2. `targets` 可包含 `transcript`、`summary`、`mindmap`。
 3. 文件使用临时文件原子替换，全部完成后再更新 SQLite 文件引用。
+
+## 任务完成状态
+
+1. 处理中状态保存在单进程内存，并通过 `GET /api/task-status/{task_id}` 或 SSE 返回。
+2. 完成后笔记、完整任务 UUID、产物索引和固定降级提示写入 SQLite，再释放内存状态。
+3. 客户端继续使用原始任务 UUID 查询时，服务端按 `task_id` 回读 SQLite，并保持 `warnings`、完成文案和产物内容一致。
