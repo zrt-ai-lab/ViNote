@@ -146,6 +146,47 @@ export interface ScanResult {
   total: number;
 }
 
+export interface PlaylistEntry {
+  id: string;
+  title: string;
+  url: string;
+  duration: number;
+  thumbnail?: string;
+  index: number;
+}
+
+export interface PlaylistInfo {
+  title: string;
+  uploader: string;
+  entries: PlaylistEntry[];
+  total: number;
+  truncated: boolean;
+}
+
+export interface QASource {
+  short_id: string;
+  title: string;
+  url: string;
+  content_field: 'summary' | 'transcript';
+}
+
+export interface QAMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  sequence: number;
+  created_at: string;
+}
+
+export interface QASession {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  sources: QASource[];
+  messages: QAMessage[];
+}
+
 // Category types
 export interface Category {
   id: number;

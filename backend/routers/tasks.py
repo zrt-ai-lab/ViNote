@@ -353,6 +353,7 @@ async def get_task_content(task_id: str, field: str = "summary"):
         "summary": "summary",
         "script": "transcript",
         "transcript": "raw",
+        "raw": "raw",
     }
     prefix = field_to_prefix.get(field, field)
 
@@ -388,6 +389,7 @@ async def get_task_content(task_id: str, field: str = "summary"):
             "summary": "summary_file",
             "script": "transcript_file",
             "transcript": "transcript_file",
+            "raw": "raw_transcript_file",
         }
         db_filename = None
         col = field_to_db_col.get(field)

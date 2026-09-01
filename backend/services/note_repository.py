@@ -26,6 +26,7 @@ async def save_note(
     has_transcript: bool = False,
     batch_id: Optional[str] = None,
     completed_at: Optional[str] = None,
+    raw_transcript_file: Optional[str] = None,
 ) -> int:
     """保存或更新一条笔记。返回 note id。"""
     async with get_db() as db:
@@ -39,12 +40,14 @@ async def save_note(
                     task_id=?, url=?, title=?, safe_title=?, source=?,
                     category_id=?, summary_file=?, transcript_file=?,
                     mindmap_file=?, translation_file=?,
-                    has_summary=?, has_transcript=?, batch_id=?, completed_at=?
+                    has_summary=?, has_transcript=?, batch_id=?, completed_at=?,
+                    raw_transcript_file=?
                    WHERE short_id=?""",
                 (task_id, url, title, safe_title, source,
                  category_id, summary_file, transcript_file,
                  mindmap_file, translation_file,
                  int(has_summary), int(has_transcript), batch_id, completed_at,
+                 raw_transcript_file,
                  short_id),
             )
             await db.commit()
@@ -54,12 +57,13 @@ async def save_note(
                 """INSERT INTO notes
                    (short_id, task_id, url, title, safe_title, source, status,
                     category_id, summary_file, transcript_file, mindmap_file,
-                    translation_file, has_summary, has_transcript, batch_id, completed_at)
-                   VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    translation_file, has_summary, has_transcript, batch_id, completed_at,
+                    raw_transcript_file)
+                   VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (short_id, task_id, url, title, safe_title, source,
                  category_id, summary_file, transcript_file, mindmap_file,
                  translation_file, int(has_summary), int(has_transcript),
-                 batch_id, completed_at),
+                 batch_id, completed_at, raw_transcript_file),
             )
             await db.commit()
             return cursor.lastrowid
@@ -223,8 +227,36 @@ async def _row_to_note(db, row) -> dict:
         "batch_id": row[15],
         "created_at": row[16],
         "completed_at": row[17],
+        "raw_transcript_file": row[18],
         "tags": [r[0] for r in tag_rows],
     }
+
+
+async def update_note_artifacts(short_id: str, **artifacts: Optional[str]) -> bool:
+    """只更新允许的产物文件字段，避免覆盖笔记其他元数据。"""
+    allowed = {
+        "raw_transcript_file", "transcript_file", "summary_file",
+        "mindmap_file", "translation_file",
+    }
+    values = {key: value for key, value in artifacts.items() if key in allowed}
+    if not values:
+        return False
+
+    assignments = [f"{key} = ?" for key in values]
+    if "summary_file" in values:
+        assignments.append("has_summary = ?")
+        values["has_summary"] = 1 if values["summary_file"] else 0
+    if "transcript_file" in values:
+        assignments.append("has_transcript = ?")
+        values["has_transcript"] = 1 if values["transcript_file"] else 0
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            f"UPDATE notes SET {', '.join(assignments)} WHERE short_id = ?",
+            [*values.values(), short_id],
+        )
+        await db.commit()
+        return cursor.rowcount > 0
 
 
 async def delete_note(short_id: str) -> bool:

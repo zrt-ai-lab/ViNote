@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { postFormData, fetchJSON, deleteAPI, extractBilibiliUrl, proxyImageUrl, streamPost } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import ProgressBar from '../components/ProgressBar';
 import ChatMessage from '../components/ChatMessage';
 import { toast } from '../components/toastStore';
-import type { TaskStatus, VideoInfo } from '../types';
+import type { QASession, TaskStatus, VideoInfo } from '../types';
 import { Loader2, Send, Trash2, Square } from 'lucide-react';
 
 interface Message {
@@ -15,6 +16,9 @@ interface Message {
 }
 
 export default function VideoQA() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get('sessionId');
   const [input, setInput] = useState('');
   const [transcript, setTranscript] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
@@ -25,6 +29,8 @@ export default function VideoQA() {
   const [question, setQuestion] = useState('');
   const [answering, setAnswering] = useState(false);
   const [preview, setPreview] = useState<VideoInfo | null>(null);
+  const [session, setSession] = useState<QASession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(Boolean(sessionId));
   const msgEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { connect, disconnect } = useSSE();
@@ -32,6 +38,24 @@ export default function VideoQA() {
   useEffect(() => {
     msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    fetchJSON<QASession>(`/api/qa/sessions/${sessionId}`)
+      .then((data) => {
+        setSession(data);
+        setTranscript(data.sources.map((source) => source.title).join('\n'));
+        setVideoTitle(data.title);
+        setMessages(data.messages.map((message) => ({
+          id: String(message.id),
+          role: message.role,
+          content: message.content,
+          timestamp: new Date(`${message.created_at}Z`),
+        })));
+      })
+      .catch((error) => toast(error instanceof Error ? error.message : '加载问答会话失败', 'error'))
+      .finally(() => setSessionLoading(false));
+  }, [sessionId]);
 
   const handlePreprocess = async () => {
     const url = extractBilibiliUrl(input.trim());
@@ -98,10 +122,19 @@ export default function VideoQA() {
 
     let fullAnswer = '';
     abortRef.current = streamPost(
-      '/api/video-qa-stream',
-      { question: q, transcript, video_url: input },
+      sessionId ? `/api/qa/sessions/${sessionId}/messages/stream` : '/api/video-qa-stream',
+      sessionId ? { question: q } : { question: q, transcript, video_url: input },
       (data) => {
-        const d = data as { content?: string };
+        const d = data as { content?: string; error?: string };
+        if (d.error) {
+          fullAnswer = `错误: ${d.error}`;
+          setMessages((prev) => {
+            const copy = [...prev];
+            copy[copy.length - 1] = { ...copy[copy.length - 1], content: fullAnswer };
+            return copy;
+          });
+          return;
+        }
         if (d.content) {
           fullAnswer += d.content;
           setMessages((prev) => {
@@ -122,7 +155,18 @@ export default function VideoQA() {
     );
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
+    if (sessionId) {
+      try {
+        await deleteAPI(`/api/qa/sessions/${sessionId}`);
+        setSession(null);
+        setTranscript('');
+        navigate('/qa', { replace: true });
+      } catch (error) {
+        toast(error instanceof Error ? error.message : '删除会话失败', 'error');
+        return;
+      }
+    }
     setMessages([]);
   };
 
@@ -132,6 +176,29 @@ export default function VideoQA() {
         <h2 className="text-lg font-semibold text-[var(--color-text)] mb-5">AI视频问答</h2>
 
         <div className="space-y-3">
+          {sessionId && sessionLoading && (
+            <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+              <Loader2 size={13} className="animate-spin" /> 正在恢复问答会话...
+            </div>
+          )}
+
+          {session && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-[var(--color-text)]">{session.title}</p>
+              <p className="text-[11px] text-[var(--color-text-muted)]">知识来源（{session.sources.length}）</p>
+              {session.sources.map((source) => (
+                <div key={source.short_id} className="p-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]">
+                  <p className="text-xs text-[var(--color-text)] line-clamp-2">{source.title}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                    {source.content_field === 'summary' ? '摘要' : '原文/完整笔记'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!sessionId && (
+            <>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -190,6 +257,8 @@ export default function VideoQA() {
               </p>
             </div>
           )}
+            </>
+          )}
         </div>
       </div>
 
@@ -204,7 +273,7 @@ export default function VideoQA() {
               className="flex items-center gap-1 px-2.5 py-1 text-xs text-[var(--color-text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
             >
               <Trash2 size={12} />
-              清空
+                {sessionId ? '删除会话' : '清空'}
             </button>
           )}
         </div>

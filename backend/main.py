@@ -46,7 +46,10 @@ SPA_DIR = PROJECT_ROOT / "static-build"
 if SPA_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(SPA_DIR / "assets")), name="spa-assets")
 
-from backend.routers import tasks, downloads, preview, qa, search_agent, proxy, dev_tools, mindmap, cards, storage, tags
+from backend.routers import (
+    cards, dev_tools, downloads, mindmap, note_actions, playlists, preview,
+    proxy, qa, search_agent, storage, tags, tasks,
+)
 
 app.include_router(tasks.router)
 app.include_router(downloads.router)
@@ -59,6 +62,8 @@ app.include_router(mindmap.router)
 app.include_router(cards.router)
 app.include_router(storage.router)
 app.include_router(tags.router)
+app.include_router(playlists.router)
+app.include_router(note_actions.router)
 
 
 @app.get("/health")

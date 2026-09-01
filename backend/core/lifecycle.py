@@ -156,7 +156,8 @@ async def repair_note_file_links():
                     summary_file = ?,
                     transcript_file = ?,
                     mindmap_file = ?,
-                    translation_file = ?
+                    translation_file = ?,
+                    raw_transcript_file = ?
                    WHERE id = ?""",
                 (
                     real_short_id,
@@ -164,6 +165,7 @@ async def repair_note_file_links():
                     files.get("transcript") or files.get("raw"),
                     files.get("mindmap"),
                     files.get("translation"),
+                    files.get("raw"),
                     note_id,
                 ),
             )

@@ -188,6 +188,9 @@ class NoteGenerator:
                 )
                 
                 detected_language = self.audio_transcriber.get_detected_language(raw_transcript)
+
+            if not raw_transcript or not raw_transcript.strip():
+                raise ValueError("未提取到有效的转录内容")
             
             self._check_cancelled(cancel_check)
             
@@ -207,6 +210,8 @@ class NoteGenerator:
             self._check_cancelled(cancel_check)
             
             optimized_transcript = await self.text_optimizer.optimize_transcript(raw_transcript)
+            if not optimized_transcript.strip():
+                raise ValueError("转录整理结果为空")
             
             # 为优化后的转录添加标题和来源（简洁格式）
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -281,6 +286,8 @@ class NoteGenerator:
             summary = await self.content_summarizer.summarize(
                 optimized_transcript, summary_language, video_title
             )
+            if not summary.strip():
+                raise ValueError("摘要生成结果为空")
             
             # 步骤6: 生成思维导图
             await self._update_progress(progress_callback, 90, "🧠 正在绘制思维导图...")
