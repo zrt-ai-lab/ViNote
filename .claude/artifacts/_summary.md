@@ -61,22 +61,22 @@
 
 | 效能项 | 数据 |
 |---|---|
-| 需求摘要 | 优化 ViNote 项目，保留核心功能，改善内容完整性、数据一致性、检索问答和安装体验。 |
-| 验收情况 | 未单独提供 |
-| 验证结论 | 同一代码89项后端、9项前端、8场景浏览器、媒体HTTP链路、lint、build及发布包校验通过。 |
-| 提交记录 | 0d45bbcf feat(vinote): 优化长文处理、任务恢复和全文搜索 |
-| 开发 Step | implement |
+| 需求摘要 | 优化 ViNote 项目，保留核心功能，改善内容完整性、数据一致性、检索问答和安装体验。；修复阻塞main合并的测试竞态 |
+| 验收情况 | 仅修改测试，无业务运行时变动 |
+| 验证结论 | 前端9条测试连续20轮通过，lint通过；同一代码89项后端、9项前端、8场景浏览器、媒体HTTP链路、lint、build及发布包校验通过。 |
+| 提交记录 | 0d45bbcf feat(vinote): 优化长文处理、任务恢复和全文搜索；5881e38d test(vinote): 修复 Windows 轮询回归的定时竞态 |
+| 开发 Step | implement, windows-test |
 | 新增代码行数 | 1588 |
 | 删除代码行数 | 535 |
-| 测试新增行数 | 1600 |
+| 测试新增行数 | 1617 |
 | 代码文件触达数 | 43 |
-| Input Tokens | 14161192 |
-| Cached Input Tokens | 13628800 |
-| Uncached Input Tokens | 532392 |
-| Output Tokens | 62739 |
-| Total Tokens | 14223931 |
-| 开发时长（秒） | 2258.048 |
-| AI代码行 | 3188 |
+| Input Tokens | 14830161 |
+| Cached Input Tokens | 14255232 |
+| Uncached Input Tokens | 574929 |
+| Output Tokens | 65146 |
+| Total Tokens | 14895307 |
+| 开发时长（秒） | 2471.116 |
+| AI代码行 | 3205 |
 | Human代码行 | 0 |
 | Unknown代码行 | 0 |
 | AI代码占比（记录口径） | 100.0% |
