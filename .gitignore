@@ -257,3 +257,12 @@ web/dist/
 
 # Cookies (sensitive)
 douyin_cookies.txt
+
+# Local AI development metadata (not part of the release repository)
+.claude/
+.panorama/
+.ai-frontend/
+.codex/
+.opencode/
+.githooks/
+CLAUDE.md
