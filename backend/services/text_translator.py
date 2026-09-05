@@ -8,6 +8,7 @@ from typing import Optional
 
 from backend.core.ai_client import get_openai_client, is_openai_available
 from backend.config.ai_config import get_openai_config, get_language_name
+from backend.services.content_completion import EmptyContentError, IncompleteContentError, SOURCE_RULES, request_text_content
 from backend.utils.text_processor import detect_language, smart_chunk_text
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,11 @@ class TextTranslator:
     def __init__(self):
         """初始化翻译服务"""
         self.config = get_openai_config()
+        self.warnings: list[str] = []
+
+    def _warn(self, message: str) -> None:
+        if message not in self.warnings:
+            self.warnings.append(message)
     
     async def translate_text(
         self,
@@ -39,11 +45,8 @@ class TextTranslator:
         Returns:
             翻译后的文本
         """
+        self.warnings.clear()
         try:
-            if not is_openai_available():
-                logger.warning("OpenAI API不可用，无法翻译")
-                return text
-            
             # 检测源语言
             if not source_language:
                 source_language = detect_language(text)
@@ -51,6 +54,11 @@ class TextTranslator:
             # 如果源语言和目标语言相同，直接返回
             if not self.should_translate(source_language, target_language):
                 logger.info(f"源语言({source_language})与目标语言({target_language})相同，跳过翻译")
+                return text
+
+            if not is_openai_available():
+                logger.warning("OpenAI API不可用，无法翻译")
+                self._warn("LLM 未配置，翻译保留原文")
                 return text
             
             source_lang_name = get_language_name(source_language)
@@ -66,7 +74,8 @@ class TextTranslator:
                 return await self._translate_single_text(text, target_lang_name, source_lang_name)
                 
         except Exception as e:
-            logger.error(f"翻译失败: {str(e)}")
+            logger.error("翻译失败 (%s)", type(e).__name__)
+            self._warn("LLM 翻译失败，已保留原文")
             return text
     
     async def _translate_single_text(
@@ -87,11 +96,14 @@ class TextTranslator:
             翻译后的文本
         """
         system_prompt = f"""你是专业翻译专家。请将{source_lang_name}文本准确翻译为{target_lang_name}。
+{SOURCE_RULES}
 
 翻译要求：
 - 保持原文的格式和结构（包括段落分隔、标题等）
 - 准确传达原意，语言自然流畅
-- 保留专业术语的准确性
+- 源文明确写出的产品名、代码标识和专业名称保留原拼写及大小写，不按发音或常识改成另一个名称
+- 源文若比较不同名称或拼写，保留各自所指对象，不能全局统一替换
+- 不补充原文没有的解释、背景、事实或结论，不消除原有不确定性
 - 不要添加解释或注释
 - 如果遇到Markdown格式，请保持格式不变"""
 
@@ -103,7 +115,9 @@ class TextTranslator:
 
         try:
             client = get_openai_client()
-            response = client.chat.completions.create(
+            return await request_text_content(
+                client,
+                reasoning_effort=getattr(self.config, "reasoning_effort", None),
                 model=self.config.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -113,10 +127,15 @@ class TextTranslator:
                 temperature=self.config.translation_temperature
             )
             
-            return response.choices[0].message.content
-            
+        except IncompleteContentError:
+            self._warn("LLM 输出被截断或预算耗尽，翻译保留原文")
+            return text
+        except EmptyContentError:
+            self._warn("LLM 返回空内容，翻译保留原文")
+            return text
         except Exception as e:
-            logger.error(f"单文本翻译失败: {e}")
+            logger.error("单文本翻译失败 (%s)", type(e).__name__)
+            self._warn("LLM 翻译失败，已保留原文")
             return text
     
     async def _translate_with_chunks(
@@ -134,13 +153,15 @@ class TextTranslator:
 
         async def _translate_chunk(i: int, chunk: str) -> str:
             system_prompt = f"""你是专业翻译专家。请将{source_lang_name}文本准确翻译为{target_lang_name}。
+{SOURCE_RULES}
 
 这是完整文档的第{i+1}部分，共{total}部分。
 
 翻译要求：
 - 保持原文的格式和结构
 - 准确传达原意，语言自然流畅
-- 保留专业术语的准确性
+- 源文明确写出的产品名、代码标识和专业名称保留原拼写及大小写；比较不同名称或拼写时保留各自所指对象，不全局替换
+- 不补充本段没有的背景或事实，也不猜测未提供的前后文
 - 不要添加解释或注释
 - 保持与前后文的连贯性"""
 
@@ -152,8 +173,9 @@ class TextTranslator:
 
             async with semaphore:
                 try:
-                    response = await asyncio.to_thread(
-                        client.chat.completions.create,
+                    return await request_text_content(
+                        client,
+                        reasoning_effort=getattr(self.config, "reasoning_effort", None),
                         model=self.config.model,
                         messages=[
                             {"role": "system", "content": system_prompt},
@@ -162,9 +184,12 @@ class TextTranslator:
                         max_tokens=self.config.translation_max_tokens,
                         temperature=self.config.translation_temperature
                     )
-                    return response.choices[0].message.content
+                except EmptyContentError:
+                    self._warn("LLM 返回空内容，部分翻译保留原文")
+                    return chunk
                 except Exception as e:
-                    logger.error(f"翻译第 {i+1} 块失败: {e}")
+                    logger.error("翻译第 %s 块失败 (%s)", i + 1, type(e).__name__)
+                    self._warn("LLM 翻译失败，部分翻译保留原文")
                     return chunk
 
         translated_chunks = await asyncio.gather(*[_translate_chunk(i, c) for i, c in enumerate(chunks)])

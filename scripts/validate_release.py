@@ -216,7 +216,7 @@ def validate_launchers(errors: list[str]) -> None:
         ("uv sync --frozen", "locked backend install"),
         ("npm ci", "locked frontend install"),
         ("VERSION", "VERSION-derived banner"),
-        ("uv run python", "uv-managed ANP launch"),
+        ("uv run uvicorn", "uv-managed application launch"),
     ):
         require_contains(unix_active, marker, f"start.sh: missing {description}", errors)
     if re.search(r"\bkill\s+-9\b", unix_active):
@@ -240,7 +240,7 @@ def validate_launchers(errors: list[str]) -> None:
         ("npm ci", "locked frontend install"),
         ("if errorlevel 1", "command failure handling"),
         ("version", "VERSION-derived banner"),
-        ("uv run python", "uv-managed ANP launch"),
+        ("uv run uvicorn", "uv-managed application launch"),
     ):
         if marker not in windows_lower:
             errors.append(f"start.bat: missing {description}")
@@ -278,13 +278,9 @@ def validate_deployment_and_docs(errors: list[str]) -> None:
         ("curl -f http://localhost:8999/health", "health-check command"),
         ("20.19", "Node 20.19 guidance"),
         ("22.12", "Node 22.12 guidance"),
-        ("http://localhost:8000/ad.json", "host ANP URL"),
-        ("host.docker.internal", "container ANP host guidance"),
         ("--workers 1", "single-worker guidance"),
     ):
         require_contains(readme, marker, f"README.md: missing {description}", errors)
-    if "http://localhost:8999/ad.json" in readme:
-        errors.append("README.md: contains the obsolete ANP URL")
     if "--workers 4" in readme:
         errors.append("README.md: contains unsafe multi-worker guidance")
 
@@ -298,7 +294,10 @@ def validate_wheel(path: Path, errors: list[str]) -> None:
         return
     if "backend/main.py" not in names:
         errors.append("wheel: backend entrypoint is missing")
-    excluded_parts = {"tests", ".claude", ".codex", ".opencode", ".ai-frontend", "node_modules", "did_keys", "jwt_keys", "client_did_keys"}
+    for required in ('backend/agent_runtime/plugin/runtime.patch.yml', 'backend/agent_runtime/plugin/index.mjs'):
+        if required not in names:
+            errors.append(f"wheel: Agent runtime asset is missing: {required}")
+    excluded_parts = {"tests", ".claude", ".codex", ".opencode", ".ai-frontend", "node_modules"}
     if any(
         excluded_parts.intersection(Path(name).parts)
         or Path(name).name == ".env" or name.lower().endswith(".pem")
@@ -336,8 +335,6 @@ def main() -> int:
         "ASR_COMPUTE_TYPE": "int8",
         "ASR_MAX_INPUT_SECONDS": "60",
         "ASR_MAX_INFERENCE_BATCH_SIZE": "1",
-        "ANP_SERVER_URL": "http://localhost:8000/ad.json",
-        "VIDEO_SEARCH_PROVIDERS": "local",
         "BATCH_CONCURRENCY": "5",
         "ASR_CONCURRENCY": "1",
     }

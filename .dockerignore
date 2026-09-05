@@ -61,10 +61,6 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 
-# ANP 密钥（敏感）
-backend/anp/did_keys/
-backend/anp/jwt_keys/
-backend/anp/client_did_keys/
 
 # uv 缓存
 .uv

@@ -183,6 +183,9 @@ async def startup_event():
 
 async def shutdown_event():
     """取消由应用拥有的后台任务，等待清理逻辑完成。"""
+    from backend.core import state
+    if state._video_search_agent is not None:
+        await state._video_search_agent.aclose()
     owned_tasks = {
         *_background_tasks,
         *active_batches.values(),

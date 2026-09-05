@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Dict, Set, List
 from datetime import datetime
 
-from backend.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +64,7 @@ def get_video_search_agent():
     if _video_search_agent is None:
         from backend.services.search_providers.manager import SearchProviderManager
         from backend.services.video_search_agent import VideoSearchAgent
-        settings = get_settings()
-        search_manager = SearchProviderManager(
-            provider_names=settings.SEARCH_PROVIDERS,
-            anp_server_url=settings.ANP_SERVER_URL,
-        )
+        search_manager = SearchProviderManager()
         _video_search_agent = VideoSearchAgent(search_manager=search_manager)
     return _video_search_agent
 

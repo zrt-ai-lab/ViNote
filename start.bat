@@ -5,7 +5,6 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 set "VIRTUAL_ENV="
 set "VERSION=1.4.0"
-set "PIDS="
 
 if exist VERSION (
     for /f "usebackq delims=" %%v in ("VERSION") do (
@@ -26,19 +25,16 @@ call :read_config || goto :fail
 call :install_backend || goto :fail
 call :build_frontend || goto :fail
 call :assert_port_free "%APP_PORT%" || goto :fail
-call :start_anp || goto :fail
 
 echo [√] 启动 ViNote -^> http://%APP_HOST%:%APP_PORT%
 echo.
 uv run uvicorn backend.main:app --host "%APP_HOST%" --port "%APP_PORT%" --log-level warning
 set "EXIT_CODE=%ERRORLEVEL%"
-call :cleanup
 exit /b %EXIT_CODE%
 
 :fail
 set "EXIT_CODE=%ERRORLEVEL%"
 if "%EXIT_CODE%"=="0" set "EXIT_CODE=1"
-call :cleanup
 exit /b %EXIT_CODE%
 
 :check_deps
@@ -100,13 +96,11 @@ exit /b 0
 :read_config
 set "APP_HOST=127.0.0.1"
 set "APP_PORT=8999"
-set "VIDEO_SEARCH_PROVIDERS=local"
 set "ASR_PROVIDER=whisper"
 set "OPENAI_API_KEY_VALUE="
-for /f "tokens=1,* delims==" %%a in ('findstr /r /b /c:"APP_HOST=" /c:"APP_PORT=" /c:"ASR_PROVIDER=" /c:"VIDEO_SEARCH_PROVIDERS=" /c:"OPENAI_API_KEY=" .env 2^>nul') do (
+for /f "tokens=1,* delims==" %%a in ('findstr /r /b /c:"APP_HOST=" /c:"APP_PORT=" /c:"ASR_PROVIDER=" /c:"OPENAI_API_KEY=" .env 2^>nul') do (
     if "%%a"=="APP_HOST" set "APP_HOST=%%b"
     if "%%a"=="APP_PORT" set "APP_PORT=%%b"
-    if "%%a"=="VIDEO_SEARCH_PROVIDERS" set "VIDEO_SEARCH_PROVIDERS=%%b"
     if "%%a"=="ASR_PROVIDER" set "ASR_PROVIDER=%%b"
     if "%%a"=="OPENAI_API_KEY" set "OPENAI_API_KEY_VALUE=%%b"
 )
@@ -129,8 +123,6 @@ if not "%ASR_PROVIDER%"=="whisper" if "%UV_EXTRAS%"=="" (
     echo [X] ASR_PROVIDER 必须为 whisper、funasr 或 qwen3
     exit /b 1
 )
-call :provider_enabled anp
-if not errorlevel 1 set "UV_EXTRAS=%UV_EXTRAS% --extra anp"
 uv sync --frozen %UV_EXTRAS%
 if errorlevel 1 (
     echo [X] uv sync --frozen 失败
@@ -177,67 +169,5 @@ powershell -NoProfile -Command "$listener=[Net.Sockets.TcpListener]::new([Net.IP
 if errorlevel 1 (
     echo [X] 端口 %CHECK_PORT% 已被占用，请停止占用进程或修改配置
     exit /b 1
-)
-exit /b 0
-
-:provider_enabled
-echo,%VIDEO_SEARCH_PROVIDERS%, | findstr /i /c:",%~1," >nul 2>&1
-exit /b %ERRORLEVEL%
-
-:wait_http
-set "WAIT_URL=%~1"
-set "WAIT_NAME=%~2"
-set "WAIT_TIMEOUT=%~3"
-powershell -NoProfile -Command "$deadline=(Get-Date).AddSeconds([int]$env:WAIT_TIMEOUT); do { try { $r=Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 $env:WAIT_URL; if($r.StatusCode -ge 200 -and $r.StatusCode -lt 500){exit 0} } catch {}; Start-Sleep -Seconds 1 } while((Get-Date) -lt $deadline); exit 1"
-if errorlevel 1 (
-    echo [X] %WAIT_NAME% 未在限定时间内就绪
-    exit /b 1
-)
-exit /b 0
-
-:start_anp
-call :provider_enabled anp
-if errorlevel 1 exit /b 0
-if not exist "backend\anp" (
-    echo [X] VIDEO_SEARCH_PROVIDERS 启用了 anp，但 backend\anp 不存在
-    exit /b 1
-)
-call :assert_port_free 9000 || exit /b 1
-call :assert_port_free 8000 || exit /b 1
-
-if not exist "backend\anp\did_keys\video_search\did.json" (
-    echo [√] 生成 ANP DID 密钥...
-    pushd backend\anp
-    uv run python gen_did_keys.py
-    if errorlevel 1 (
-        popd
-        echo [X] ANP DID 密钥生成失败
-        exit /b 1
-    )
-    popd
-)
-
-echo [√] 启动 DID 认证服务器...
-for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "$p=Start-Process uv -ArgumentList 'run','python','client_did_server.py' -WorkingDirectory 'backend\anp' -PassThru -WindowStyle Hidden; $p.Id"`) do set "DID_PID=%%p"
-if "%DID_PID%"=="" (
-    echo [X] DID 认证服务器启动失败
-    exit /b 1
-)
-set "PIDS=%PIDS% %DID_PID%"
-call :wait_http "http://127.0.0.1:9000/.well-known/did.json" "DID 认证服务器" 30 || exit /b 1
-
-echo [√] 启动 ANP 搜索服务...
-for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "$p=Start-Process uv -ArgumentList 'run','python','search_server_agent.py' -WorkingDirectory 'backend\anp' -PassThru -WindowStyle Hidden; $p.Id"`) do set "ANP_PID=%%p"
-if "%ANP_PID%"=="" (
-    echo [X] ANP 搜索服务启动失败
-    exit /b 1
-)
-set "PIDS=%PIDS% %ANP_PID%"
-call :wait_http "http://127.0.0.1:8000/health" "ANP 搜索服务" 45 || exit /b 1
-exit /b 0
-
-:cleanup
-for %%p in (%PIDS%) do (
-    taskkill /PID %%p /T /F >nul 2>&1
 )
 exit /b 0

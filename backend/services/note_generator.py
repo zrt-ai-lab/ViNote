@@ -83,6 +83,7 @@ class NoteGenerator:
                 }
             }
         """
+        self.text_translator.warnings.clear()
         owned_audio_path = None
         try:
             audio_path = None
@@ -261,6 +262,10 @@ class NoteGenerator:
                 translation_content = await self.text_translator.translate_text(
                     optimized_transcript, summary_language, detected_language
                 )
+                translation_footer = (
+                    "翻译已降级，部分或全部内容保留原文"
+                    if self.text_translator.warnings else "由 ViNote AI 自动生成"
+                )
 
                 # 为翻译添加格式化的元信息
                 translation_with_meta = f"""# {video_title}
@@ -276,7 +281,7 @@ class NoteGenerator:
 ---
 
 *翻译时间：{current_time}*  
-*由 ViNote AI 自动生成*
+*{translation_footer}*
 """
                 
                 # 保存翻译
@@ -361,6 +366,7 @@ class NoteGenerator:
             result["warnings"] = list(dict.fromkeys([
                 *self.text_optimizer.warnings,
                 *self.content_summarizer.warnings,
+                *self.text_translator.warnings,
             ]))
 
             if translation_content and translation_path and translation_with_meta:

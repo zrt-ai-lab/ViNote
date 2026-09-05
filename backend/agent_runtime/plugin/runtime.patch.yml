@@ -1,0 +1,58 @@
+# Only ViNote business tools are enabled. Runtime execution and persistence are
+# supplied by the pinned SDK; no package-manager or Node installation is needed.
+- id: persistent-bash
+  disabled: true
+- id: persistent-pwsh
+  disabled: true
+- id: str-replace-editor
+  disabled: true
+- id: sandbox
+  disabled: true
+- id: sandbox-policy
+  disabled: true
+- id: subprocess
+  disabled: true
+- id: pty
+  disabled: true
+- id: terminal-bash
+  disabled: true
+- id: terminal-pwsh
+  disabled: true
+- id: fs-local
+  disabled: true
+- id: llm-deepseek
+  disabled: true
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    includeRuntimeContext: false
+    persona: !!js process.env.VINOTE_AGENT_SYSTEM_PROMPT
+- id: agent-loop
+  config:
+    agents: []
+    maxParallelToolCalls: 1
+- insert:
+    - id: vinote-llm
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          vinote:
+            api: openai-completions
+            baseURL: !!js process.env.VINOTE_LLM_BASE_URL
+            apiKeyEnv: VINOTE_LLM_API_KEY
+            models:
+              - id: !!js process.env.VINOTE_LLM_MODEL
+                contextWindow: !!js Number(process.env.VINOTE_LLM_CONTEXT_WINDOW ?? 64000)
+                maxTokens: !!js Number(process.env.VINOTE_LLM_MAX_TOKENS ?? 4096)
+            timeoutMs: 120000
+            streamIdleTimeoutMs: 60000
+            retryPolicy:
+              mode: normal
+              maxRetries: 1
+            compat:
+              supportsStore: false
+              supportsDeveloperRole: false
+              supportsReasoningEffort: false
+              maxTokensField: max_tokens
+    - id: vinote-business-tools
+      name: ./index.mjs

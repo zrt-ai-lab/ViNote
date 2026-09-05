@@ -3,27 +3,14 @@ import logging
 from typing import Any, Dict, List
 
 from backend.services.search_providers.base import SearchProvider
+from backend.services.search_providers.local_provider import LocalSearchProvider
 
 logger = logging.getLogger(__name__)
-
-PROVIDER_REGISTRY = {
-    "anp": "backend.services.search_providers.anp_provider.ANPSearchProvider",
-    "local": "backend.services.search_providers.local_provider.LocalSearchProvider",
-}
-
-
-def _import_provider(dotted_path: str):
-    module_path, cls_name = dotted_path.rsplit(".", 1)
-    import importlib
-    mod = importlib.import_module(module_path)
-    return getattr(mod, cls_name)
 
 
 class SearchProviderManager:
 
-    def __init__(self, provider_names: List[str], anp_server_url: str = ""):
-        self.provider_names = provider_names
-        self.anp_server_url = anp_server_url
+    def __init__(self):
         self.providers: List[SearchProvider] = []
         self._initialized = False
 
@@ -31,49 +18,17 @@ class SearchProviderManager:
         if self._initialized:
             return
 
-        for name in self.provider_names:
-            cls_path = PROVIDER_REGISTRY.get(name)
-            if not cls_path:
-                logger.warning(f"Unknown search provider: {name}")
-                continue
-
-            try:
-                cls = _import_provider(cls_path)
-                if name == "anp":
-                    provider = cls(server_url=self.anp_server_url)
-                else:
-                    provider = cls()
-
-                ok = await provider.initialize()
-                if ok:
-                    self.providers.append(provider)
-                    logger.info(f"Provider '{name}' initialized")
-                else:
-                    logger.warning(f"Provider '{name}' initialization failed")
-
-            except Exception as e:
-                logger.error(f"Failed to load provider '{name}': {e}")
+        provider = LocalSearchProvider()
+        try:
+            if await provider.initialize():
+                self.providers.append(provider)
+            else:
+                logger.warning("Direct video search initialization failed")
+        except Exception:
+            logger.exception("Failed to initialize direct video search")
 
         self._initialized = True
         logger.info(f"SearchProviderManager ready — active providers: {[p.name for p in self.providers]}")
-
-    def get_aggregated_tools(self) -> List[Dict[str, Any]]:
-        if self.providers:
-            return self.providers[0].get_tools()
-        return [{
-            "type": "function",
-            "function": {
-                "name": "video_search",
-                "description": "Search for videos.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "Search keywords"},
-                    },
-                    "required": ["query"],
-                },
-            },
-        }]
 
     async def execute_search(self, query: str, **kwargs) -> Dict[str, Any]:
         await self.initialize()
@@ -90,14 +45,16 @@ class SearchProviderManager:
         all_results = []
         providers_used = []
         errors = []
+        error_codes = []
 
         tasks = [p.search(query, **kwargs) for p in self.providers]
         outcomes = await asyncio.gather(*tasks, return_exceptions=True)
 
         for provider, outcome in zip(self.providers, outcomes):
             if isinstance(outcome, Exception):
-                logger.error("Search provider '%s' failed: %s", provider.name, outcome)
+                logger.warning("Search provider '%s' failed (%s)", provider.name, type(outcome).__name__)
                 errors.append(provider.name)
+                error_codes.append('unavailable')
                 continue
             if outcome.get("success"):
                 all_results.extend(outcome.get("results", []))
@@ -109,6 +66,7 @@ class SearchProviderManager:
                     outcome.get("error", "unknown"),
                 )
                 errors.append(provider.name)
+                error_codes.append(outcome.get('error_code', 'unavailable'))
 
         seen_urls = set()
         deduplicated = []
@@ -119,11 +77,23 @@ class SearchProviderManager:
                 deduplicated.append(v)
 
         success = len(deduplicated) > 0 or not errors
+        messages = {
+            'invalid_response': '视频平台返回了非数据页面，请检查网络或 Cookie 后重试',
+            'platform_restricted': '视频平台限制了当前请求，请稍后重试或检查 Cookie',
+            'timeout': '视频搜索超时，请稍后重试',
+            'invalid_query': '搜索关键词不正确，请使用 1–200 字的关键词',
+            'invalid_page': '搜索页码不正确',
+            'invalid_limit': '每页结果数量不正确',
+            'unsupported_platform': '暂不支持该平台的关键词搜索',
+            'dependency_unavailable': '搜索依赖不可用，请重新安装项目依赖',
+        }
+        code = error_codes[0] if error_codes else None
         return {
             "success": success,
             "results": deduplicated,
             "count": len(deduplicated),
             "providers": providers_used,
-            "error": None if success else "视频搜索服务暂时不可用",
+            "error": None if success else messages.get(code, "视频搜索服务暂时不可用"),
+            "error_code": None if success else code,
             "failed_providers": errors,
         }

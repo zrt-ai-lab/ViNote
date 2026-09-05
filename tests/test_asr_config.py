@@ -99,7 +99,7 @@ class ASRConfigurationTests(unittest.TestCase):
 
     def test_client_import_does_not_import_any_asr_runtime(self):
         original_import = builtins.__import__
-        optional_modules = {"faster_whisper", "torch", "torchaudio", "funasr", "qwen_asr", "modelscope", "anp"}
+        optional_modules = {"faster_whisper", "torch", "torchaudio", "funasr", "qwen_asr", "modelscope"}
         attempts = []
 
         def guarded_import(name, *args, **kwargs):

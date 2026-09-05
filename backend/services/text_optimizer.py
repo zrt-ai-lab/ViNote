@@ -8,6 +8,7 @@ import re
 
 from backend.core.ai_client import get_openai_client, is_openai_available
 from backend.config.ai_config import get_openai_config
+from backend.services.content_completion import EmptyContentError, IncompleteContentError, SOURCE_RULES, request_text_content
 from backend.utils.text_processor import detect_language, smart_chunk_text, format_markdown_paragraphs, remove_transcript_headings, enforce_paragraph_length
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class TextOptimizer:
             return self._basic_transcript_cleanup(raw_transcript)
                 
         except Exception as e:
-            logger.error(f"优化转录文本失败: {str(e)}")
+            logger.error("优化转录文本失败 (%s)", type(e).__name__)
             logger.info("返回清理后的原始转录文本")
             self._warn("LLM 整理失败，完整笔记使用基础清理")
             return self._basic_transcript_cleanup(raw_transcript)
@@ -97,8 +98,8 @@ class TextOptimizer:
             prompt = (
                 "请对以下音频转录文本进行智能优化和格式化，要求：\n\n"
                 "**内容优化（正确性优先）：**\n"
-                "1. 错误修正（转录错误/错别字/同音字/专有名词/错误的英文单词）\n"
-                "2. 适度改善语法，补全不完整句子，保持原意和语言不变\n"
+                "1. 仅在本次原文上下文足以确定时修正转录错误；保留不确定表达和明确写出的专业名称，不凭常识改名\n"
+                "2. 仅改善有原文依据的语法和标点，保持原意和语言不变；不得补写碎句缺失的事实\n"
                 "3. 口语处理：保留自然口语与重复表达，不要删减内容，仅添加必要标点\n"
                 "4. **绝对不要改变人称代词（I/我、you/你等）和说话者视角**\n\n"
                 "**分段规则：**\n"
@@ -123,8 +124,8 @@ class TextOptimizer:
             prompt = (
                 "Please intelligently optimize and format the following audio transcript with these requirements:\n\n"
                 "**Content Optimization (Accuracy First):**\n"
-                "1. Error correction (transcription errors/typos/homophones/proper nouns/incorrect English words)\n"
-                "2. Moderate grammar improvement, complete fragmented sentences while preserving original meaning\n"
+                "1. Correct transcription errors only when the supplied context establishes the correction; preserve uncertain wording and explicit technical spellings\n"
+                "2. Improve grammar and punctuation without filling in facts missing from fragmented sentences\n"
                 "3. Spoken language processing: Retain natural speech patterns and repetitions, no content deletion, only add essential punctuation\n"
                 "4. **Absolutely DO NOT alter personal pronouns (I/me, you, etc.) or speaker perspective**\n\n"
                 "**Paragraph Rules:**\n"
@@ -144,11 +145,15 @@ class TextOptimizer:
                 "You are a professional transcript formatting assistant. Fix errors and improve fluency "
                 "without changing meaning or removing content. NEVER change pronouns or speaker perspective."
             )
+
+        system_prompt += "\n\n" + SOURCE_RULES
+        system_prompt += "\nPreserve the original language, speaker perspective, and all substantive details."
         
         try:
             client = get_openai_client()
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
+            optimized_text = await request_text_content(
+                client,
+                reasoning_effort=getattr(self.config, "reasoning_effort", None),
                 model=self.config.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -157,15 +162,19 @@ class TextOptimizer:
                 max_tokens=self.config.optimization_max_tokens,
                 temperature=self.config.optimization_temperature
             )
-            optimized_text = response.choices[0].message.content or ""
-            if not optimized_text.strip():
-                self._warn("LLM 返回空内容，完整笔记使用基础清理")
-                return self._basic_transcript_cleanup(chunk_text)
             optimized_text = remove_transcript_headings(optimized_text)
+            if not optimized_text.strip():
+                raise EmptyContentError("Formatted transcript contained no usable text")
             enforced = enforce_paragraph_length(optimized_text.strip(), max_chars=400)
             return format_markdown_paragraphs(enforced)
+        except IncompleteContentError:
+            self._warn("LLM 输出被截断或预算耗尽，完整笔记使用基础清理")
+            return self._basic_transcript_cleanup(chunk_text)
+        except EmptyContentError:
+            self._warn("LLM 返回空内容，完整笔记使用基础清理")
+            return self._basic_transcript_cleanup(chunk_text)
         except Exception as e:
-            logger.error(f"单块文本优化失败: {e}")
+            logger.error("单块文本优化失败 (%s)", type(e).__name__)
             self._warn("LLM 整理失败，完整笔记使用基础清理")
             return self._basic_transcript_cleanup(chunk_text)
     
@@ -192,7 +201,7 @@ class TextOptimizer:
                     oc = await self._format_single_chunk(chunk_with_context, transcript_language)
                     return re.sub(r"^\[(上文续|Context)：?:?.*?\]\s*", "", oc, flags=re.S)
                 except Exception as e:
-                    logger.warning(f"第 {i+1} 块优化失败: {e}")
+                    logger.warning("第 %s 块优化失败 (%s)", i + 1, type(e).__name__)
                     return self._basic_transcript_cleanup(c)
 
         optimized = await asyncio.gather(*[_process_chunk(i, c) for i, c in enumerate(chunks)])
@@ -244,22 +253,9 @@ class TextOptimizer:
             if s:
                 cleaned_lines.append(s)
         
-        text = ' '.join(cleaned_lines)
-        sentences = re.split(r'[.!?。！？]\s+', text)
-        sentences = [s.strip() for s in sentences if s.strip()]
-        
-        paragraphs = []
-        current = []
-        for i, sentence in enumerate(sentences):
-            current.append(sentence)
-            if len(current) >= 3 or len(' '.join(current)) > 250:
-                paragraphs.append('. '.join(current) + '.')
-                current = []
-        
-        if current:
-            paragraphs.append('. '.join(current) + '.')
-        
-        return '\n\n'.join(paragraphs)
+        # Split only for layout; never discard question/exclamation marks or append
+        # extra periods when preserving the original source as a fallback.
+        return enforce_paragraph_length(' '.join(cleaned_lines), max_chars=400)
     
     def is_available(self) -> bool:
         """

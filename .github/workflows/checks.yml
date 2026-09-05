@@ -59,8 +59,14 @@ jobs:
       - name: Run backend and launcher regressions
         run: uv run --no-sync python -m unittest discover -s tests -v
 
+      - name: Validate Agent business tools
+        run: node --test tests/agent_runtime_plugin.test.mjs
+
       - name: Validate release sources
         run: uv run --no-sync python scripts/validate_release.py
+
+      - name: Scan release inputs
+        run: uv run --no-sync python scripts/scan_release.py
 
       - name: Build and validate backend package
         run: |

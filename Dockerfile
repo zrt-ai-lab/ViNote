@@ -32,11 +32,10 @@ COPY backend/__init__.py ./backend/__init__.py
 
 # 安装 Python 依赖（利用 Docker 层缓存）
 ARG ASR_PROVIDER=whisper
-ARG VIDEO_SEARCH_PROVIDERS=local
 RUN set -eu; set --; \
     case "$ASR_PROVIDER" in whisper) ;; funasr|qwen3) set -- --extra "$ASR_PROVIDER" ;; *) exit 1 ;; esac; \
-    case ",$VIDEO_SEARCH_PROVIDERS," in *,anp,*) set -- "$@" --extra anp ;; esac; \
-    uv sync --frozen --no-dev --no-editable "$@"
+    uv sync --frozen --no-dev --no-editable "$@"; \
+    uv run --no-sync deno --version
 
 # 复制后端代码（覆盖之前的最小结构）
 COPY backend/ ./backend/

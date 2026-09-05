@@ -11,10 +11,11 @@ dependencies = [
     "python-multipart>=0.0.9",
     "aiofiles>=24.1.0",
     # Video & Audio Processing
-    "yt-dlp>=2024.12.13",
+    "yt-dlp[default,deno]>=2026.8.19",
     "faster-whisper>=1.1.0",
     # AI & NLP
-    "openai>=1.51.0",
+    "openai>=2.6.1",
+    "deepseek-harness-sdk==0.1.2rc1",
     "pydantic>=2.7.0",
     # Utilities
     "aiosqlite>=0.20.0",
@@ -26,7 +27,6 @@ dependencies = [
 [project.optional-dependencies]
 funasr = ["funasr>=1.0.0", "torch>=2.1.0", "torchaudio>=2.1.0", "modelscope>=1.12.0", "huggingface_hub>=0.24.0"]
 qwen3 = ["qwen-asr>=0.0.6", "torch>=2.1.0", "torchaudio>=2.10.0", "modelscope>=1.12.0", "huggingface_hub>=0.24.0"]
-anp = ["anp>=0.4.0", "cryptography>=46.0.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,8 +37,3 @@ dev-dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
-exclude = [
-    "backend/anp/did_keys/**",
-    "backend/anp/jwt_keys/**",
-    "backend/anp/client_did_keys/**",
-]

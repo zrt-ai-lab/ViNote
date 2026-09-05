@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { streamPost, postJSON, deleteAPI, downloadFile as fetchDownloadFile } from '../api/client';
+import { streamPost, fetchJSON, postJSON, deleteAPI, downloadFile as fetchDownloadFile } from '../api/client';
+import { createSessionGuard, getNoteWarnings, getSearchSessionId, groupSearchVideos, restoreSearchMessages, updateSearchMessage } from './searchAgentSession';
+import type { SearchSessionSnapshot } from './searchAgentSession';
 import ChatMessage from '../components/ChatMessage';
 import VideoCard from '../components/VideoCard';
 import ProgressBar from '../components/ProgressBar';
@@ -20,6 +22,8 @@ async function downloadFile(filename: string) {
   }
 }
 
+type NoteResult = AgentNotesData & { persisted?: boolean; warnings?: string[] };
+
 interface ChatMsg {
   id: string;
   role: 'user' | 'assistant';
@@ -29,7 +33,8 @@ interface ChatMsg {
   videosByPlatform?: Record<string, AgentVideo[]>;
   allVideos?: AgentVideo[];
   progress?: { percent: number; message: string };
-  notesResult?: AgentNotesData;
+  notesResult?: NoteResult;
+  generationId?: string;
   isStreaming?: boolean;
 }
 
@@ -39,72 +44,101 @@ const PLATFORM_NAMES: Record<string, string> = {
   unknown: '其他平台',
 };
 
-function generateSessionId() {
-  return `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-}
-
 export default function SearchAgent() {
   const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(generateSessionId);
+  const [sessionId] = useState(getSearchSessionId);
+  const [restoring, setRestoring] = useState(true);
+  const [clearing, setClearing] = useState(false);
+  const [sessionGuard] = useState(createSessionGuard);
   const [generatingUrls, setGeneratingUrls] = useState<Set<string>>(new Set());
   const [generatedUrls, setGeneratedUrls] = useState<Set<string>>(new Set());
-  const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
   const [fullscreenMindmap, setFullscreenMindmap] = useState<string | null>(null);
   const msgEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const noteStreamsRef = useRef(new Set<AbortController>());
+  const readyRef = useRef(false);
+  const clearingRef = useRef(false);
   const initialQuerySent = useRef(false);
+  const messageSequenceRef = useRef(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const isCurrent = sessionGuard.capture();
+    const noteStreams = noteStreamsRef.current;
+    readyRef.current = false;
+    fetchJSON<SearchSessionSnapshot>(`/api/search-agent-session/${encodeURIComponent(sessionId)}`, {
+      signal: controller.signal,
+    }).then((session) => {
+      if (isCurrent()) setMessages(restoreSearchMessages(session));
+    }).catch((error: unknown) => {
+      if (isCurrent()) toast(error instanceof Error ? error.message : '恢复历史会话失败', 'error');
+    }).finally(() => {
+      if (!isCurrent()) return;
+      readyRef.current = true;
+      setRestoring(false);
+    });
+    return () => {
+      sessionGuard.invalidate();
+      readyRef.current = false;
+      controller.abort();
+      abortRef.current?.abort();
+      noteStreams.forEach((stream) => stream.abort());
+      noteStreams.clear();
+    };
+  }, [sessionId, sessionGuard]);
 
   useEffect(() => {
     msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const updateLastMessage = useCallback((updater: (msg: ChatMsg) => ChatMsg) => {
-    setMessages((prev) => {
-      const copy = [...prev];
-      if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
-        copy[copy.length - 1] = updater(copy[copy.length - 1]);
-      }
-      return copy;
-    });
+  const updateMessage = useCallback((messageId: string, updater: (msg: ChatMsg) => ChatMsg, isCurrent: () => boolean) => {
+    setMessages((prev) => updateSearchMessage(prev, messageId, updater, isCurrent));
   }, []);
 
   const handleGenerateNotes = useCallback(
     async (videoUrl: string) => {
+      if (!readyRef.current || clearingRef.current) return;
+      const isCurrent = sessionGuard.capture();
       setGeneratingUrls((prev) => new Set(prev).add(videoUrl));
 
       const aiMsg: ChatMsg = {
-        id: `notes-${Date.now()}`,
+        id: `notes-${++messageSequenceRef.current}`,
         role: 'assistant',
         content: '',
         timestamp: new Date(),
         isStreaming: true,
       };
       setMessages((prev) => [...prev, aiMsg]);
+      const updateOwnMessage = (updater: (message: ChatMsg) => ChatMsg) => updateMessage(aiMsg.id, updater, isCurrent);
 
-      streamPost(
+      const controller = streamPost(
         '/api/search-agent-generate-notes',
         { video_url: videoUrl, summary_language: 'zh' },
         (raw) => {
+          if (!isCurrent()) return;
           const data = raw as AgentSSEData;
           switch (data.type) {
             case 'text_chunk':
-              updateLastMessage((m) => ({ ...m, content: m.content + (data.content || '') }));
+              updateOwnMessage((m) => ({ ...m, content: m.content + (data.content || '') }));
               break;
             case 'progress':
-              updateLastMessage((m) => ({
+              updateOwnMessage((m) => ({
                 ...m,
                 progress: { percent: data.progress || 0, message: data.message || '' },
               }));
               break;
-            case 'notes_complete':
-              updateLastMessage((m) => ({
+            case 'notes_complete': {
+              const result = data.data as NoteResult;
+              updateOwnMessage((m) => ({
                 ...m,
-                notesResult: data.data as AgentNotesData,
+                content: m.content + getNoteWarnings(result),
+                notesResult: result,
                 progress: undefined,
+                generationId: undefined,
               }));
               setGeneratingUrls((prev) => {
                 const next = new Set(prev);
@@ -112,16 +146,18 @@ export default function SearchAgent() {
                 return next;
               });
               setGeneratedUrls((prev) => new Set(prev).add(videoUrl));
-              setCurrentGenerationId(null);
               break;
+            }
             case 'generation_id':
-              setCurrentGenerationId(data.generation_id || null);
+              updateOwnMessage((m) => ({ ...m, generationId: data.generation_id }));
               break;
             case 'error':
             case 'cancelled':
-              updateLastMessage((m) => ({
+              updateOwnMessage((m) => ({
                 ...m,
                 content: m.content + `\n\n${data.type === 'error' ? '❌' : '⚠️'} ${data.content || ''}`,
+                progress: undefined,
+                generationId: undefined,
               }));
               setGeneratingUrls((prev) => {
                 const next = new Set(prev);
@@ -134,13 +170,19 @@ export default function SearchAgent() {
           }
         },
         () => {
-          updateLastMessage((m) => ({ ...m, isStreaming: false }));
+          noteStreamsRef.current.delete(controller);
+          if (!isCurrent()) return;
+          updateOwnMessage((m) => ({ ...m, isStreaming: false, generationId: undefined }));
         },
         (err) => {
-          updateLastMessage((m) => ({
+          noteStreamsRef.current.delete(controller);
+          if (!isCurrent()) return;
+          updateOwnMessage((m) => ({
             ...m,
             content: m.content + `\n\n❌ ${err.message}`,
             isStreaming: false,
+            progress: undefined,
+            generationId: undefined,
           }));
           setGeneratingUrls((prev) => {
             const next = new Set(prev);
@@ -149,19 +191,21 @@ export default function SearchAgent() {
           });
         },
       );
+      noteStreamsRef.current.add(controller);
     },
-    [updateLastMessage],
+    [sessionGuard, updateMessage],
   );
 
   const sendMessage = useCallback(
     (text?: string) => {
       const msg = (text || input).trim();
-      if (!msg || loading) return;
+      if (!msg || loading || !readyRef.current || clearingRef.current) return;
+      const isCurrent = sessionGuard.capture();
       if (!text) setInput('');
 
-      const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: 'user', content: msg, timestamp: new Date() };
+      const userMsg: ChatMsg = { id: `u-${++messageSequenceRef.current}`, role: 'user', content: msg, timestamp: new Date() };
       const aiMsg: ChatMsg = {
-        id: `a-${Date.now()}`,
+        id: `a-${++messageSequenceRef.current}`,
         role: 'assistant',
         content: '',
         timestamp: new Date(),
@@ -170,19 +214,21 @@ export default function SearchAgent() {
       };
       setMessages((prev) => [...prev, userMsg, aiMsg]);
       setLoading(true);
+      const updateOwnMessage = (updater: (message: ChatMsg) => ChatMsg) => updateMessage(aiMsg.id, updater, isCurrent);
 
       abortRef.current = streamPost(
         '/api/search-agent-chat',
         { session_id: sessionId, message: msg },
         (raw) => {
+          if (!isCurrent()) return;
           const data = raw as AgentSSEData;
           switch (data.type) {
             case 'text_chunk':
-              updateLastMessage((m) => ({ ...m, content: m.content + (data.content || '') }));
+              updateOwnMessage((m) => ({ ...m, content: m.content + (data.content || '') }));
               break;
 
             case 'thinking':
-              updateLastMessage((m) => ({
+              updateOwnMessage((m) => ({
                 ...m,
                 thinking: [...(m.thinking || []), data.content || ''],
               }));
@@ -190,16 +236,10 @@ export default function SearchAgent() {
 
             case 'video_list': {
               const vData = data.data as AgentVideoListData;
-              if (vData?.videos?.length) {
-                const byPlatform: Record<string, AgentVideo[]> = {};
-                vData.videos.forEach((v) => {
-                  const p = v.platform || 'unknown';
-                  if (!byPlatform[p]) byPlatform[p] = [];
-                  byPlatform[p].push(v);
-                });
-                updateLastMessage((m) => ({
+              if (Array.isArray(vData?.videos)) {
+                updateOwnMessage((m) => ({
                   ...m,
-                  videosByPlatform: byPlatform,
+                  videosByPlatform: groupSearchVideos(vData.videos),
                   allVideos: vData.videos,
                 }));
               }
@@ -207,23 +247,26 @@ export default function SearchAgent() {
             }
 
             case 'progress':
-              updateLastMessage((m) => ({
+              updateOwnMessage((m) => ({
                 ...m,
                 progress: { percent: data.progress || 0, message: data.message || '' },
               }));
               break;
 
-            case 'notes_complete':
-              updateLastMessage((m) => ({
+            case 'notes_complete': {
+              const result = data.data as NoteResult;
+              updateOwnMessage((m) => ({
                 ...m,
-                notesResult: data.data as AgentNotesData,
+                content: m.content + getNoteWarnings(result),
+                notesResult: result,
                 progress: undefined,
+                generationId: undefined,
               }));
-              setCurrentGenerationId(null);
               break;
+            }
 
             case 'generation_id':
-              setCurrentGenerationId(data.generation_id || null);
+              updateOwnMessage((m) => ({ ...m, generationId: data.generation_id }));
               break;
 
             case 'generate_notes_command': {
@@ -236,9 +279,11 @@ export default function SearchAgent() {
 
             case 'error':
             case 'cancelled':
-              updateLastMessage((m) => ({
+              updateOwnMessage((m) => ({
                 ...m,
                 content: m.content + `\n\n${data.type === 'error' ? '❌' : '⚠️'} ${data.content || ''}`,
+                progress: undefined,
+                generationId: undefined,
               }));
               break;
 
@@ -247,36 +292,41 @@ export default function SearchAgent() {
           }
         },
         () => {
-          updateLastMessage((m) => ({ ...m, isStreaming: false }));
+          if (!isCurrent()) return;
+          updateOwnMessage((m) => ({ ...m, isStreaming: false, generationId: undefined }));
           setLoading(false);
         },
         (err) => {
-          updateLastMessage((m) => ({
+          if (!isCurrent()) return;
+          updateOwnMessage((m) => ({
             ...m,
             content: m.content + `\n\n❌ 错误: ${err.message}`,
             isStreaming: false,
+            progress: undefined,
+            generationId: undefined,
           }));
           setLoading(false);
         },
       );
     },
-    [input, loading, sessionId, updateLastMessage, handleGenerateNotes],
+    [input, loading, sessionId, sessionGuard, updateMessage, handleGenerateNotes],
   );
 
   useEffect(() => {
     const q = searchParams.get('q');
-    if (q && !initialQuerySent.current && messages.length === 0) {
-      initialQuerySent.current = true;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve immediate clearing before the delayed initial send.
-      setInput('');
-      setTimeout(() => sendMessage(q), 100);
+    if (q && !restoring && !clearing && !initialQuerySent.current && messages.length === 0) {
+      const timer = setTimeout(() => {
+        initialQuerySent.current = true;
+        setInput('');
+        sendMessage(q);
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [messages.length, searchParams, sendMessage]);
+  }, [messages.length, searchParams, sendMessage, restoring, clearing]);
 
-  const handleCancelGeneration = async () => {
-    if (!currentGenerationId) return;
+  const handleCancelGeneration = async (generationId: string) => {
     try {
-      await deleteAPI(`/api/search-agent-cancel-generation/${currentGenerationId}`);
+      await deleteAPI(`/api/search-agent-cancel-generation/${encodeURIComponent(generationId)}`);
       toast('已取消生成', 'info');
     } catch (error) {
       toast(error instanceof Error ? error.message : '取消失败', 'error');
@@ -284,19 +334,30 @@ export default function SearchAgent() {
   };
 
   const handleClear = async () => {
+    if (restoring || clearingRef.current) return;
+    clearingRef.current = true;
+    setClearing(true);
+    const isCurrent = sessionGuard.capture();
     try {
       await postJSON('/api/search-agent-clear-session', { session_id: sessionId });
+      if (!isCurrent()) return;
+      sessionGuard.invalidate();
+      abortRef.current?.abort();
+      noteStreamsRef.current.forEach((stream) => stream.abort());
+      noteStreamsRef.current.clear();
+      initialQuerySent.current = true;
+      setMessages([]);
+      setGeneratingUrls(new Set());
+      setGeneratedUrls(new Set());
+      setExpandedThinking(new Set());
+      setFullscreenMindmap(null);
+      setLoading(false);
     } catch (error) {
-      toast(error instanceof Error ? error.message : '清空会话失败', 'error');
-      return;
+      if (isCurrent()) toast(error instanceof Error ? error.message : '清空会话失败', 'error');
+    } finally {
+      clearingRef.current = false;
+      setClearing(false);
     }
-    abortRef.current?.abort();
-    setMessages([]);
-    setSessionId(generateSessionId());
-    setGeneratingUrls(new Set());
-    setGeneratedUrls(new Set());
-    setCurrentGenerationId(null);
-    setLoading(false);
   };
 
   const toggleThinking = (msgId: string) => {
@@ -362,10 +423,11 @@ export default function SearchAgent() {
           <span className="text-sm font-medium text-[var(--color-text-secondary)]">对话</span>
           <button
             onClick={handleClear}
+            disabled={restoring || clearing}
             className="flex items-center gap-1 px-2.5 py-1 text-xs text-[var(--color-text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
           >
             <Trash2 size={12} />
-            清空对话
+            {clearing ? '正在清空...' : '清空对话'}
           </button>
         </div>
 
@@ -375,7 +437,7 @@ export default function SearchAgent() {
               <div className="w-12 h-12 rounded-full bg-[var(--color-bg)] flex items-center justify-center mb-3">
                 <img src="/product-logo.png" alt="" className="w-7 h-7 rounded-full" />
               </div>
-              <p className="text-sm text-[var(--color-text-secondary)] font-medium mb-1">你好！我是 ViNote 搜索助手</p>
+              <p className="text-sm text-[var(--color-text-secondary)] font-medium mb-1">{restoring ? '正在恢复历史会话...' : '你好！我是 ViNote 搜索助手'}</p>
               <p className="text-xs text-[var(--color-text-muted)] text-center max-w-sm">
                 我可以帮你搜索各平台视频、生成笔记和摘要。试试说"帮我在B站搜索Python教程"
               </p>
@@ -470,9 +532,9 @@ export default function SearchAgent() {
                         </span>
                       </div>
                       <ProgressBar progress={m.progress.percent} />
-                      {currentGenerationId && (
+                      {m.generationId && (
                         <button
-                          onClick={handleCancelGeneration}
+                          onClick={() => handleCancelGeneration(m.generationId!)}
                           className="mt-2 text-[11px] text-[var(--color-text-muted)] hover:text-red-500 transition-colors"
                         >
                           取消生成
@@ -575,6 +637,7 @@ export default function SearchAgent() {
           <div className="flex gap-2 max-w-4xl mx-auto">
             <input
               value={input}
+              disabled={restoring || clearing}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
               placeholder="搜索视频或输入指令..."
@@ -582,7 +645,7 @@ export default function SearchAgent() {
             />
             <button
               onClick={() => sendMessage()}
-              disabled={loading || !input.trim()}
+              disabled={loading || restoring || clearing || !input.trim()}
               className="w-10 h-10 flex items-center justify-center rounded-lg bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40 transition-colors"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

@@ -147,10 +147,18 @@ class PackageContentsTests(unittest.TestCase):
             return errors
 
     def test_normal_backend_package_is_allowed(self):
-        self.assertEqual(self.validate_fixture(["backend/main.py", "backend/services/note_search.py"]), [])
+        self.assertEqual(self.validate_fixture([
+            "backend/main.py", "backend/services/note_search.py",
+            "backend/agent_runtime/plugin/runtime.patch.yml", "backend/agent_runtime/plugin/index.mjs",
+        ]), [])
 
-    def test_environment_development_and_demo_identity_files_are_rejected(self):
-        for filename in (".env", "tests/demo.py", "backend/anp/client_did_keys/did.json", "backend/anp/key_private.pem"):
+    def test_missing_agent_runtime_assets_are_rejected(self):
+        errors = self.validate_fixture(["backend/main.py"])
+        self.assertEqual(len(errors), 2)
+        self.assertTrue(all('Agent runtime asset is missing' in error for error in errors))
+
+    def test_environment_development_and_private_key_files_are_rejected(self):
+        for filename in (".env", "tests/demo.py", ".claude/report.md", "backend/key_private.pem"):
             with self.subTest(filename=filename):
                 self.assertTrue(self.validate_fixture(["backend/main.py", filename]))
 

@@ -16,9 +16,14 @@ from backend.utils.text_processor import (
 def load_offline_service(filename):
     """加载真实服务代码，仅隔离会读取本地配置的客户端依赖。"""
     config = types.ModuleType("backend.config.ai_config")
-    config.get_openai_config = lambda: SimpleNamespace(model="offline-test")
+    config.get_openai_config = lambda: SimpleNamespace(
+        model="offline-test", optimization_max_tokens=4000, optimization_temperature=0.1,
+        translation_max_tokens=4000, translation_temperature=0.1,
+    )
+    config.get_language_name = lambda code: {"en": "English", "zh": "中文"}.get(code, code)
     client = types.ModuleType("backend.core.ai_client")
     client.get_openai_client = lambda: None
+    client.is_openai_available = lambda: False
     path = Path(__file__).resolve().parents[1] / "backend" / "services" / filename
     spec = importlib.util.spec_from_file_location(f"offline_{path.stem}", path)
     module = importlib.util.module_from_spec(spec)

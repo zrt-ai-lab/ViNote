@@ -82,7 +82,12 @@ PERSONAL_PATH = re.compile(r"(?:/Users/[A-Za-z0-9._-]+/|C:\\Users\\[A-Za-z0-9._-
 
 
 def clean_value(value: str) -> str:
-    return value.strip().strip("\"'`").rstrip(",;")
+    value = value.strip().rstrip(",;")
+    if value[:1] in {"\"", "'", "`"}:
+        end = value.find(value[0], 1)
+        if end >= 0:
+            return value[1:end]
+    return value.strip("\"'`")
 
 
 def is_placeholder(value: str) -> bool:
@@ -132,6 +137,10 @@ def scan_line(path: str, line: str) -> set[str]:
             categories.add("private-model-id")
 
     for match in EMAIL.finditer(line):
+        # A URL authority's userinfo is not an email address. Credential checks
+        # above still apply; do not classify negative URL-validation fixtures as company mail.
+        if re.search(r"https?://[^/\s\"'<>]*$", line[:match.start()], re.IGNORECASE):
+            continue
         if match.group(1).lower() not in {"qq.com", "example.com", "example.org", "example.net"}:
             categories.add("company-email")
 

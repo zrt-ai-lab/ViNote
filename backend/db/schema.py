@@ -87,6 +87,17 @@ CREATE TABLE IF NOT EXISTS qa_messages (
     UNIQUE (session_id, sequence)
 );
 
+CREATE TABLE IF NOT EXISTS search_agent_sessions (
+    session_id         TEXT PRIMARY KEY
+                       CHECK (length(session_id) BETWEEN 1 AND 128
+                              AND session_id NOT GLOB '*[^A-Za-z0-9_-]*'),
+    runtime_session_id TEXT NOT NULL UNIQUE,
+    messages_json      TEXT NOT NULL DEFAULT '[]',
+    videos_json        TEXT NOT NULL DEFAULT '[]',
+    search_state_json  TEXT NOT NULL DEFAULT '{}',
+    updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_notes_short_id ON notes(short_id);
 CREATE INDEX IF NOT EXISTS idx_notes_category_id ON notes(category_id);
 CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at);
@@ -100,6 +111,9 @@ async def init_db():
     """初始化数据库：建表 + 预置分类"""
     async with get_db() as db:
         await db.executescript(CREATE_TABLES_SQL)
+        cursor = await db.execute("PRAGMA table_info(search_agent_sessions)")
+        if 'search_state_json' not in {row[1] for row in await cursor.fetchall()}:
+            await db.execute("ALTER TABLE search_agent_sessions ADD COLUMN search_state_json TEXT NOT NULL DEFAULT '{}'")
 
         # v1.5: 老数据库无损补充原始转录文件索引。
         cursor = await db.execute("PRAGMA table_info(notes)")

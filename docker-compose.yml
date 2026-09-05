@@ -14,7 +14,6 @@ services:
       dockerfile: Dockerfile
       args:
         ASR_PROVIDER: ${ASR_PROVIDER:-whisper}
-        VIDEO_SEARCH_PROVIDERS: ${VIDEO_SEARCH_PROVIDERS:-local}
     image: vinote:latest
     container_name: vinote
     restart: unless-stopped
@@ -31,8 +30,6 @@ services:
       - vinote-data:/app/data
       # 可选：挂载 B站 cookies 文件（启用前请先创建 bilibili_cookies.txt）
       # - ./bilibili_cookies.txt:/app/bilibili_cookies.txt:ro
-      # 可选 ANP：先完成客户端初始化和外部 DID 服务配置，详见 README
-      # - ./backend/anp/client_did_keys:/app/backend/anp/client_did_keys:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8999/health"]
       interval: 30s

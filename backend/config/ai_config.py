@@ -3,10 +3,19 @@ AI模型统一配置
 管理所有AI服务的配置参数
 """
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, get_args
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from openai.types.shared import ReasoningEffort
+
+
+_REASONING_EFFORT_VALUES = frozenset(
+    value
+    for member in get_args(ReasoningEffort)
+    for value in (get_args(member) or (member,))
+    if isinstance(value, str)
+)
 
 # 加载环境变量
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -122,6 +131,7 @@ class OpenAIConfig:
     api_key: Optional[str] = None
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4o"
+    reasoning_effort: Optional[str] = None
     
     # 通用参数
     default_temperature: float = 0.3
@@ -154,6 +164,13 @@ class OpenAIConfig:
         env_model = os.getenv("OPENAI_MODEL")
         if env_model:
             self.model = env_model
+
+        effort = os.getenv("OPENAI_REASONING_EFFORT", self.reasoning_effort)
+        if effort is not None and not isinstance(effort, str):
+            raise ValueError("OPENAI_REASONING_EFFORT 必须是 SDK 支持的推理等级")
+        self.reasoning_effort = (effort.strip() or None) if effort is not None else None
+        if self.reasoning_effort is not None and self.reasoning_effort not in _REASONING_EFFORT_VALUES:
+            raise ValueError("OPENAI_REASONING_EFFORT 必须是 SDK 支持的推理等级")
     
     @property
     def is_configured(self) -> bool:

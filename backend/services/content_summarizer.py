@@ -11,6 +11,7 @@ from typing import Optional
 
 from backend.config.ai_config import get_openai_config
 from backend.core.ai_client import get_openai_client
+from backend.services.content_completion import EmptyContentError, IncompleteContentError, SOURCE_RULES, request_text_content
 from backend.utils.text_processor import estimate_tokens, smart_chunk_text
 
 logger = logging.getLogger(__name__)
@@ -91,8 +92,14 @@ class ContentSummarizer:
             self._warn("LLM 返回空内容，摘要使用备用版本")
             return self._generate_fallback_summary(transcript, target_language, video_title)
             
+        except IncompleteContentError:
+            self._warn("LLM 输出被截断或预算耗尽，摘要使用备用版本")
+            return self._generate_fallback_summary(transcript, target_language, video_title)
+        except EmptyContentError:
+            self._warn("LLM 返回空内容，摘要使用备用版本")
+            return self._generate_fallback_summary(transcript, target_language, video_title)
         except Exception as e:
-            logger.error(f"生成摘要失败: {str(e)}")
+            logger.error("生成摘要失败 (%s)", type(e).__name__)
             self._warn("LLM 摘要失败，摘要使用备用版本")
             return self._generate_fallback_summary(transcript, target_language, video_title)
     
@@ -105,42 +112,27 @@ class ContentSummarizer:
         """对单个文本进行摘要"""
         language_name = self.language_map.get(target_language, "中文（简体）")
         
-        system_prompt = f"""You are a professional content analyst. Please generate a comprehensive, well-structured summary in {language_name} for the following text.
+        system_prompt = f"""Summarize the supplied source faithfully in {language_name}.
+{SOURCE_RULES}
+Cover the source's main ideas without repeating or expanding them. Length must be proportional to the source: a brief single-topic source may need only one to three sentences. There is no minimum word count. Do not invent background or explanations to make a short source longer.
+Use natural Markdown paragraphs separated by blank lines. Preserve explicit technical names even when writing the surrounding prose in the target language. Do not add decorative headings or claim unmentioned topics were discussed."""
 
-Summary Requirements:
-1. Extract the main topics and core viewpoints from the text
-2. Maintain clear logical structure, highlighting the core arguments
-3. Include important discussions, viewpoints, and conclusions
-4. Use concise and clear language
-5. Appropriately preserve the speaker's expression style and key opinions
-
-Paragraph Organization Requirements (Core):
-1. **Organize by semantic and logical themes** - Start a new paragraph whenever the topic shifts
-2. **Each paragraph should focus on one main point or theme**
-3. **Paragraphs must be separated by blank lines (double line breaks \\n\\n)**
-4. **Consider the logical flow of content and reasonably divide paragraph boundaries**
-
-Format Requirements:
-1. Use Markdown format with double line breaks between paragraphs
-2. Each paragraph should be a complete logical unit
-3. Write entirely in {language_name}
-4. Aim for substantial content (600-1200 words when appropriate)"""
-
-        user_prompt = f"""Based on the following content, write a comprehensive, well-structured summary in {language_name}:
+        user_prompt = f"""Summarize only the following source in {language_name}:
 
 {transcript}
 
 Requirements:
 - Focus on natural paragraphs, avoiding decorative headings
-- Cover all key ideas and arguments, preserving important examples and data
+- Retain key ideas and important examples or data only when present in the source
 - Ensure balanced coverage of both early and later content
-- Use restrained but comprehensive language
+- Be concise; do not repeat facts or add material to reach a length target
 - Organize content logically with proper paragraph breaks"""
 
         logger.info(f"正在生成{language_name}摘要...")
         
-        response = await asyncio.to_thread(
-            self.client.chat.completions.create,
+        summary = await request_text_content(
+            self.client,
+            reasoning_effort=getattr(self.config, "reasoning_effort", None),
             model=self.config.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -151,7 +143,6 @@ Requirements:
             timeout=60.0
         )
         
-        summary = response.choices[0].message.content
         return self._format_summary_with_meta(summary, target_language, video_title)
     
     async def _summarize_with_chunks(
@@ -171,13 +162,14 @@ Requirements:
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNKS)
 
         async def _summarize_chunk(i: int, chunk: str) -> str:
-            system_prompt = f"""You are a summarization expert. Please write a high-density summary for this text chunk in {language_name}.
+            system_prompt = f"""Summarize this source chunk faithfully in {language_name}.
+{SOURCE_RULES}
 
 This is part {i+1} of {total} of the complete content.
 
-Output preferences: Focus on natural paragraphs, use minimal bullet points if necessary; highlight new information and its relationship to the main narrative; avoid vague repetition and formatted headings; moderate length (suggested 120-220 words)."""
+Use concise natural paragraphs, without headings or repetition. Summarize only this chunk, not imagined neighboring content. Length is proportional to available information with no minimum word count; a short chunk may need only one sentence."""
 
-            user_prompt = f"""[Part {i+1}/{total}] Summarize the key points of the following text in {language_name} (natural paragraphs preferred, minimal bullet points, 120-220 words):
+            user_prompt = f"""[Part {i+1}/{total}] Summarize only the key points explicitly present in this source in {language_name}:
 
 {chunk}
 
@@ -185,8 +177,9 @@ Avoid using any subheadings or decorative separators, output content only."""
 
             async with semaphore:
                 try:
-                    response = await asyncio.to_thread(
-                        self.client.chat.completions.create,
+                    content = await request_text_content(
+                        self.client,
+                        reasoning_effort=getattr(self.config, "reasoning_effort", None),
                         model=self.config.model,
                         messages=[
                             {"role": "system", "content": system_prompt},
@@ -196,12 +189,9 @@ Avoid using any subheadings or decorative separators, output content only."""
                         temperature=0.3,
                         timeout=60.0
                     )
-                    content = (response.choices[0].message.content or "").strip()
-                    if not content:
-                        raise ValueError("分块摘要为空")
-                    return content
+                    return content.strip()
                 except Exception as e:
-                    logger.error(f"摘要第 {i+1} 块失败: {e}")
+                    logger.error("摘要第 %s 块失败 (%s)", i + 1, type(e).__name__)
                     self._warn("部分摘要生成失败，已使用原文片段")
                     return chunk
 
@@ -228,16 +218,10 @@ Avoid using any subheadings or decorative separators, output content only."""
         language_name = self.language_map.get(target_language, "中文（简体）")
         
         try:
-            system_prompt = f"""You are a content integration expert. Please integrate multiple segmented summaries into a complete, coherent summary in {language_name}.
-
-Integration Requirements:
-1. Remove duplicate content and maintain clear logic
-2. Reorganize content by themes or chronological order
-3. Each paragraph must be separated by double line breaks
-4. Ensure output is in Markdown format with double line breaks between paragraphs
-5. Use concise and clear language
-6. Form a complete content summary
-7. Cover all parts comprehensively without omission"""
+            system_prompt = f"""Integrate the supplied segmented summaries faithfully in {language_name}.
+{SOURCE_RULES}
+Treat the supplied segments as the only source. Deduplicate and organize by supported themes or chronology, preserving each distinct key point and attribution. Do not invent connections between segments or resolve contradictions by guessing. Keep uncertain or conflicting statements distinct.
+Use concise Markdown paragraphs with blank lines. There is no minimum length; do not expand short segments with background."""
 
             user_prompt = f"""Please integrate the following segmented summaries into a complete, coherent summary in {language_name}:
 
@@ -251,8 +235,9 @@ Requirements:
 - Use concise and clear language
 - Form a complete content summary"""
 
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
+            content = await request_text_content(
+                self.client,
+                reasoning_effort=getattr(self.config, "reasoning_effort", None),
                 model=self.config.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -262,13 +247,10 @@ Requirements:
                 temperature=0.3
             )
             
-            content = (response.choices[0].message.content or "").strip()
-            if not content:
-                raise ValueError("整合摘要为空")
-            return content
+            return content.strip()
             
         except Exception as e:
-            logger.error(f"整合摘要失败: {e}")
+            logger.error("整合摘要失败 (%s)", type(e).__name__)
             self._warn("摘要整合失败，已保留分块结果")
             return combined_summaries
     
@@ -495,6 +477,8 @@ Requirements:
             language_name = self.language_map.get(target_language, "中文（简体）")
             
             system_prompt = f"""You are a visualization expert. Please generate a Mindmap structure using Markdown List syntax based on the provided summary content.
+{SOURCE_RULES}
+Every node must be supported by the supplied summary. Do not add background, generic teaching branches, unmentioned benefits, or inferred relationships. A short summary needs only a small tree; no minimum depth or node count.
 
 Requirements:
 1. Use standard Markdown list syntax (`- `, `  - `, `    - `) to represent the tree structure.
@@ -511,8 +495,9 @@ Requirements:
 
 Output ONLY the markdown content."""
 
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
+            content = await request_text_content(
+                self.client,
+                reasoning_effort=getattr(self.config, "reasoning_effort", None),
                 model=self.config.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -522,14 +507,14 @@ Output ONLY the markdown content."""
                 temperature=0.2
             )
             
-            content = response.choices[0].message.content.strip()
-            
             # 清理可能的代码块标记
             content = content.replace("```markdown", "").replace("```", "").strip()
+            if not content:
+                raise EmptyContentError("Mindmap contained no usable text")
             
             return content
             
         except Exception as e:
-            logger.error(f"生成思维导图失败: {e}")
+            logger.error("生成思维导图失败 (%s)", type(e).__name__)
             self._warn("LLM 思维导图生成失败")
             return ""

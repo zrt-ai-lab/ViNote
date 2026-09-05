@@ -39,12 +39,7 @@ class VideoDownloader:
             'outtmpl': '%(title)s.%(ext)s',
             'retries': 10,  # 增加重试次数
             'fragment_retries': 10,
-            # YouTube 403 修复：使用 android_vr 客户端绕过限制 (fix #4 #5)
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android_vr', 'web']
-                }
-            },
+            # Let the installed yt-dlp choose supported clients as YouTube evolves.
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 # 直接在提取阶段转换为单声道 16k（空间小且稳定）
@@ -249,7 +244,7 @@ class VideoDownloader:
                 sub_file = self._find_subtitle_file(output_dir, f"sub_{unique_id}")
                 if not sub_file:
                     logger.warning("字幕下载后未找到文件")
-                    return None
+                    return None, video_title
 
                 subtitle_text = self._parse_subtitle_file(sub_file)
 

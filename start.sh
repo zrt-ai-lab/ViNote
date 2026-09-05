@@ -120,7 +120,6 @@ setup_env() {
 validate_config() {
     APP_HOST="$(read_env_value APP_HOST "127.0.0.1")"
     APP_PORT="$(read_env_value APP_PORT "8999")"
-    VIDEO_SEARCH_PROVIDERS="$(read_env_value VIDEO_SEARCH_PROVIDERS "local")"
     OPENAI_API_KEY_VALUE="$(read_env_value OPENAI_API_KEY "")"
 
     if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
@@ -142,7 +141,6 @@ install_backend() {
         funasr|qwen3) extras+=(--extra "$asr_provider") ;;
         *) err "ASR_PROVIDER 必须为 whisper、funasr 或 qwen3" ;;
     esac
-    if provider_enabled "anp"; then extras+=(--extra anp); fi
     uv sync --frozen "${extras[@]}" || err "uv sync --frozen 失败"
     # 后续 uv run 保留刚刚按配置安装的可选依赖。
     export UV_NO_SYNC=1
@@ -188,67 +186,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PY
 }
 
-wait_http() {
-    local url="$1"
-    local label="$2"
-    local timeout="${3:-30}"
-    python3 - "$url" "$label" "$timeout" <<'PY' || err "$label 未在限定时间内就绪"
-import sys
-import time
-from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
-
-url, label, timeout = sys.argv[1], sys.argv[2], int(sys.argv[3])
-deadline = time.time() + timeout
-while time.time() < deadline:
-    try:
-        with urlopen(url, timeout=2) as response:
-            if 200 <= response.status < 500:
-                raise SystemExit(0)
-    except (URLError, HTTPError, TimeoutError):
-        pass
-    time.sleep(1)
-print(f"{label} readiness timed out: {url}", file=sys.stderr)
-raise SystemExit(1)
-PY
-}
-
-provider_enabled() {
-    local provider="$1"
-    IFS=',' read -r -a providers <<< "$VIDEO_SEARCH_PROVIDERS"
-    for item in "${providers[@]}"; do
-        item="${item#"${item%%[![:space:]]*}"}"
-        item="${item%"${item##*[![:space:]]}"}"
-        if [ "$item" = "$provider" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-start_anp() {
-    provider_enabled "anp" || return 0
-
-    [ -d "backend/anp" ] || err "VIDEO_SEARCH_PROVIDERS 启用了 anp，但 backend/anp 不存在"
-    assert_port_free 9000
-    assert_port_free 8000
-
-    if [ ! -f "backend/anp/did_keys/video_search/did.json" ]; then
-        log "生成 ANP DID 密钥..."
-        (cd backend/anp && uv run python gen_did_keys.py) || err "ANP DID 密钥生成失败"
-    fi
-
-    log "启动 DID 认证服务器..."
-    (cd backend/anp && uv run python client_did_server.py) &
-    PIDS+=("$!")
-    wait_http "http://127.0.0.1:9000/.well-known/did.json" "DID 认证服务器" 30
-
-    log "启动 ANP 搜索服务..."
-    (cd backend/anp && uv run python search_server_agent.py) &
-    PIDS+=("$!")
-    wait_http "http://127.0.0.1:8000/health" "ANP 搜索服务" 45
-}
-
 main() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  ViNote v${VERSION} 启动"
@@ -261,7 +198,6 @@ main() {
     install_backend
     build_frontend
     assert_port_free "$APP_PORT"
-    start_anp
 
     log "启动 ViNote -> http://${APP_HOST}:${APP_PORT}"
     echo ""

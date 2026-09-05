@@ -75,14 +75,6 @@ class Settings:
     # tiny/base可设3-5，small/medium设2-3，large设1-2
     ASR_CONCURRENCY: int = int(os.getenv("ASR_CONCURRENCY", "1"))
     
-    # ========== ANP服务配置 ==========
-    ANP_SERVER_URL: str = os.getenv("ANP_SERVER_URL", "http://localhost:8000/ad.json")
-
-    # ========== 搜索源配置 ==========
-    # 逗号分隔: local, anp   (local 用 yt-dlp 直接搜索，anp 需额外启动服务)
-    SEARCH_PROVIDERS: list = [
-        s.strip() for s in os.getenv("VIDEO_SEARCH_PROVIDERS", "local").split(",") if s.strip()
-    ]
     
     def __init__(self):
         """初始化时创建必要的目录"""
