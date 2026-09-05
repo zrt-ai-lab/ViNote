@@ -8,6 +8,14 @@ const { downloadFile, HttpError, streamPost } = await loadTypeScript('../src/api
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function waitFor(predicate, timeoutMs = 2000) {
+  const deadline = performance.now() + timeoutMs;
+  while (!predicate()) {
+    assert.ok(performance.now() < deadline, 'expected progress did not arrive before timeout');
+    await delay(5);
+  }
+}
+
 test('downloads prefer returned names and support existing task responses', () => {
   const task = { short_id: 'abc123', safe_title: '示例视频', transcript_filename: 'actual.md' };
   assert.equal(getArtifactFilename(task, 'script'), 'actual.md');
@@ -78,7 +86,7 @@ test('chat streams still deliver split unicode and a final event without a newli
   assert.deepEqual(events, [{ content: '回答' }, { done: true }]);
 });
 
-test('a broken stream falls back to polling without inventing a failed task', async () => {
+test('a broken stream falls back to polling without inventing a failed task', async (t) => {
   const updates = [];
   const connections = [];
   let disconnect;
@@ -92,15 +100,16 @@ test('a broken stream falls back to polling without inventing a failed task', as
     onUnavailable: () => assert.fail('network interruption is not a missing task'),
     intervalMs: 2,
   });
-  await delay(5);
+  t.after(stop);
+  await waitFor(() => updates.length === 1 && typeof disconnect === 'function');
   disconnect();
-  await delay(15);
+  await waitFor(() => updates.includes('completed'));
   stop();
   assert.deepEqual(updates, ['processing', 'completed']);
   assert.ok(connections.includes('retrying'));
 });
 
-test('polls do not overlap and retry transient failures', async () => {
+test('polls do not overlap and retry transient failures', async (t) => {
   let active = 0;
   let peak = 0;
   let attempts = 0;
@@ -108,7 +117,7 @@ test('polls do not overlap and retry transient failures', async () => {
   const stop = monitorProgress({
     load: async () => {
       peak = Math.max(peak, ++active);
-      await delay(4);
+      await delay(20);
       active--;
       if (++attempts === 1) throw new Error('offline');
       return { done: attempts === 3 };
@@ -119,9 +128,11 @@ test('polls do not overlap and retry transient failures', async () => {
     onUnavailable: () => assert.fail('transient error'),
     intervalMs: 2,
   });
-  await delay(35);
+  t.after(stop);
+  await waitFor(() => updates.includes(true));
   stop();
   assert.equal(peak, 1);
+  assert.equal(attempts, 3);
   assert.deepEqual(updates, [false, true]);
 });
 
