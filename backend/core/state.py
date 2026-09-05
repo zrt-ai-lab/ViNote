@@ -171,7 +171,7 @@ def validate_download_filename(filename: str) -> bool:
     try:
         file_path = (TEMP_DIR / filename).resolve()
         temp_dir_resolved = TEMP_DIR.resolve()
-        if not str(file_path).startswith(str(temp_dir_resolved)):
+        if file_path.parent != temp_dir_resolved:
             return False
     except Exception:
         return False

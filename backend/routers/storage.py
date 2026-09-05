@@ -3,13 +3,18 @@
 """
 import logging
 import re
+import shutil
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.core.state import tasks, save_tasks, active_tasks, TEMP_DIR
+from backend.services.note_operations import cleanup_staging, finish_commit, note_operation
+from backend.services.note_repository import delete_note, get_note, list_note_artifacts
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -23,6 +28,9 @@ AUDIO_EXTENSIONS = {".m4a", ".wav", ".webm", ".mp3", ".ogg", ".part"}
 # Markdown 笔记文件正则 (summary/transcript/raw/mindmap/translation)
 NOTE_FILE_RE = re.compile(
     r"^(summary|transcript|raw|mindmap|translation)_(.+)_([a-f0-9]{6,32})\.md$"
+)
+ARTIFACT_FIELDS = (
+    "raw_transcript_file", "transcript_file", "summary_file", "mindmap_file", "translation_file",
 )
 
 
@@ -145,7 +153,7 @@ class CleanupRequest(BaseModel):
     clean_downloads: bool = False
     clean_backups: bool = False
     clean_all_notes: bool = False
-    older_than_days: int = 0
+    older_than_days: int = Field(default=0, ge=0)
 
 
 @router.post("/storage/cleanup")
@@ -153,6 +161,8 @@ async def cleanup_storage(req: CleanupRequest):
     """清理临时文件（音频缓存、下载视频、备份、笔记）"""
     if req.clean_audio and active_tasks:
         raise HTTPException(status_code=409, detail="有任务正在处理，请结束后再清理音频缓存")
+    if req.clean_all_notes and active_tasks:
+        raise HTTPException(status_code=409, detail="有任务正在处理，请结束后再清理笔记")
 
     active_short_ids = set()
     for tid in active_tasks:
@@ -160,6 +170,8 @@ async def cleanup_storage(req: CleanupRequest):
 
     deleted_files = []
     freed_bytes = 0
+    failed_note_ids: list[str] = []
+    skipped_note_ids: list[str] = []
 
     if req.clean_audio and TEMP_DIR.exists():
         for f in TEMP_DIR.iterdir():
@@ -212,51 +224,42 @@ async def cleanup_storage(req: CleanupRequest):
             except Exception as e:
                 logger.warning(f"删除文件失败 {f.name}: {e}")
 
-    if req.clean_all_notes and TEMP_DIR.exists():
-        active_note_ids = {_note_id_for_task(tid) for tid in active_tasks}
-        for f in TEMP_DIR.iterdir():
-            if not f.is_file() or f.suffix != ".md":
-                continue
-            match = NOTE_FILE_RE.match(f.name)
-            if not match:
-                continue
-            if match.group(3) in active_note_ids:
-                continue
-            if req.older_than_days > 0 and _file_age_days(f) < req.older_than_days:
-                continue
-            try:
-                size = f.stat().st_size
-                f.unlink()
-                deleted_files.append(f.name)
-                freed_bytes += size
-                logger.info(f"清理笔记文件: {f.name}")
-            except Exception as e:
-                logger.warning(f"删除文件失败 {f.name}: {e}")
-
-        # 清除内存中对应的已完成任务
-        completed_tids = [
-            tid for tid, t in tasks.items()
-            if t.get("status") in ("completed", "error", "cancelled")
-            and _note_id_for_task(tid) not in active_note_ids
-        ]
-        for tid in completed_tids:
-            del tasks[tid]
-        if completed_tids:
-            save_tasks(tasks)
-
-        # 清除 SQLite 中所有笔记
-        try:
-            from backend.services.note_repository import delete_all_notes
-            deleted_db = await delete_all_notes()
-            logger.info(f"清除 SQLite {deleted_db} 条笔记记录")
-        except Exception as e:
-            logger.error(f"清除 SQLite 笔记失败: {e}")
+    if req.clean_all_notes:
+        files_by_note = _scan_note_files()
+        records = {note["short_id"]: note for note in await list_note_artifacts()}
+        terminal_ids = {
+            _note_id_for_task(tid) for tid, task in tasks.items()
+            if task.get("status") in {"completed", "error", "cancelled"}
+        }
+        # A note is the deletion unit: never remove its row while retaining one
+        # of its newer artifacts or after a failed file operation.
+        candidates = set(files_by_note) | set(records) | terminal_ids
+        for short_id in sorted(candidates):
+            async with note_operation(short_id):
+                if active_tasks:
+                    skipped_note_ids.append(short_id)
+                    continue
+                note = await get_note(short_id)
+                files = _note_files(note, files_by_note.get(short_id, []))
+                if not _old_enough(note, files, req.older_than_days):
+                    skipped_note_ids.append(short_id)
+                    continue
+                try:
+                    removed = await finish_commit(_delete_note_group(short_id, files))
+                except Exception:
+                    logger.exception("清理笔记失败，已尝试恢复文件: %s", short_id)
+                    failed_note_ids.append(short_id)
+                    continue
+                deleted_files.extend(removed["deleted_files"])
+                freed_bytes += removed["freed_size"]
 
     return {
         "deleted_count": len(deleted_files),
         "freed_size": freed_bytes,
         "freed_size_display": _format_size(freed_bytes),
         "deleted_files": deleted_files,
+        "failed_note_ids": failed_note_ids,
+        "skipped_note_ids": skipped_note_ids,
     }
 
 
@@ -266,54 +269,92 @@ async def delete_task_files(short_id: str):
     if not re.fullmatch(r"[a-f0-9]{6,32}", short_id):
         raise HTTPException(status_code=400, detail="无效的任务ID格式")
 
-    for tid in active_tasks:
-        if _note_id_for_task(tid) == short_id:
+    async with note_operation(short_id):
+        if any(_note_id_for_task(tid) == short_id for tid in active_tasks):
             raise HTTPException(status_code=409, detail="任务正在处理中，无法删除")
+        note = await get_note(short_id)
+        files = _note_files(note, _scan_note_files().get(short_id, []))
+        try:
+            return await finish_commit(_delete_note_group(short_id, files))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("删除笔记失败，已尝试恢复文件: %s", short_id)
+            raise HTTPException(status_code=500, detail="笔记删除失败，相关记录已保留，请重试") from exc
 
-    deleted_files = []
-    freed_bytes = 0
 
+def _scan_note_files() -> dict[str, list[Path]]:
+    groups: dict[str, list[Path]] = {}
     if TEMP_DIR.exists():
-        for f in TEMP_DIR.iterdir():
-            if not f.is_file() or f.suffix != ".md":
-                continue
-            match = NOTE_FILE_RE.match(f.name)
-            if match and match.group(3) == short_id:
-                try:
-                    size = f.stat().st_size
-                    f.unlink()
-                    deleted_files.append(f.name)
-                    freed_bytes += size
-                    logger.info(f"删除任务文件: {f.name}")
-                except Exception as e:
-                    logger.warning(f"删除文件失败 {f.name}: {e}")
+        for path in TEMP_DIR.iterdir():
+            match = NOTE_FILE_RE.fullmatch(path.name)
+            if path.is_file() and not path.is_symlink() and match:
+                groups.setdefault(match.group(3), []).append(path)
+    return groups
 
-    # 从内存 tasks dict 中移除（兼容未迁移的）
-    task_ids_to_remove = [
-        tid for tid in tasks
-        if _note_id_for_task(tid) == short_id
-    ]
-    for tid in task_ids_to_remove:
-        del tasks[tid]
-    if task_ids_to_remove:
-        save_tasks(tasks)
 
-    # 从 SQLite 删除
-    db_deleted = False
+def _note_files(note: dict | None, known_files: list[Path]) -> list[Path]:
+    paths = set(known_files)
+    for field in ARTIFACT_FIELDS:
+        filename = (note or {}).get(field)
+        if filename and Path(filename).name == filename:
+            path = TEMP_DIR / filename
+            if path.suffix == ".md" and path.resolve().parent == TEMP_DIR.resolve():
+                paths.add(path)
+    return sorted(path for path in paths if path.is_file() and not path.is_symlink())
+
+
+def _old_enough(note: dict | None, files: list[Path], days: int) -> bool:
+    if not days:
+        return True
+    if files:
+        return all(_file_age_days(path) >= days for path in files)
+    # An already missing artifact must not make a recent row eligible.
     try:
-        from backend.services.note_repository import delete_note
+        created = datetime.fromisoformat((note or {}).get("created_at") or "")
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        return (time.time() - created.timestamp()) / 86400 >= days
+    except (ValueError, TypeError):
+        return False
+
+
+async def _delete_note_group(short_id: str, files: list[Path]) -> dict:
+    # Prepare all backups before unlinking anything. A rollback uses renames,
+    # so disk-full errors do not require writing the old Markdown a second time.
+    originals: dict[Path, Path] = {}
+    removed: list[Path] = []
+    committed = False
+    freed = sum(path.stat().st_size for path in files)
+    try:
+        for path in files:
+            backup = path.with_suffix(path.suffix + f".{uuid.uuid4().hex}.backup")
+            originals[path] = backup
+            shutil.copy2(path, backup)
+        for path in files:
+            path.unlink()
+            removed.append(path)
         db_deleted = await delete_note(short_id)
-        if db_deleted:
-            logger.info(f"删除 SQLite 笔记记录: {short_id}")
-    except Exception as e:
-        logger.error(f"删除 SQLite 记录失败: {e}")
+        committed = True
+    except BaseException:
+        for path in removed:
+            originals[path].replace(path)
+        cleanup_staging(originals.values())
+        raise
+    finally:
+        if committed:
+            cleanup_staging(originals.values())
 
-    if not deleted_files and not task_ids_to_remove and not db_deleted:
+    task_ids = [tid for tid in tasks if _note_id_for_task(tid) == short_id]
+    if not files and not task_ids and not db_deleted:
         raise HTTPException(status_code=404, detail="未找到该任务的相关文件")
-
+    for tid in task_ids:
+        del tasks[tid]
+    if task_ids:
+        save_tasks(tasks)
     return {
-        "deleted_files": deleted_files,
-        "freed_size": freed_bytes,
-        "freed_size_display": _format_size(freed_bytes),
-        "removed_task_ids": task_ids_to_remove,
+        "deleted_files": [path.name for path in files],
+        "freed_size": freed,
+        "freed_size_display": _format_size(freed),
+        "removed_task_ids": task_ids,
     }

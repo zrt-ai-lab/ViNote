@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Form, Request
+from fastapi import APIRouter, HTTPException, Form, Request, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -127,6 +127,8 @@ async def _process_video_task(task_id: str, url: str, summary_language: str):
             "summary": result["summary"],
             "script_path": str(result["files"]["transcript_path"]),
             "summary_path": str(result["files"]["summary_path"]),
+            "transcript_filename": result["files"]["transcript_filename"],
+            "summary_filename": result["files"]["summary_filename"],
             "short_id": short_id,
             "safe_title": safe_title,
             "detected_language": result["detected_language"],
@@ -197,8 +199,6 @@ async def get_task_status(task_id: str):
         note = await get_note_by_task_id(task_id)
     if note:
         short_id = note["short_id"]
-        # 尝试从文件系统读取内容
-        import re
         result = {
             "status": "completed",
             "progress": 100,
@@ -212,15 +212,22 @@ async def get_task_status(task_id: str):
             "warnings": note.get("warnings", []),
         }
 
-        for sid in [short_id]:
-            for field, prefix in [("summary", "summary"), ("script", "transcript"), ("raw_script", "raw"), ("translation", "translation"), ("mindmap", "mindmap")]:
-                if field in result and field not in ("status", "progress", "message", "video_title", "short_id", "safe_title"):
-                    continue  # 已找到则跳过
-                for f in TEMP_DIR.iterdir():
-                    if f.is_file() and f.suffix == ".md":
-                        if re.match(rf"^{re.escape(prefix)}_.+_{re.escape(sid)}\.md$", f.name):
-                            result[field] = f.read_text(encoding="utf-8")
-                            break
+        # 索引中的产物名是唯一契约；不按标题猜测，更不能读到同名笔记。
+        for field, stored, filename_key in (
+            ("summary", "summary_file", "summary_filename"),
+            ("script", "transcript_file", "transcript_filename"),
+            ("raw_script", "raw_transcript_file", "raw_script_filename"),
+            ("translation", "translation_file", "translation_filename"),
+            ("mindmap", "mindmap_file", "mindmap_filename"),
+        ):
+            filename = note.get(stored)
+            if not filename or Path(filename).name != filename:
+                continue
+            path = (TEMP_DIR / filename).resolve()
+            if path.parent != TEMP_DIR.resolve() or not path.is_file():
+                continue
+            result[field] = await asyncio.to_thread(path.read_text, encoding="utf-8")
+            result[filename_key] = filename
         return result
 
     raise HTTPException(status_code=404, detail="任务不存在")
@@ -304,9 +311,9 @@ async def get_active_tasks():
 async def get_completed_tasks(
     category: Optional[str] = None,
     tag: Optional[str] = None,
-    search: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 50,
+    search: Optional[str] = Query(default=None, max_length=500),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ):
@@ -338,10 +345,10 @@ async def get_task_content(task_id: str, field: str = "summary"):
 
     # 1. 从 temp 目录按 short_id 查找文件
     for f in TEMP_DIR.iterdir():
-        if not f.is_file() or f.suffix != ".md":
+        if not f.is_file() or f.suffix != ".md" or f.resolve().parent != TEMP_DIR.resolve():
             continue
         if re.match(rf"^{re.escape(prefix)}_.+_{re.escape(task_id)}\.md$", f.name):
-            content = f.read_text(encoding="utf-8")
+            content = await asyncio.to_thread(f.read_text, encoding="utf-8")
             if content.strip():
                 return {"content": content}
 
@@ -374,10 +381,10 @@ async def get_task_content(task_id: str, field: str = "summary"):
         col = field_to_db_col.get(field)
         if col:
             db_filename = note.get(col)
-        if db_filename:
-            fpath = TEMP_DIR / db_filename
-            if fpath.exists():
-                content = fpath.read_text(encoding="utf-8")
+        if db_filename and Path(db_filename).name == db_filename:
+            fpath = (TEMP_DIR / db_filename).resolve()
+            if fpath.parent == TEMP_DIR.resolve() and fpath.is_file():
+                content = await asyncio.to_thread(fpath.read_text, encoding="utf-8")
                 if content.strip():
                     return {"content": content}
 
@@ -385,10 +392,10 @@ async def get_task_content(task_id: str, field: str = "summary"):
         note_short_id = note.get("short_id", "")
         if note_short_id and note_short_id != task_id:
             for f in TEMP_DIR.iterdir():
-                if not f.is_file() or f.suffix != ".md":
+                if not f.is_file() or f.suffix != ".md" or f.resolve().parent != TEMP_DIR.resolve():
                     continue
                 if re.match(rf"^{re.escape(prefix)}_.+_{re.escape(note_short_id)}\.md$", f.name):
-                    content = f.read_text(encoding="utf-8")
+                    content = await asyncio.to_thread(f.read_text, encoding="utf-8")
                     if content.strip():
                         return {"content": content}
 
@@ -518,6 +525,8 @@ async def _process_local_path_task(task_id: str, file_path: str, summary_languag
             "summary": result["summary"],
             "script_path": str(result["files"]["transcript_path"]),
             "summary_path": str(result["files"]["summary_path"]),
+            "transcript_filename": result["files"]["transcript_filename"],
+            "summary_filename": result["files"]["summary_filename"],
             "short_id": short_id,
             "safe_title": safe_title,
             "detected_language": result["detected_language"],

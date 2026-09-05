@@ -1,7 +1,10 @@
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { postFormData, fetchJSON, postJSON, deleteAPI, downloadFile, extractBilibiliUrl, proxyImageUrl, createSSE } from '../api/client';
-import { useSSE } from '../hooks/useSSE';
+import { useTaskProgress } from '../hooks/useTaskProgress';
+import { monitorProgress } from '../api/progress';
+import type { ProgressConnection } from '../api/progress';
+import { getArtifactFilename, readStoredId, writeStoredId } from '../utils/taskRecovery';
 import ProgressBar from '../components/ProgressBar';
 import ProgressSteps from '../components/ProgressSteps';
 import { SUBTITLE_STEPS } from '../components/progressStepData';
@@ -12,6 +15,9 @@ import type { TaskStatus, VideoInfo, BatchStatus, BatchTaskInfo, ScanResult, Sca
 import { Play, Download, Square, Sparkles, BrainCircuit, List, CheckCircle2, XCircle, Loader2, Clock, FolderSearch, Layers } from 'lucide-react';
 
 const MarkmapView = lazy(() => import('../components/MarkmapView'));
+const noteTaskKey = 'vinote.note.task-id';
+const batchTaskKey = 'vinote.note.batch-id';
+const focusedTaskKey = 'vinote.note.focused-id';
 
 const LANGUAGES = [
   { value: 'zh', label: '中文' },
@@ -73,14 +79,17 @@ function batchTaskStatusText(task: BatchTaskInfo): string {
 
 export default function VideoNote() {
   const navigate = useNavigate();
-  const [isBatch, setIsBatch] = useState(false);
+  const [isBatch, setIsBatch] = useState(() => {
+    const batch = readStoredId(batchTaskKey);
+    return Boolean(batch && (!readStoredId(noteTaskKey) || readStoredId(focusedTaskKey) === batch));
+  });
   const [input, setInput] = useState('');
   const [batchInput, setBatchInput] = useState('');
   const [language, setLanguage] = useState('zh');
   const [preview, setPreview] = useState<VideoInfo | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(() => readStoredId(noteTaskKey));
   const [task, setTask] = useState<TaskStatus | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => Boolean(readStoredId(noteTaskKey)));
   const [activeTab, setActiveTab] = useState<TabKey>('script');
   const [currentStep, setCurrentStep] = useState('');
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -92,15 +101,15 @@ export default function VideoNote() {
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'completed' | 'error'>('idle');
   const [downloadSpeed, setDownloadSpeed] = useState('');
   const downloadSSERef = useRef<EventSource | null>(null);
-  const { connect, disconnect } = useSSE();
+  const previousTaskStatus = useRef<string | null>(null);
 
   // Batch state
-  const [batchId, setBatchId] = useState<string | null>(null);
+  const [batchId, setBatchId] = useState<string | null>(() => readStoredId(batchTaskKey));
   const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null);
-  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(() => Boolean(readStoredId(batchTaskKey)));
   const [selectedBatchTask, setSelectedBatchTask] = useState<string | null>(null);
   const [batchTaskContent, setBatchTaskContent] = useState<TaskStatus | null>(null);
-  const batchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [batchConnection, setBatchConnection] = useState<ProgressConnection>('checking');
 
   // Directory scan state
   const [showDirScan, setShowDirScan] = useState(false);
@@ -113,28 +122,64 @@ export default function VideoNote() {
   const [playlistLoading, setPlaylistLoading] = useState(false);
   const [selectedPlaylistUrls, setSelectedPlaylistUrls] = useState<Set<string>>(new Set());
 
-  // Poll batch status
+  const handleTaskUpdate = useCallback((t: TaskStatus) => {
+    setTask(t);
+    const step = stepFromMessage(t.message || '');
+    if (step === 'subtitle_done') setUseSubtitleFlow(true);
+    if (step) {
+      const mapped = step === 'subtitle' ? 'download' : step === 'subtitle_done' ? 'transcribe' : step;
+      setCurrentStep(mapped);
+      const steps = ['download', 'transcribe', 'optimize', 'summarize', 'complete'];
+      setCompletedSteps(steps.slice(0, steps.indexOf(mapped)));
+    }
+    setLoading(t.status === 'queued' || t.status === 'processing');
+    if (t.status === 'completed') {
+      setCompletedSteps(['download', 'transcribe', 'optimize', 'summarize', 'complete']);
+      setCurrentStep('');
+      if (previousTaskStatus.current === 'processing' || previousTaskStatus.current === 'queued') {
+        toast(t.warnings?.length ? '笔记已生成，部分 AI 能力已降级' : '笔记生成完成！', t.warnings?.length ? 'info' : 'success');
+      }
+    } else if (t.status === 'error' && previousTaskStatus.current !== 'error') {
+      toast(t.error || '生成失败', 'error');
+    }
+    previousTaskStatus.current = t.status;
+  }, []);
+  const handleTaskUnavailable = useCallback((error: Error) => {
+    writeStoredId(noteTaskKey, null);
+    setTaskId(null);
+    setTask(null);
+    setLoading(false);
+    toast(error.message, 'error');
+  }, []);
+  const taskConnection = useTaskProgress(taskId, handleTaskUpdate, handleTaskUnavailable);
+
+  // A serial poll also restores batches after navigation or reload.
   useEffect(() => {
-    if (!batchId || !batchLoading) return;
-    const poll = () => {
-      fetchJSON<BatchStatus>(`/api/batch-status/${batchId}`)
-        .then((data) => {
-          setBatchStatus(data);
-          if (data.processing === 0) {
-            setBatchLoading(false);
-            if (batchPollRef.current) clearInterval(batchPollRef.current);
-            const summary = `批量处理结束: ${data.completed} 完成, ${data.failed} 失败, ${data.cancelled} 取消`;
-            toast(summary, data.failed > 0 ? 'error' : data.cancelled > 0 ? 'info' : 'success');
-          }
-        })
-        .catch(() => {});
-    };
-    poll();
-    batchPollRef.current = setInterval(poll, 3000);
-    return () => {
-      if (batchPollRef.current) clearInterval(batchPollRef.current);
-    };
-  }, [batchId, batchLoading]);
+    if (!batchId) return;
+    let wasProcessing = false;
+    return monitorProgress<BatchStatus>({
+      load: (signal) => fetchJSON(`/api/batch-status/${encodeURIComponent(batchId)}`, { signal }),
+      isTerminal: (data) => data.processing === 0,
+      onUpdate: (data) => {
+        setBatchStatus(data);
+        setBatchLoading(data.processing > 0);
+        if (wasProcessing && data.processing === 0) {
+          toast(`批量处理结束: ${data.completed} 完成, ${data.failed} 失败, ${data.cancelled} 取消`, data.failed > 0 ? 'error' : data.cancelled > 0 ? 'info' : 'success');
+        }
+        wasProcessing = data.processing > 0;
+      },
+      onConnectionChange: setBatchConnection,
+      onUnavailable: (error) => {
+        writeStoredId(batchTaskKey, null);
+        setBatchId(null);
+        setBatchStatus(null);
+        setBatchLoading(false);
+        toast(error.message, 'error');
+      },
+    });
+  }, [batchId]);
+
+  useEffect(() => () => downloadSSERef.current?.close(), []);
 
   // ── Batch handlers ────────────────────────────────
   const handleBatchSubmit = async () => {
@@ -148,6 +193,8 @@ export default function VideoNote() {
       const res = await postJSON<{ batch_id: string; task_ids: string[]; total: number }>(
         '/api/batch-process', { urls, summary_language: language },
       );
+      writeStoredId(batchTaskKey, res.batch_id);
+      writeStoredId(focusedTaskKey, res.batch_id);
       setBatchId(res.batch_id);
       toast(`已创建批量任务: ${res.total} 个`, 'success');
     } catch (e) {
@@ -160,7 +207,6 @@ export default function VideoNote() {
     if (!batchId) return;
     try {
       await deleteAPI(`/api/batch/${batchId}`);
-      if (batchPollRef.current) clearInterval(batchPollRef.current);
       setBatchLoading(false);
       toast('批量任务已取消', 'info');
       fetchJSON<BatchStatus>(`/api/batch-status/${batchId}`)
@@ -221,6 +267,8 @@ export default function VideoNote() {
       const res = await postJSON<{ batch_id: string; task_ids: string[]; total: number }>(
         '/api/batch-process', { urls: paths, summary_language: language },
       );
+      writeStoredId(batchTaskKey, res.batch_id);
+      writeStoredId(focusedTaskKey, res.batch_id);
       setBatchId(res.batch_id);
       toast(`已创建批量任务: ${res.total} 个文件`, 'success');
     } catch (e) {
@@ -268,38 +316,12 @@ export default function VideoNote() {
       ).then((res) => setPreview(res.data)).catch(() => {});
     }
     setLoading(true); setTask(null); setCurrentStep(''); setCompletedSteps([]); setUseSubtitleFlow(false);
+    previousTaskStatus.current = 'processing';
     try {
       const res = await postFormData<{ task_id: string }>('/api/process-video', { url, summary_language: language });
+      writeStoredId(noteTaskKey, res.task_id);
+      writeStoredId(focusedTaskKey, res.task_id);
       setTaskId(res.task_id);
-      connect(`/api/task-stream/${res.task_id}`, {
-        onMessage: (data) => {
-          const t = data as TaskStatus;
-          setTask(t);
-          const step = stepFromMessage(t.message || '');
-          if (step === 'subtitle_done') setUseSubtitleFlow(true);
-          if (step) {
-            let mapped = step;
-            if (step === 'subtitle') mapped = 'download';
-            if (step === 'subtitle_done') mapped = 'transcribe';
-            setCurrentStep(mapped);
-            setCompletedSteps(() => {
-              const steps = ['download', 'transcribe', 'optimize', 'summarize', 'complete'];
-              let m = step;
-              if (step === 'subtitle') m = 'download';
-              if (step === 'subtitle_done') m = 'transcribe';
-              return steps.slice(0, steps.indexOf(m));
-            });
-          }
-          if (t.status === 'completed') {
-            setCompletedSteps(['download', 'transcribe', 'optimize', 'summarize', 'complete']);
-            setCurrentStep(''); disconnect(); setLoading(false);
-            toast(t.warnings?.length ? '笔记已生成，部分 AI 能力已降级' : '笔记生成完成！', t.warnings?.length ? 'info' : 'success');
-          } else if (t.status === 'error') {
-            disconnect(); setLoading(false); toast(t.error || '生成失败', 'error');
-          }
-        },
-        onError: () => { setLoading(false); toast('连接中断', 'error'); },
-      });
     } catch (e) {
       toast(e instanceof Error ? e.message : '生成失败', 'error'); setLoading(false);
     }
@@ -309,7 +331,7 @@ export default function VideoNote() {
     if (!taskId) return;
     try {
       await deleteAPI(`/api/task/${taskId}`);
-      disconnect(); setLoading(false);
+      setTaskId(null); writeStoredId(noteTaskKey, null); setLoading(false);
       setTask((prev) => (prev ? { ...prev, status: 'cancelled', message: '已取消' } : null));
       toast('已取消', 'info');
     } catch (error) {
@@ -317,8 +339,13 @@ export default function VideoNote() {
     }
   };
 
-  const handleDownloadFile = useCallback((filename: string) => {
-    downloadFile(filename); toast('开始下载', 'success');
+  const handleDownloadFile = useCallback(async (filename: string) => {
+    try {
+      await downloadFile(filename);
+      toast('文件已下载', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '下载失败', 'error');
+    }
   }, []);
 
   const handleStartDownload = async () => {
@@ -379,15 +406,7 @@ export default function VideoNote() {
   };
 
   const getTabFilename = (key: TabKey): string => {
-    if (!activeTask?.short_id || !activeTask?.safe_title) return '';
-    const prefix = `${activeTask.short_id}_${activeTask.safe_title}`;
-    switch (key) {
-      case 'script': return `${prefix}_笔记.md`;
-      case 'summary': return `${prefix}_摘要.md`;
-      case 'mindmap': return activeTask.mindmap_filename || '';
-      case 'raw': return activeTask.raw_script_filename || '';
-      case 'translation': return activeTask.translation_filename || '';
-    }
+    return getArtifactFilename(activeTask, key);
   };
 
   const showCompleted = (isBatch && batchTaskContent?.status === 'completed') || (!isBatch && task?.status === 'completed');
@@ -400,7 +419,7 @@ export default function VideoNote() {
         {/* 单条 / 批量 toggle */}
         <div className="flex items-center gap-2 mb-4">
           <button
-            onClick={() => setIsBatch(false)}
+            onClick={() => { setIsBatch(false); writeStoredId(focusedTaskKey, taskId); }}
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md font-medium transition-colors ${
               !isBatch
                 ? 'bg-[var(--color-text)] text-white'
@@ -411,7 +430,7 @@ export default function VideoNote() {
             单条
           </button>
           <button
-            onClick={() => setIsBatch(true)}
+            onClick={() => { setIsBatch(true); writeStoredId(focusedTaskKey, batchId); }}
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md font-medium transition-colors ${
               isBatch
                 ? 'bg-[var(--color-text)] text-white'
@@ -631,6 +650,14 @@ export default function VideoNote() {
         </div>
 
         {/* ── 进度区域（共享） ──────────────────────── */}
+        {((isBatch && batchLoading && batchConnection === 'retrying') || (!isBatch && loading && taskConnection === 'retrying')) && (
+          <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            状态连接暂时中断，正在自动恢复。任务仍可能在后台运行，请勿重复提交。
+          </p>
+        )}
+        {!isBatch && loading && taskConnection === 'polling' && (
+          <p role="status" className="mt-4 text-xs text-[var(--color-text-secondary)]">已恢复状态查询，正在同步任务进度。</p>
+        )}
         {!isBatch && (loading || task) && (
           <div className="mt-5 space-y-3">
             <ProgressBar progress={task?.progress ?? 0} />

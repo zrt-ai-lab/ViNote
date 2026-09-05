@@ -1,12 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { postFormData, fetchJSON, deleteAPI, extractBilibiliUrl, proxyImageUrl, streamPost } from '../api/client';
-import { useSSE } from '../hooks/useSSE';
+import { useTaskProgress } from '../hooks/useTaskProgress';
+import { readStoredId, writeStoredId } from '../utils/taskRecovery';
 import ProgressBar from '../components/ProgressBar';
 import ChatMessage from '../components/ChatMessage';
 import { toast } from '../components/toastStore';
-import type { QASession, TaskStatus, VideoInfo } from '../types';
-import { Loader2, Send, Trash2, Square } from 'lucide-react';
+import type { QASession, QASessionSummary, TaskStatus, VideoInfo } from '../types';
+import { Loader2, Send, Trash2, Square, Plus, RefreshCw, MessageCircle } from 'lucide-react';
+
+const qaTaskKey = 'vinote.qa.task-id';
 
 interface Message {
   id: string;
@@ -22,18 +25,43 @@ export default function VideoQA() {
   const [input, setInput] = useState('');
   const [transcript, setTranscript] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
-  const [taskId, setTaskId] = useState<string | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(() => readStoredId(qaTaskKey));
   const [task, setTask] = useState<TaskStatus | null>(null);
-  const [preprocessLoading, setPreprocessLoading] = useState(false);
+  const [preprocessLoading, setPreprocessLoading] = useState(() => Boolean(readStoredId(qaTaskKey)));
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState('');
   const [answering, setAnswering] = useState(false);
   const [preview, setPreview] = useState<VideoInfo | null>(null);
   const [session, setSession] = useState<QASession | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(Boolean(sessionId));
+  const [sessionError, setSessionError] = useState<{ id: string; message: string } | null>(null);
+  const [sessionReload, setSessionReload] = useState(0);
+  const [messageSessionId, setMessageSessionId] = useState<string | null>(sessionId);
+  const [recentSessions, setRecentSessions] = useState<QASessionSummary[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentError, setRecentError] = useState('');
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const msgEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const { connect, disconnect } = useSSE();
+  const activeSession = session?.id === sessionId ? session : null;
+  const sessionLoading = Boolean(sessionId && !activeSession && sessionError?.id !== sessionId);
+  const readyToAsk = sessionId ? Boolean(activeSession?.sources.length) : Boolean(transcript);
+  const visibleMessages = messageSessionId === sessionId ? messages : [];
+  const isAnswering = answering && messageSessionId === sessionId;
+
+  const loadRecentSessions = useCallback(async () => {
+    setRecentLoading(true);
+    try {
+      const data = await fetchJSON<{ sessions: QASessionSummary[] }>('/api/qa/sessions');
+      setRecentSessions(data.sessions);
+      setRecentError('');
+    } catch (error) {
+      setRecentError(error instanceof Error ? error.message : '加载最近会话失败');
+    } finally {
+      setRecentLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadRecentSessions(); }, [loadRecentSessions]);
 
   useEffect(() => {
     msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,11 +69,14 @@ export default function VideoQA() {
 
   useEffect(() => {
     if (!sessionId) return;
-    fetchJSON<QASession>(`/api/qa/sessions/${sessionId}`)
+    const controller = new AbortController();
+    fetchJSON<QASession>(`/api/qa/sessions/${encodeURIComponent(sessionId)}`, { signal: controller.signal })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setSession(data);
-        setTranscript(data.sources.map((source) => source.title).join('\n'));
-        setVideoTitle(data.title);
+        setAnswering(false);
+        setSessionError(null);
+        setMessageSessionId(sessionId);
         setMessages(data.messages.map((message) => ({
           id: String(message.id),
           role: message.role,
@@ -53,9 +84,31 @@ export default function VideoQA() {
           timestamp: new Date(`${message.created_at}Z`),
         })));
       })
-      .catch((error) => toast(error instanceof Error ? error.message : '加载问答会话失败', 'error'))
-      .finally(() => setSessionLoading(false));
-  }, [sessionId]);
+      .catch((error) => {
+        if (!controller.signal.aborted) setSessionError({ id: sessionId, message: error instanceof Error ? error.message : '加载问答会话失败' });
+      });
+    return () => controller.abort();
+  }, [sessionId, sessionReload]);
+
+  useEffect(() => () => abortRef.current?.abort(), [sessionId]);
+
+  const handleTaskUpdate = useCallback((t: TaskStatus) => {
+    setTask(t);
+    setPreprocessLoading(t.status === 'queued' || t.status === 'processing');
+    if (t.status === 'completed') {
+      setTranscript(t.transcript || t.raw_script || t.script || '');
+      setVideoTitle(t.video_title || '');
+    } else if (t.status === 'error') {
+      toast(t.error || '预处理失败', 'error');
+    }
+  }, []);
+  const handleTaskUnavailable = useCallback((error: Error) => {
+    setTaskId(null);
+    writeStoredId(qaTaskKey, null);
+    setPreprocessLoading(false);
+    toast(error.message, 'error');
+  }, []);
+  const taskConnection = useTaskProgress(sessionId ? null : taskId, handleTaskUpdate, handleTaskUnavailable);
 
   const handlePreprocess = async () => {
     const url = extractBilibiliUrl(input.trim());
@@ -71,28 +124,8 @@ export default function VideoQA() {
     setTranscript('');
     try {
       const res = await postFormData<{ task_id: string }>('/api/transcribe-only', { url });
+      writeStoredId(qaTaskKey, res.task_id);
       setTaskId(res.task_id);
-      connect(`/api/task-stream/${res.task_id}`, {
-        onMessage: (data) => {
-          const t = data as TaskStatus;
-          setTask(t);
-          if (t.status === 'completed') {
-            setTranscript(t.transcript || '');
-            setVideoTitle(t.video_title || '');
-            disconnect();
-            setPreprocessLoading(false);
-            toast('预处理完成，可以开始提问', 'success');
-          } else if (t.status === 'error') {
-            disconnect();
-            setPreprocessLoading(false);
-            toast(t.error || '预处理失败', 'error');
-          }
-        },
-        onError: () => {
-          setPreprocessLoading(false);
-          toast('连接中断', 'error');
-        },
-      });
     } catch (e) {
       toast(e instanceof Error ? e.message : '预处理失败', 'error');
       setPreprocessLoading(false);
@@ -103,7 +136,8 @@ export default function VideoQA() {
     if (!taskId) return;
     try {
       await deleteAPI(`/api/task/${taskId}`);
-      disconnect();
+      setTaskId(null);
+      writeStoredId(qaTaskKey, null);
       setPreprocessLoading(false);
       toast('已取消预处理', 'info');
     } catch (error) {
@@ -112,12 +146,13 @@ export default function VideoQA() {
   };
 
   const handleAsk = () => {
-    if (!question.trim() || !transcript || answering) return;
+    if (!question.trim() || !readyToAsk || isAnswering) return;
     const q = question.trim();
     setQuestion('');
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', content: q, timestamp: new Date() };
     const aiMsg: Message = { id: `a-${Date.now()}`, role: 'assistant', content: '', timestamp: new Date() };
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
+    setMessages((prev) => [...(messageSessionId === sessionId ? prev : []), userMsg, aiMsg]);
+    setMessageSessionId(sessionId);
     setAnswering(true);
 
     let fullAnswer = '';
@@ -128,52 +163,81 @@ export default function VideoQA() {
         const d = data as { content?: string; error?: string };
         if (d.error) {
           fullAnswer = `错误: ${d.error}`;
-          setMessages((prev) => {
-            const copy = [...prev];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], content: fullAnswer };
-            return copy;
-          });
+          setMessages((prev) => prev.map((message) => message.id === aiMsg.id ? { ...message, content: fullAnswer } : message));
           return;
         }
         if (d.content) {
           fullAnswer += d.content;
-          setMessages((prev) => {
-            const copy = [...prev];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], content: fullAnswer };
-            return copy;
-          });
+          setMessages((prev) => prev.map((message) => message.id === aiMsg.id ? { ...message, content: fullAnswer } : message));
         }
       },
-      () => setAnswering(false),
+      () => { setAnswering(false); if (sessionId) void loadRecentSessions(); },
       (err) => {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { ...prev[prev.length - 1], content: `错误: ${err.message}` },
-        ]);
+        setMessages((prev) => prev.map((message) => message.id === aiMsg.id ? { ...message, content: `错误: ${err.message}` } : message));
         setAnswering(false);
       },
     );
   };
 
-  const handleClear = async () => {
-    if (sessionId) {
-      try {
-        await deleteAPI(`/api/qa/sessions/${sessionId}`);
-        setSession(null);
-        setTranscript('');
-        navigate('/qa', { replace: true });
-      } catch (error) {
-        toast(error instanceof Error ? error.message : '删除会话失败', 'error');
-        return;
-      }
+  const handleNewConversation = () => {
+    abortRef.current?.abort();
+    setAnswering(false);
+    setSession(null);
+    setSessionError(null);
+    setTaskId(null);
+    writeStoredId(qaTaskKey, null);
+    setTask(null);
+    setPreprocessLoading(false);
+    setTranscript('');
+    setInput('');
+    setPreview(null);
+    setVideoTitle('');
+    setQuestion('');
+    setMessageSessionId(null);
+    setMessages([]);
+    navigate('/qa');
+  };
+
+  const handleOpenSession = (id: string) => {
+    abortRef.current?.abort();
+    setAnswering(false);
+    setSessionError(null);
+    setQuestion('');
+    navigate(`/qa?sessionId=${encodeURIComponent(id)}`);
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    if (!confirm('确认删除此问答会话及全部消息？此操作不可撤销。')) return;
+    setDeletingSessionId(id);
+    try {
+      await deleteAPI(`/api/qa/sessions/${encodeURIComponent(id)}`);
+      setRecentSessions((previous) => previous.filter((item) => item.id !== id));
+      if (id === sessionId) handleNewConversation();
+      toast('问答会话已删除', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '删除会话失败', 'error');
+    } finally {
+      setDeletingSessionId(null);
     }
+  };
+
+  const handleClear = () => {
+    if (sessionId) {
+      void handleDeleteSession(sessionId);
+      return;
+    }
+    abortRef.current?.abort();
+    setAnswering(false);
     setMessages([]);
   };
 
   return (
     <div className="flex h-full">
       <div className="w-96 border-r border-[var(--color-border)] bg-[var(--color-surface)] p-6 overflow-y-auto shrink-0">
-        <h2 className="text-lg font-semibold text-[var(--color-text)] mb-5">AI视频问答</h2>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-semibold text-[var(--color-text)]">AI视频问答</h2>
+          <button onClick={handleNewConversation} className="flex items-center gap-1 text-xs text-[var(--color-accent)]"><Plus size={13} /> 新问答</button>
+        </div>
 
         <div className="space-y-3">
           {sessionId && sessionLoading && (
@@ -182,11 +246,18 @@ export default function VideoQA() {
             </div>
           )}
 
-          {session && (
+          {sessionId && sessionError?.id === sessionId && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <p>{sessionError.message}</p>
+              <button onClick={() => { setSessionError(null); setSessionReload((value) => value + 1); }} className="mt-2 underline">重新加载会话</button>
+            </div>
+          )}
+
+          {activeSession && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-[var(--color-text)]">{session.title}</p>
-              <p className="text-[11px] text-[var(--color-text-muted)]">知识来源（{session.sources.length}）</p>
-              {session.sources.map((source) => (
+              <p className="text-sm font-medium text-[var(--color-text)]">{activeSession.title}</p>
+              <p className="text-[11px] text-[var(--color-text-muted)]">知识来源（{activeSession.sources.length}）</p>
+              {activeSession.sources.map((source) => (
                 <div key={source.short_id} className="p-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]">
                   <p className="text-xs text-[var(--color-text)] line-clamp-2">{source.title}</p>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
@@ -230,6 +301,8 @@ export default function VideoQA() {
               <div className="space-y-2">
                 <ProgressBar progress={task?.progress ?? 0} />
                 <p className="text-xs text-[var(--color-text-secondary)]">{task?.message || '预处理中...'}</p>
+                {taskConnection === 'retrying' && <p role="status" className="text-xs text-amber-700">状态连接中断，正在自动恢复，请勿重复提交。</p>}
+                {taskConnection === 'polling' && <p role="status" className="text-xs text-[var(--color-text-secondary)]">已恢复状态查询，正在同步进度。</p>}
                 <button
                   onClick={handleCancelPreprocess}
                   className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
@@ -260,16 +333,38 @@ export default function VideoQA() {
             </>
           )}
         </div>
+        <section className="mt-6 border-t border-[var(--color-border)] pt-4" aria-label="最近问答会话">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-[var(--color-text)]">最近会话</h3>
+            <button onClick={() => void loadRecentSessions()} disabled={recentLoading} aria-label="刷新最近会话" className="text-[var(--color-text-muted)] disabled:opacity-40"><RefreshCw size={13} className={recentLoading ? 'animate-spin' : ''} /></button>
+          </div>
+          {recentError && <p role="alert" className="mb-2 text-xs text-red-600">{recentError}，可点击刷新重试。</p>}
+          {!recentLoading && !recentError && recentSessions.length === 0 && <p className="text-xs text-[var(--color-text-muted)]">还没有保存的会话。可在历史记录中选择笔记发起知识问答。</p>}
+          <div className="space-y-2">
+            {recentSessions.map((item) => (
+              <div key={item.id} className={`flex items-center gap-2 rounded-lg border p-2 ${item.id === sessionId ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5' : 'border-[var(--color-border)]'}`}>
+                <button onClick={() => handleOpenSession(item.id)} className="min-w-0 flex-1 text-left" aria-label={`继续会话：${item.title}`}>
+                  <span className="flex items-center gap-1.5 text-xs text-[var(--color-text)]"><MessageCircle size={12} className="shrink-0" /><span className="truncate">{item.title}</span></span>
+                  <span className="mt-1 block text-[10px] text-[var(--color-text-muted)]">{item.source_count} 条笔记 · {item.message_count} 条消息</span>
+                </button>
+                <button onClick={() => void handleDeleteSession(item.id)} disabled={deletingSessionId === item.id || (isAnswering && item.id === sessionId)} aria-label={`删除会话：${item.title}`} className="p-1 text-[var(--color-text-muted)] hover:text-red-600 disabled:opacity-40">
+                  {deletingSessionId === item.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-surface)] shrink-0">
           <span className="text-sm font-medium text-[var(--color-text-secondary)]">
-            {transcript ? '对话' : '等待预处理...'}
+            {readyToAsk ? '对话' : sessionId ? '请选择或恢复问答会话' : '等待预处理...'}
           </span>
-          {messages.length > 0 && (
+          {visibleMessages.length > 0 && (
             <button
               onClick={handleClear}
+              disabled={Boolean(sessionId && isAnswering)}
               className="flex items-center gap-1 px-2.5 py-1 text-xs text-[var(--color-text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
             >
               <Trash2 size={12} />
@@ -279,20 +374,20 @@ export default function VideoQA() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 && (
+          {visibleMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <p className="text-sm text-[var(--color-text-muted)]">
-                {transcript ? '输入问题开始提问' : '请先完成视频预处理'}
+                {readyToAsk ? '输入问题开始提问' : sessionId ? '正在等待会话内容' : '请先完成视频预处理'}
               </p>
             </div>
           )}
-          {messages.map((m, i) => (
+          {visibleMessages.map((m, i) => (
             <ChatMessage
               key={m.id}
               role={m.role}
               content={m.content}
               timestamp={m.timestamp}
-              isStreaming={answering && i === messages.length - 1 && m.role === 'assistant'}
+              isStreaming={isAnswering && i === visibleMessages.length - 1 && m.role === 'assistant'}
             />
           ))}
           <div ref={msgEndRef} />
@@ -304,16 +399,16 @@ export default function VideoQA() {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-              placeholder={transcript ? '输入你的问题...' : '请先完成预处理'}
-              disabled={!transcript}
+              placeholder={readyToAsk ? '输入你的问题...' : '请先选择会话或完成预处理'}
+              disabled={!readyToAsk}
               className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/20 disabled:bg-[var(--color-bg)] disabled:text-[var(--color-text-muted)]"
             />
             <button
               onClick={handleAsk}
-              disabled={answering || !question.trim() || !transcript}
+              disabled={isAnswering || !question.trim() || !readyToAsk}
               className="w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40 transition-colors"
             >
-              {answering ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {isAnswering ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             </button>
           </div>
         </div>

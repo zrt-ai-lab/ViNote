@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 
 from backend.db.connection import get_db
+from backend.services.note_search import refresh_note_search, search_condition
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ async def save_note(
                  raw_transcript_file, json.dumps(warnings or [], ensure_ascii=False),
                  short_id),
             )
+            await refresh_note_search(db, short_id)
             await db.commit()
             return existing[0]
         else:
@@ -68,8 +70,10 @@ async def save_note(
                  batch_id, completed_at, raw_transcript_file,
                  json.dumps(warnings or [], ensure_ascii=False)),
             )
+            note_id = cursor.lastrowid
+            await refresh_note_search(db, short_id)
             await db.commit()
-            return cursor.lastrowid
+            return note_id
 
 
 async def list_notes(
@@ -104,8 +108,9 @@ async def list_notes(
             params.append(tag)
 
         if search:
-            where_clauses.append("n.title LIKE ?")
-            params.append(f"%{search}%")
+            condition, search_params = await search_condition(db, search)
+            where_clauses.append(condition)
+            params.extend(search_params)
 
         where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
@@ -128,7 +133,7 @@ async def list_notes(
             FROM notes n
             LEFT JOIN categories c ON n.category_id = c.id
             {where_sql}
-            ORDER BY n.{sort_by} {sort_order}
+            ORDER BY n.{sort_by} {sort_order}, n.id {sort_order}
             LIMIT ? OFFSET ?
         """
         offset = (page - 1) * page_size
@@ -270,8 +275,21 @@ async def update_note_artifacts(short_id: str, **artifacts: Optional[str]) -> bo
             f"UPDATE notes SET {', '.join(assignments)} WHERE short_id = ?",
             [*values.values(), short_id],
         )
+        updated = cursor.rowcount > 0
+        if updated:
+            await refresh_note_search(db, short_id)
         await db.commit()
-        return cursor.rowcount > 0
+        return updated
+
+
+async def list_note_artifacts() -> list[dict]:
+    """清理候选集使用真实产物记录，不依赖文件名反推笔记。"""
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT short_id, created_at, raw_transcript_file, transcript_file, "
+            "summary_file, mindmap_file, translation_file FROM notes"
+        )
+        return [dict(row) for row in await cursor.fetchall()]
 
 
 async def delete_note(short_id: str) -> bool:

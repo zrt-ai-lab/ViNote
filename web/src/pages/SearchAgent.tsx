@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { streamPost, postJSON, deleteAPI, downloadFile } from '../api/client';
+import { streamPost, postJSON, deleteAPI, downloadFile as fetchDownloadFile } from '../api/client';
 import ChatMessage from '../components/ChatMessage';
 import VideoCard from '../components/VideoCard';
 import ProgressBar from '../components/ProgressBar';
@@ -10,6 +10,15 @@ import type { AgentSSEData, AgentVideo, AgentVideoListData, AgentNotesData, Agen
 import { Send, Trash2, Loader2, Search, FileText, MessageCircle, Globe, ChevronDown, ChevronUp, Download, Brain, Maximize2, X } from 'lucide-react';
 
 const MarkmapView = lazy(() => import('../components/MarkmapView'));
+
+async function downloadFile(filename: string) {
+  try {
+    await fetchDownloadFile(filename);
+    toast('文件已下载', 'success');
+  } catch (error) {
+    toast(error instanceof Error ? error.message : '下载失败', 'error');
+  }
+}
 
 interface ChatMsg {
   id: string;

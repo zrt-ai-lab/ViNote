@@ -1,8 +1,18 @@
 const BASE = '';
 
+export class HttpError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
 async function responseError(res: Response, fallback: string): Promise<Error> {
   const payload = await res.json().catch(() => null) as { detail?: string; message?: string } | null;
-  return new Error(payload?.detail || payload?.message || `${fallback} (${res.status})`);
+  return new HttpError(payload?.detail || payload?.message || `${fallback} (${res.status})`, res.status);
 }
 
 export async function fetchJSON<T>(path: string, options?: RequestInit): Promise<T> {
@@ -67,6 +77,7 @@ export function streamPost(
         const lines = buffer.split(/\r?\n/);
         buffer = flush ? '' : (lines.pop() ?? '');
         for (const line of lines) {
+          if (controller.signal.aborted) return;
           if (!line.startsWith('data:')) continue;
           const payload = line.slice(5).trimStart();
           if (!payload) continue;
@@ -79,16 +90,17 @@ export function streamPost(
       };
       while (true) {
         const { done, value } = await reader.read();
+        if (controller.signal.aborted) return;
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         consumeLines();
       }
       buffer += decoder.decode();
       consumeLines(true);
-      onDone?.();
+      if (!controller.signal.aborted) onDone?.();
     })
     .catch((err: unknown) => {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (controller.signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) return;
       onError?.(err instanceof Error ? err : new Error(String(err)));
     });
   return controller;
@@ -117,13 +129,18 @@ export function createSSE(
   return es;
 }
 
-export function downloadFile(filename: string) {
+export async function downloadFile(filename: string): Promise<void> {
+  const response = await fetch(`/api/download/${encodeURIComponent(filename)}`);
+  if (!response.ok) throw await responseError(response, '下载失败');
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = `/api/download/${encodeURIComponent(filename)}`;
+  a.href = objectUrl;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export function proxyImageUrl(url: string): string {

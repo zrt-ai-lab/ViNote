@@ -101,11 +101,13 @@ exit /b 0
 set "APP_HOST=127.0.0.1"
 set "APP_PORT=8999"
 set "VIDEO_SEARCH_PROVIDERS=local"
+set "ASR_PROVIDER=whisper"
 set "OPENAI_API_KEY_VALUE="
-for /f "tokens=1,* delims==" %%a in ('findstr /r /b /c:"APP_HOST=" /c:"APP_PORT=" /c:"VIDEO_SEARCH_PROVIDERS=" /c:"OPENAI_API_KEY=" .env 2^>nul') do (
+for /f "tokens=1,* delims==" %%a in ('findstr /r /b /c:"APP_HOST=" /c:"APP_PORT=" /c:"ASR_PROVIDER=" /c:"VIDEO_SEARCH_PROVIDERS=" /c:"OPENAI_API_KEY=" .env 2^>nul') do (
     if "%%a"=="APP_HOST" set "APP_HOST=%%b"
     if "%%a"=="APP_PORT" set "APP_PORT=%%b"
     if "%%a"=="VIDEO_SEARCH_PROVIDERS" set "VIDEO_SEARCH_PROVIDERS=%%b"
+    if "%%a"=="ASR_PROVIDER" set "ASR_PROVIDER=%%b"
     if "%%a"=="OPENAI_API_KEY" set "OPENAI_API_KEY_VALUE=%%b"
 )
 powershell -NoProfile -Command "$p=0; if(-not [int]::TryParse($env:APP_PORT, [ref]$p) -or $p -lt 1 -or $p -gt 65535){exit 1}"
@@ -120,30 +122,52 @@ exit /b 0
 
 :install_backend
 echo [√] 使用 uv 安装后端依赖...
-uv sync --frozen
+set "UV_EXTRAS="
+if "%ASR_PROVIDER%"=="funasr" set "UV_EXTRAS=--extra funasr"
+if "%ASR_PROVIDER%"=="qwen3" set "UV_EXTRAS=--extra qwen3"
+if not "%ASR_PROVIDER%"=="whisper" if "%UV_EXTRAS%"=="" (
+    echo [X] ASR_PROVIDER 必须为 whisper、funasr 或 qwen3
+    exit /b 1
+)
+call :provider_enabled anp
+if not errorlevel 1 set "UV_EXTRAS=%UV_EXTRAS% --extra anp"
+uv sync --frozen %UV_EXTRAS%
 if errorlevel 1 (
     echo [X] uv sync --frozen 失败
     exit /b 1
 )
 echo [√] 后端依赖安装完成
+set "UV_NO_SYNC=1"
 exit /b 0
 
 :build_frontend
+node scripts\frontend_cache.mjs check-deps
+if not errorlevel 1 goto :frontend_deps_ready
 echo [√] 安装前端依赖...
 pushd web
-npm ci
+call npm ci
 if errorlevel 1 (
     popd
     echo [X] npm ci 失败
     exit /b 1
 )
-npm run build
+popd
+node scripts\frontend_cache.mjs mark-deps || exit /b 1
+:frontend_deps_ready
+node scripts\frontend_cache.mjs check-build
+if not errorlevel 1 (
+    echo [√] 前端已是最新，跳过构建
+    exit /b 0
+)
+pushd web
+call npm run build
 if errorlevel 1 (
     popd
     echo [X] 前端构建失败
     exit /b 1
 )
 popd
+node scripts\frontend_cache.mjs mark-build || exit /b 1
 echo [√] 前端构建完成 -^> static-build\
 exit /b 0
 

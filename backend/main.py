@@ -44,8 +44,9 @@ app.add_middleware(
     allow_headers=settings.CORS_HEADERS,
 )
 
-from backend.core.middleware import RateLimitMiddleware
+from backend.core.middleware import BrowserRequestMiddleware, RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware, calls=100, period=60)
+app.add_middleware(BrowserRequestMiddleware, allowed_origins=settings.CORS_ORIGINS, allowed_hosts=settings.ALLOWED_HOSTS)
 
 SPA_DIR = PROJECT_ROOT / "static-build"
 if SPA_DIR.exists():

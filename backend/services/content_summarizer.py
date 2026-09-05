@@ -11,10 +11,13 @@ from typing import Optional
 
 from backend.config.ai_config import get_openai_config
 from backend.core.ai_client import get_openai_client
+from backend.utils.text_processor import estimate_tokens, smart_chunk_text
 
 logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT_CHUNKS = 5
+MAX_MERGE_INPUT_CHARS = 10000
+MAX_MERGE_LEVELS = 8
 
 
 class ContentSummarizer:
@@ -193,28 +196,22 @@ Avoid using any subheadings or decorative separators, output content only."""
                         temperature=0.3,
                         timeout=60.0
                     )
-                    return response.choices[0].message.content
+                    content = (response.choices[0].message.content or "").strip()
+                    if not content:
+                        raise ValueError("分块摘要为空")
+                    return content
                 except Exception as e:
                     logger.error(f"摘要第 {i+1} 块失败: {e}")
                     self._warn("部分摘要生成失败，已使用原文片段")
-                    return f"第{i+1}部分内容概述：" + chunk[:200] + "..."
+                    return chunk
 
         chunk_summaries = await asyncio.gather(*[_summarize_chunk(i, c) for i, c in enumerate(chunks)])
         chunk_summaries = list(chunk_summaries)
 
-        combined_summaries = "\n\n".join([
-            f"[Part {idx+1}]\n{s}" for idx, s in enumerate(chunk_summaries)
-        ])
-
         logger.info("正在整合最终摘要...")
-        if len(chunk_summaries) > 10:
-            final_summary = await self._integrate_hierarchical_summaries(
-                chunk_summaries, target_language
-            )
-        else:
-            final_summary = await self._integrate_chunk_summaries(
-                combined_summaries, target_language
-            )
+        final_summary = await self._integrate_hierarchical_summaries(
+            chunk_summaries, target_language
+        )
 
         return self._format_summary_with_meta(final_summary, target_language, video_title)
     
@@ -224,6 +221,10 @@ Avoid using any subheadings or decorative separators, output content only."""
         target_language: str
     ) -> str:
         """整合分块摘要为最终连贯摘要"""
+        if len(combined_summaries) > MAX_MERGE_INPUT_CHARS:
+            return await self._integrate_hierarchical_summaries(
+                [combined_summaries], target_language
+            )
         language_name = self.language_map.get(target_language, "中文（简体）")
         
         try:
@@ -261,7 +262,10 @@ Requirements:
                 temperature=0.3
             )
             
-            return response.choices[0].message.content
+            content = (response.choices[0].message.content or "").strip()
+            if not content:
+                raise ValueError("整合摘要为空")
+            return content
             
         except Exception as e:
             logger.error(f"整合摘要失败: {e}")
@@ -273,63 +277,41 @@ Requirements:
         chunk_summaries: list,
         target_language: str
     ) -> str:
-        """分层整合大量分块摘要"""
-        combined = "\n\n".join([
-            f"[Part {i+1}]\n{s}" for i, s in enumerate(chunk_summaries)
-        ])
-        return await self._integrate_chunk_summaries(combined, target_language)
+        """逐层归并，任何一次模型请求的资料都不超过固定预算。"""
+        combined = "\n\n".join(
+            f"[Part {i + 1}]\n{summary.strip()}"
+            for i, summary in enumerate(chunk_summaries)
+            if summary and summary.strip()
+        )
+        if not combined:
+            return ""
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNKS)
+
+        async def merge_group(group: str) -> str:
+            async with semaphore:
+                return await self._integrate_chunk_summaries(group, target_language)
+
+        for _ in range(MAX_MERGE_LEVELS):
+            if len(combined) <= MAX_MERGE_INPUT_CHARS:
+                return await self._integrate_chunk_summaries(combined, target_language)
+            groups = smart_chunk_text(combined, MAX_MERGE_INPUT_CHARS)
+            merged = await asyncio.gather(*(merge_group(group) for group in groups))
+            next_level = "\n\n".join(merged)
+            if len(next_level) >= len(combined):
+                # 上游失败会返回原文；停止重试并完整保留已有材料，避免无限归并。
+                self._warn("摘要整合未能压缩内容，已保留分块结果")
+                return next_level
+            combined = next_level
+        self._warn("摘要内容较长，已保留分层整理结果")
+        return combined
     
     def _smart_chunk_text(self, text: str, max_chars_per_chunk: int = 3500) -> list:
-        """智能分块（先段落后句子）"""
-        chunks = []
-        paragraphs = [p for p in text.split('\n\n') if p.strip()]
-        cur = ""
-        
-        for p in paragraphs:
-            candidate = (cur + "\n\n" + p).strip() if cur else p
-            if len(candidate) > max_chars_per_chunk and cur:
-                chunks.append(cur.strip())
-                cur = p
-            else:
-                cur = candidate
-        
-        if cur.strip():
-            chunks.append(cur.strip())
-        
-        # 二次按句子切分过长块
-        final_chunks = []
-        for c in chunks:
-            if len(c) <= max_chars_per_chunk:
-                final_chunks.append(c)
-            else:
-                sentences = [
-                    s.strip() for s in re.split(r"[。！？\.!?]+", c) if s.strip()
-                ]
-                scur = ""
-                for s in sentences:
-                    candidate = (scur + '。' + s).strip() if scur else s
-                    if len(candidate) > max_chars_per_chunk and scur:
-                        final_chunks.append(scur.strip())
-                        scur = s
-                    else:
-                        scur = candidate
-                if scur.strip():
-                    final_chunks.append(scur.strip())
-        
-        return final_chunks
+        """复用无损且有长度上限的公共分块函数。"""
+        return smart_chunk_text(text, max_chars_per_chunk)
     
     def _estimate_tokens(self, text: str) -> int:
         """估算token数量"""
-        chinese_chars = sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
-        english_words = len([
-            word for word in text.split() if word.isascii() and word.isalpha()
-        ])
-        
-        base_tokens = chinese_chars * 1.5 + english_words * 1.3
-        format_overhead = len(text) * 0.15
-        system_prompt_overhead = 2500
-        
-        return int(base_tokens + format_overhead + system_prompt_overhead)
+        return estimate_tokens(text)
     
     def _format_summary_with_meta(
         self,

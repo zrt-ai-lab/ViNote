@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 import ast
+import argparse
 import re
 import sys
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "1.4.0"
+EXPECTED_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def read(relative_path: str, errors: list[str]) -> str:
@@ -244,6 +246,8 @@ def validate_launchers(errors: list[str]) -> None:
             errors.append(f"start.bat: missing {description}")
     if "正在释放" in windows:
         errors.append("start.bat: must not kill the process that already owns the configured port")
+    if re.search(r"^\s*npm\s+(ci|run)\b", windows_lower, re.MULTILINE):
+        errors.append("start.bat: npm.cmd calls must use call to return to the launcher")
 
 
 def validate_deployment_and_docs(errors: list[str]) -> None:
@@ -285,15 +289,36 @@ def validate_deployment_and_docs(errors: list[str]) -> None:
         errors.append("README.md: contains unsafe multi-worker guidance")
 
 
+def validate_wheel(path: Path, errors: list[str]) -> None:
+    try:
+        with ZipFile(path) as archive:
+            names = archive.namelist()
+    except (OSError, BadZipFile):
+        errors.append("wheel: missing or invalid archive")
+        return
+    if "backend/main.py" not in names:
+        errors.append("wheel: backend entrypoint is missing")
+    excluded_parts = {"tests", ".claude", ".codex", ".opencode", ".ai-frontend", "node_modules", "did_keys", "jwt_keys", "client_did_keys"}
+    if any(
+        excluded_parts.intersection(Path(name).parts)
+        or Path(name).name == ".env" or name.lower().endswith(".pem")
+        for name in names
+    ):
+        errors.append("wheel: development, environment or generated identity files must not be packaged")
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--wheel", type=Path, help="also inspect a built backend wheel")
+    args = parser.parse_args()
     errors: list[str] = []
     version_text = read("VERSION", errors)
-    if version_text.splitlines() != [EXPECTED_VERSION]:
-        errors.append("VERSION: must contain only 1.4.0")
+    if version_text.splitlines() != [EXPECTED_VERSION] or not re.fullmatch(r"\d+\.\d+\.\d+", EXPECTED_VERSION):
+        errors.append("VERSION: must contain a single semantic version")
 
     pyproject = read("pyproject.toml", errors)
     if parse_project_version(pyproject) != EXPECTED_VERSION:
-        errors.append("pyproject.toml: project version must be 1.4.0")
+        errors.append("pyproject.toml: project version must match VERSION")
 
     env_values = parse_env_example(read(".env.example", errors))
     expected_env = {
@@ -304,7 +329,7 @@ def main() -> int:
         "OPENAI_BASE_URL": "https://api.openai.com/v1",
         "OPENAI_MODEL": "gpt-4o",
         "ASR_PROVIDER": "whisper",
-        "ASR_MODEL": "base",
+        "ASR_MODEL": "",
         "ASR_MODEL_SOURCE": "huggingface",
         "ASR_MODEL_DIR": "",
         "ASR_DEVICE": "cpu",
@@ -325,6 +350,8 @@ def main() -> int:
     validate_python_sources(errors)
     validate_launchers(errors)
     validate_deployment_and_docs(errors)
+    if args.wheel:
+        validate_wheel(args.wheel, errors)
 
     if errors:
         for error in errors:

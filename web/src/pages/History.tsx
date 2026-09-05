@@ -161,11 +161,12 @@ export default function History() {
         clean_backups: type === 'backups',
         clean_all_notes: type === 'all_notes',
       };
-      const res = await postJSON<{ deleted_count: number; freed_size_display: string }>(
+      const res = await postJSON<{ deleted_count: number; freed_size_display: string; failed_note_ids?: string[]; skipped_note_ids?: string[] }>(
         '/api/storage/cleanup',
         body,
       );
-      toast(`已清理 ${res.deleted_count} 个文件，释放 ${res.freed_size_display}`, 'success');
+      const failedCount = res.failed_note_ids?.length ?? 0;
+      toast(`已清理 ${res.deleted_count} 个文件，释放 ${res.freed_size_display}${failedCount ? `；部分笔记清理失败，已保留 ${failedCount} 条` : ''}`, failedCount ? 'error' : 'success');
       loadStorageStats();
       if (type === 'all_notes') {
         setSelectedTaskId(null);
@@ -376,7 +377,7 @@ export default function History() {
         <div className="mb-4 flex gap-2">
           <input
             type="text"
-            placeholder="搜索标题..."
+            placeholder="搜索标题、摘要或正文..."
             onChange={(e) => handleSearchChange(e.target.value)}
             className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
           />

@@ -7,6 +7,7 @@ import uuid
 from backend.core.state import TEMP_DIR
 from backend.services.content_summarizer import ContentSummarizer
 from backend.services.note_repository import get_note, update_note_artifacts
+from backend.services.note_operations import cleanup_staging, finish_commit, note_operation
 from backend.services.text_optimizer import TextOptimizer
 
 
@@ -43,6 +44,11 @@ def _target_path(existing_filename: str | None, prefix: str, safe_title: str, sh
 
 
 async def regenerate_note(short_id: str, targets: list[str], language: str) -> dict:
+    async with note_operation(short_id):
+        return await _regenerate_note(short_id, targets, language)
+
+
+async def _regenerate_note(short_id: str, targets: list[str], language: str) -> dict:
     note = await get_note(short_id)
     if not note:
         raise ValueError("笔记不存在")
@@ -54,6 +60,7 @@ async def regenerate_note(short_id: str, targets: list[str], language: str) -> d
     optimizer = TextOptimizer()
     summarizer = ContentSummarizer()
     updated: dict[str, str] = {}
+    generated_files: dict[Path, str] = {}
 
     transcript = _read_artifact(note.get("transcript_file"))
     if "transcript" in targets:
@@ -63,9 +70,11 @@ async def regenerate_note(short_id: str, targets: list[str], language: str) -> d
         optimized = await optimizer.optimize_transcript(raw)
         if not optimized.strip():
             raise ValueError("重新整理笔记返回空内容")
+        if optimizer.warnings:
+            raise ValueError("AI 整理未完整成功，已保留原笔记，请稍后重试")
         transcript = f"# {title}\n\n> 🔗 **视频来源：** [点击观看]({url})\n\n---\n\n{optimized}\n\n---\n\n*整理时间：{now}*  \n*由 ViNote AI 自动生成*\n"
         path = _target_path(note.get("transcript_file"), "transcript", safe_title, short_id)
-        _atomic_write(path, transcript)
+        generated_files[path] = transcript
         updated["transcript_file"] = path.name
 
     summary = _read_artifact(note.get("summary_file"))
@@ -75,9 +84,11 @@ async def regenerate_note(short_id: str, targets: list[str], language: str) -> d
         generated = await summarizer.summarize(transcript, language, title)
         if not generated.strip():
             raise ValueError("重新生成摘要返回空内容")
+        if summarizer.warnings:
+            raise ValueError("AI 摘要未完整成功，已保留原笔记，请稍后重试")
         summary = f"# {title}\n\n> 🔗 **视频来源：** [点击观看]({url})\n\n---\n\n{generated}\n\n---\n\n*生成时间：{now}*  \n*由 ViNote AI 自动生成*\n"
         path = _target_path(note.get("summary_file"), "summary", safe_title, short_id)
-        _atomic_write(path, summary)
+        generated_files[path] = summary
         updated["summary_file"] = path.name
 
     if "mindmap" in targets:
@@ -86,10 +97,45 @@ async def regenerate_note(short_id: str, targets: list[str], language: str) -> d
         mindmap = await summarizer.generate_mindmap(summary, language)
         if not mindmap.strip():
             raise ValueError("重新生成思维导图返回空内容")
+        if summarizer.warnings:
+            raise ValueError("AI 导图未完整成功，已保留原笔记，请稍后重试")
         path = _target_path(note.get("mindmap_file"), "mindmap", safe_title, short_id)
-        _atomic_write(path, mindmap)
+        generated_files[path] = mindmap
         updated["mindmap_file"] = path.name
 
-    if not await update_note_artifacts(short_id, **updated):
-        raise ValueError("没有可更新的笔记产物")
+    await finish_commit(_commit_artifacts(short_id, generated_files, updated))
     return {"short_id": short_id, "updated": sorted(targets)}
+
+
+async def _commit_artifacts(short_id: str, generated: dict[Path, str], updated: dict[str, str]) -> None:
+    """Stage every new file before replacing originals; rollback only needs renames."""
+    staged: dict[Path, Path] = {}
+    backups: dict[Path, Path] = {}
+    installed: set[Path] = set()
+    committed = False
+    try:
+        for path, content in generated.items():
+            stage = path.with_suffix(path.suffix + f".{uuid.uuid4().hex}.stage")
+            staged[path] = stage
+            _atomic_write(stage, content)
+        for path, stage in staged.items():
+            if path.exists():
+                backup = path.with_suffix(path.suffix + f".{uuid.uuid4().hex}.backup")
+                path.replace(backup)
+                backups[path] = backup
+            stage.replace(path)
+            installed.add(path)
+        if not await update_note_artifacts(short_id, **updated):
+            raise ValueError("没有可更新的笔记产物")
+        committed = True
+    except BaseException:
+        for path in reversed(staged):
+            if path in backups:
+                backups[path].replace(path)
+            elif path in installed:
+                path.unlink(missing_ok=True)
+        raise
+    finally:
+        cleanup_staging(staged.values())
+        if committed:
+            cleanup_staging(backups.values())

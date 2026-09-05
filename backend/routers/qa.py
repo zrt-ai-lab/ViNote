@@ -16,6 +16,7 @@ from backend.core.state import (
 )
 from backend.core.errors import internal_error, task_failure
 from backend.services.media_ingestion import transcribe_local_media, transcribe_remote_media
+from backend.services.qa_retrieval import MAX_TRANSCRIPT_CHARS, build_qa_context, retrieval_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -31,12 +32,11 @@ class AskSessionRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
 
 
-async def _read_session_sources(session: dict) -> str:
-    """读取会话绑定的笔记文件，总上下文限制为 60000 字符。"""
+async def _read_session_sources(session: dict, question: str = "") -> str:
+    """完整读取来源并召回相关片段，避免首篇笔记占满所有上下文。"""
     from backend.services.note_repository import get_note
 
-    sections: list[str] = []
-    remaining = 60000
+    sources: list[dict] = []
     for source in session["sources"]:
         note = await get_note(source["short_id"])
         if not note:
@@ -50,15 +50,12 @@ async def _read_session_sources(session: dict) -> str:
         path = (TEMP_DIR / filename).resolve()
         if path.parent != TEMP_DIR.resolve() or not path.is_file():
             continue
-        content = path.read_text(encoding="utf-8").strip()
+        content = (await asyncio.to_thread(path.read_text, encoding="utf-8")).strip()
         if not content:
             continue
-        excerpt = content[:remaining]
-        sections.append(f"## 来源：{source['title']}\n{excerpt}")
-        remaining -= len(excerpt)
-        if remaining <= 0:
-            break
-    return "\n\n---\n\n".join(sections)
+        sources.append({**source, "content": content})
+    query = retrieval_query(question, session.get("messages"))
+    return await asyncio.to_thread(build_qa_context, sources, query)
 
 
 @router.post("/qa/sessions")
@@ -103,22 +100,25 @@ async def remove_qa_session(session_id: str):
 async def ask_qa_session(session_id: str, request: AskSessionRequest):
     from backend.services.qa_repository import add_message, get_session
 
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="问题不能为空")
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="问答会话不存在")
     if not get_video_qa_service().is_available():
         raise HTTPException(status_code=503, detail="AI服务暂时不可用，请稍后重试")
-    transcript = await _read_session_sources(session)
+    transcript = await _read_session_sources(session, question)
     if not transcript.strip():
         raise HTTPException(status_code=400, detail="所选笔记没有可用内容")
     history = session["messages"][-12:]
-    await add_message(session_id, "user", request.question.strip())
+    await add_message(session_id, "user", question)
 
     async def event_generator():
         answer_parts: list[str] = []
         try:
             async for content in get_video_qa_service().answer_question_stream(
-                request.question.strip(), transcript, history=history
+                question, transcript, history=history, prepared_context=True
             ):
                 answer_parts.append(content)
                 yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
@@ -281,7 +281,7 @@ async def video_qa_stream(request: Request):
             raise HTTPException(status_code=400, detail="问题不能为空")
         if not transcript:
             raise HTTPException(status_code=400, detail="转录文本不能为空")
-        if len(question) > 4000 or len(transcript) > 60000:
+        if len(question) > 4000 or len(transcript) > MAX_TRANSCRIPT_CHARS:
             raise HTTPException(status_code=400, detail="问题或转录内容过长")
         if not get_video_qa_service().is_available():
             raise HTTPException(status_code=503, detail="AI服务暂时不可用，请稍后重试")

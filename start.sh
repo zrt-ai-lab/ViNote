@@ -134,29 +134,38 @@ validate_config() {
 
 install_backend() {
     log "使用 uv 安装后端依赖..."
-    uv sync --frozen || err "uv sync --frozen 失败"
+    local asr_provider
+    local extras=()
+    asr_provider="$(read_env_value ASR_PROVIDER "whisper")"
+    case "$asr_provider" in
+        whisper) ;;
+        funasr|qwen3) extras+=(--extra "$asr_provider") ;;
+        *) err "ASR_PROVIDER 必须为 whisper、funasr 或 qwen3" ;;
+    esac
+    if provider_enabled "anp"; then extras+=(--extra anp); fi
+    uv sync --frozen "${extras[@]}" || err "uv sync --frozen 失败"
+    # 后续 uv run 保留刚刚按配置安装的可选依赖。
+    export UV_NO_SYNC=1
     log "后端依赖安装完成"
 }
 
 frontend_needs_build() {
-    if [ ! -f "static-build/index.html" ]; then
-        return 0
-    fi
-
-    if find web/src web/index.html web/package.json web/package-lock.json -type f -newer static-build/index.html | grep -q .; then
-        return 0
-    fi
-
-    return 1
+    ! node scripts/frontend_cache.mjs check-build
 }
 
 build_frontend() {
-    log "安装前端依赖..."
-    (cd web && npm ci) || err "npm ci 失败"
+    if ! node scripts/frontend_cache.mjs check-deps; then
+        log "安装前端依赖..."
+        (cd web && npm ci) || err "npm ci 失败"
+        node scripts/frontend_cache.mjs mark-deps || err "前端依赖状态记录失败"
+    else
+        log "前端依赖未变化，跳过安装"
+    fi
 
     if frontend_needs_build; then
         log "构建前端..."
         (cd web && npm run build) || err "前端构建失败"
+        node scripts/frontend_cache.mjs mark-build || err "前端构建状态记录失败"
         log "前端构建完成 -> static-build/"
     else
         log "前端已是最新，跳过构建"

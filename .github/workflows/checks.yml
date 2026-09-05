@@ -1,0 +1,84 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Regression (${{ matrix.os }}, Python 3.12)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHON_DOTENV_DISABLED: "1"
+      OPENAI_API_KEY: ""
+      UV_PYTHON: "3.12"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install locked backend dependencies
+        run: uv sync --frozen --python 3.12
+
+      - name: Run backend and launcher regressions
+        run: uv run --no-sync python -m unittest discover -s tests -v
+
+      - name: Validate release sources
+        run: uv run --no-sync python scripts/validate_release.py
+
+      - name: Build and validate backend package
+        run: |
+          uv build --wheel
+          uv run --no-sync python scripts/validate_release.py --wheel dist/*.whl
+
+      - name: Install locked frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Run frontend regressions
+        working-directory: web
+        run: npm test
+
+      - name: Lint frontend
+        working-directory: web
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build

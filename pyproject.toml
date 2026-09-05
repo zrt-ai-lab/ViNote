@@ -16,21 +16,17 @@ dependencies = [
     # AI & NLP
     "openai>=1.51.0",
     "pydantic>=2.7.0",
-    "torch>=2.1.0",
-    "funasr>=1.0.0",
-    "modelscope>=1.12.0",
-    "huggingface_hub>=0.24.0",
-    # ANP (Agent Network Protocol)
-    "anp>=0.4.0",
-    "cryptography>=46.0.0",
     # Utilities
     "aiosqlite>=0.20.0",
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
     "requests>=2.32.0",
-    "qwen-asr>=0.0.6",
-    "torchaudio>=2.10.0",
 ]
+
+[project.optional-dependencies]
+funasr = ["funasr>=1.0.0", "torch>=2.1.0", "torchaudio>=2.1.0", "modelscope>=1.12.0", "huggingface_hub>=0.24.0"]
+qwen3 = ["qwen-asr>=0.0.6", "torch>=2.1.0", "torchaudio>=2.10.0", "modelscope>=1.12.0", "huggingface_hub>=0.24.0"]
+anp = ["anp>=0.4.0", "cryptography>=46.0.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -41,3 +37,8 @@ dev-dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
+exclude = [
+    "backend/anp/did_keys/**",
+    "backend/anp/jwt_keys/**",
+    "backend/anp/client_did_keys/**",
+]

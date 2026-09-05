@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backend.core.ai_client import get_async_openai_client
 from backend.config.ai_config import get_openai_config
+from backend.utils.tool_arguments import parse_tool_arguments
 
 
 async def main():
@@ -102,7 +103,7 @@ async def main():
                 # 执行所有工具调用
                 for tool_call in response_message.tool_calls:
                     tool_name = tool_call.function.name
-                    tool_args = eval(tool_call.function.arguments)
+                    tool_args = parse_tool_arguments(tool_call.function.arguments)
 
                     print(f"🔧 调用工具: {tool_name}")
                     print(f"   参数: {tool_args}")
