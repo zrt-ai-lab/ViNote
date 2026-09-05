@@ -55,3 +55,31 @@
 | 归因口径 | Harness 默认 AI |
 | 证据来源 | refs/notes/ai-engineering-harness；AgentBlame（可选增强） |
 <!-- ai-engineering-harness:core-stability:end -->
+
+<!-- ai-engineering-harness:reliability-usability:start -->
+### reliability-usability — 2026-09-05
+
+| 效能项 | 数据 |
+|---|---|
+| 需求摘要 | 优化 ViNote 项目，保留核心功能，改善内容完整性、数据一致性、检索问答和安装体验。 |
+| 验收情况 | 未单独提供 |
+| 验证结论 | 同一代码89项后端、9项前端、8场景浏览器、媒体HTTP链路、lint、build及发布包校验通过。 |
+| 提交记录 | 0d45bbcf feat(vinote): 优化长文处理、任务恢复和全文搜索 |
+| 开发 Step | implement |
+| 新增代码行数 | 1588 |
+| 删除代码行数 | 535 |
+| 测试新增行数 | 1600 |
+| 代码文件触达数 | 43 |
+| Input Tokens | 14161192 |
+| Cached Input Tokens | 13628800 |
+| Uncached Input Tokens | 532392 |
+| Output Tokens | 62739 |
+| Total Tokens | 14223931 |
+| 开发时长（秒） | 2258.048 |
+| AI代码行 | 3188 |
+| Human代码行 | 0 |
+| Unknown代码行 | 0 |
+| AI代码占比（记录口径） | 100.0% |
+| 归因口径 | Harness 默认 AI（非精确测量） |
+| 证据来源 | refs/notes/ai-engineering-harness |
+<!-- ai-engineering-harness:reliability-usability:end -->
