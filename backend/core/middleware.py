@@ -12,6 +12,34 @@ from starlette.middleware.base import BaseHTTPMiddleware
 logger = logging.getLogger(__name__)
 
 
+class BrowserRequestMiddleware(BaseHTTPMiddleware):
+    """Reject cross-site browser mutations; CLI requests do not need cookies/tokens."""
+
+    def __init__(self, app, allowed_origins: list[str], allowed_hosts: list[str] | None = None):
+        super().__init__(app)
+        self.allowed_origins = {origin.rstrip("/") for origin in allowed_origins if origin != "*"}
+        self.allowed_hosts = {host.lower().strip("[]") for host in (allowed_hosts or ["localhost", "127.0.0.1", "::1"])}
+
+    async def dispatch(self, request: Request, call_next):
+        # Do not trust an arbitrary Host as same-origin: a DNS-rebinding page
+        # can address loopback while supplying its own hostname.
+        if "*" not in self.allowed_hosts and (request.url.hostname or "").lower() not in self.allowed_hosts:
+            return JSONResponse(status_code=400, content={"detail": "访问主机不在 ALLOWED_HOSTS 中"})
+        if request.url.path.startswith("/api/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = request.headers.get("origin")
+            same_origin = str(request.base_url).rstrip("/")
+            denied = origin is not None and origin.rstrip("/") not in self.allowed_origins | {same_origin}
+            if origin is None and request.headers.get("sec-fetch-site") == "cross-site":
+                denied = True
+            if denied:
+                return JSONResponse(status_code=403, content={"detail": "不允许来自该网页来源的写操作"})
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     滑动窗口速率限制中间件

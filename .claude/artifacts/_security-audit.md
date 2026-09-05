@@ -247,3 +247,104 @@
 | 仓库清理 | 通过 | Git 跟踪文件中没有 test、demo、example、deprecated 或 backup 候选目录/文件 |
 
 动态复验：`compileall`、发布校验、ESLint、Vite 生产构建、真实 HTTP 404、健康检查、本地字幕视频生成、SQLite 状态回读、三类内容读取与定向删除均通过。Vite 仅报告两个非阻断大 chunk 提示，Markmap 已独立懒加载，未通过抬高阈值隐藏告警。
+
+## reliability-usability / API STRICT audit（2026-09-05）
+
+本节是本次更新的独立复验记录。上方 `core-stability` 等区块属于历史版本证据，其“继续有效”“无测试文件”“无阻断项”等表述不代表本次版本的当前结论；本节保留历史原文，不追写或改写旧结论。
+
+- Route：`20260905T022746Z-5180`；feature：`reliability-usability`；风险：`STRICT`；audit scope：`both`。
+- 技术栈：Python / FastAPI / SQLite（aiosqlite，新增全文索引）；本节负责服务端 API 范围。
+- 主审接口：`tasks` 12 个、`storage` 3 个、`qa` 7 个、`note_actions` 1 个、`downloads` 5 个，共 28 个。共同的 `main`、`middleware`、图片代理、文件工具、部署配置，以及保留支持的 ANP 命令行客户端纳入相关边界复验。
+- 审核方式：已完整读取 `api-security-audit` 技能与其阶段、规则、报告引用；逐项源码审查、无外部请求的 ASGI 检查、临时目录/SQLite 回归。未读取 `.env` 值，未使用真实 LLM、视频源或用户业务数据库。
+- 结论：在默认本机可信单用户部署范围内完成复验，21 项通过、13 项不适用、1 项需确认适用边界。已发现的 ANP 动态执行、文件目录边界、跨站写操作、Host 伪同源与数据一致性问题均已修复并复验；未发现该范围内尚未修复的 CRITICAL 问题。规则 28 的远程非可信媒体出网隔离不在本次实现能力内，不能将该边界表述为“风险已接受”或“公网多人部署安全通过”。
+
+### 35 项服务端/API 规则
+
+以下代码位置均相对项目根目录；行号对应本次工作树源码。
+
+| # | 规则 | 风险等级 | 结果 | 当前证据与排除理由 |
+|---|------|----------|------|--------------------|
+| 1 | SQL 注入 | CRITICAL | 通过 | `backend/services/note_repository.py:95-113,255-282` 对排序/列名使用白名单，对值使用参数绑定；`backend/services/note_search.py:97-116` 参数化检索并按字面转义 LIKE 通配符。 |
+| 2 | XML 注入 | HIGH | 不适用 | 影响范围没有接收用户 XML 的解析器或 XML 上传入口。 |
+| 3 | OS 命令注入 | CRITICAL | 通过 | `backend/utils/file_handler.py:48-54,126-134,161-170` 等 ffmpeg/ffprobe 调用使用 `create_subprocess_exec` 参数数组，没有 shell 字符串拼接。 |
+| 4 | CSV 注入 | MEDIUM | 不适用 | 本次 API 没有 CSV/Excel 导出，Markdown 下载不作为电子表格执行。 |
+| 5 | 代码执行 | CRITICAL | 已修复通过 | `backend/anp/search_client_agent.py:106` 移除对 LLM 工具参数的 `eval`；`backend/utils/tool_arguments.py:5-9` 只解析 JSON 对象。合法对象、Python 表达式拒绝且未执行、非对象 JSON 拒绝的 3 条测试通过。 |
+| 6 | 反序列化 | CRITICAL | 通过 | 本次输入使用 JSON/Pydantic；相关源码未发现不可信输入进入 pickle、marshal 或不安全 YAML 加载器。ANP 工具参数已按 JSON 数据处理。 |
+| 7 | 服务端输出型 XSS | HIGH | 不适用 | 本次 API 输出 JSON、SSE 或 Markdown 文件；服务端 HTML 为固定 SPA 构建产物，不拼接用户数据。浏览器 DOM 渲染由前端复验负责。 |
+| 8 | 服务端 CSRF | HIGH | 已修复通过 | `backend/core/middleware.py:23-35` 同时检查 Host 与写请求 Origin；不可信 Origin 的表单 POST 返回 403，不可信 Host 即使携带伪同源 Origin 也返回 400，均未创建任务；可信 localhost 同源请求保持 200。 |
+| 9 | OAuth 回调 CSRF | HIGH | 不适用 | 项目没有 OAuth 登录、授权码回调或 redirect_uri 接口。 |
+| 10 | JSON 响应安全 | MEDIUM | 通过 | FastAPI 正确声明 JSON 类型；`backend/core/middleware.py:36-39` 为正常响应补充 nosniff、SAMEORIGIN 和 Referrer-Policy；CORS 限定来源且不启用 Cookie 凭证。 |
+| 11 | 服务端开放重定向 | MEDIUM | 不适用 | 主审 API 不提供用户控制的 Location/3xx 跳转；图片代理在服务端跟随重定向并逐跳检查。 |
+| 12 | 会话管理漏洞 | HIGH | 不适用 | 当前是本地单用户应用，没有登录 Cookie/JWT；QA session 是问答业务记录，不是认证会话，不能据此套用登录会话超时结论。 |
+| 13 | 权限绕过 | CRITICAL | 不适用 | 当前没有用户、租户或角色模型，不把同一可信操作者访问本地数据误报为多租户越权。直接向非可信远程用户开放不在本节安全结论内。 |
+| 14 | 弱口令登录 | HIGH | 不适用 | 没有账号密码登录接口或默认登录账户。 |
+| 15 | 暴力破解/短信轰炸 | HIGH | 不适用 | 没有登录、短信或验证码发送接口；普通 API 的请求限流仍由公共中间件提供。 |
+| 16 | 逻辑漏洞 | HIGH | 已修复通过 | `backend/routers/storage.py:227-254` 用整条笔记候选集同步文件与数据库；任一较新产物使整组保留。`backend/routers/tasks.py:314-316` 限制检索长度与分页；批量任务最多 20 条，QA 来源最多 5 条。 |
+| 17 | 条件竞争 | HIGH | 已修复通过 | `backend/services/note_operations.py:15-34` 为同笔记的重生成、单删与批量清理提供共同锁，并等待提交/回滚后才响应取消；失败回滚与删除等待重生成测试通过。此锁对应现有单进程部署，不是分布式锁。 |
+| 18 | 任意文件上传 | CRITICAL | 不适用 | 本次 API 没有 HTTP 文件上传入口；指定本地媒体路径是项目明确支持的本机能力。 |
+| 19 | 任意文件包含 | CRITICAL | 通过 | 影响范围仅固定模块导入，没有把请求参数作为 include/import 或模板路径执行。 |
+| 20 | 任意文件读取 | HIGH | 已修复通过 | `backend/routers/downloads.py:76-80,126-131`、`backend/core/state.py:171-175` 使用 resolve 后的严格父目录检查；`backend/routers/tasks.py:348,384-387,395` 三个历史内容读取分支已统一目录校验；QA 和全文索引也限制产物目录。同前缀兄弟目录 symlink 回归由失败转为拒绝。 |
+| 21 | 任意文件删除 | HIGH | 已修复通过 | `backend/routers/storage.py:267-305,321` 起检查 ID、目录与产物，按笔记锁执行整组操作；不接收任意删除路径，文件或数据库失败恢复原内容并保留记录。 |
+| 22 | 任意文件写入 | CRITICAL | 通过 | `backend/services/note_regenerator.py:14-43,113` 起限制已有产物目录并构造安全目标名；全部生成成功后先暂存，备份旧文件再替换，失败通过 rename 恢复。API 不允许客户端指定任意输出目录。 |
+| 23 | 敏感信息泄露 | HIGH | 通过（本次代码范围） | 影响 API 的服务器异常对外使用固定错误消息，未新增凭证响应；本次审查未读取、输出 `.env` 值或真实凭证。发布文件脱敏结果应结合本次主代理发布扫描，而非引用旧版本结论。 |
+| 24 | 源码泄露 | HIGH | 通过 | `backend/main.py:92-98` 静态文件严格限制在 `static-build`；`.git`、`.env` 不作为源码文件返回；`.dockerignore` 排除开发上下文、测试、临时数据和私钥目录。 |
+| 25 | HTTP 响应拆分 | MEDIUM | 通过 | `backend/routers/downloads.py:81-94` 对下载文件名进行 UTF-8 URL 编码，ASCII fallback 去除 CR/LF/引号；其他相关响应头为固定值。 |
+| 26 | 安全配置错误 | HIGH | 已修复通过 | `backend/config/settings.py:35-49` 默认 loopback、显式 Host 列表和限定 CORS；`backend/core/middleware.py:23-39` 验证浏览器边界并补安全头；默认 debug 关闭。 |
+| 27 | 组件漏洞 | HIGH | 通过（默认后端依赖） | 主代理最新实际执行的默认 `.venv` `pip-audit` 结果为 0 个已知漏洞；`vinote` 是当前本地项目而非 PyPI 发布包，因此被扫描器跳过。此结论不外推为所有可选 ASR/ANP extra 均已审计。前端依赖由前端专项记录，见下方交接信息。 |
+| 28 | SSRF | HIGH | 需确认部署边界 | `backend/routers/proxy.py:24-48,68-87` 对图片实施域名白名单、公网 IP 和逐跳检查；`backend/services/video_downloader.py:107-115` 的通用媒体 URL 仍交由 yt-dlp，没有内网目标与完整跳转/DNS 链出站隔离。本次维持可信操作者指定媒体地址的本机功能；不能宣称已支持非可信远程媒体请求安全隔离，也未代用户接受该风险。 |
+| 29 | 数据库权限配置不当 | HIGH | 不适用 | 使用本地 SQLite 文件，没有网络数据库账户、root/sa 数据库凭据或公开数据库监听端口；文件访问权限继承运行用户。 |
+| 30 | 服务器可疑文件 | MEDIUM | 通过 | `.dockerignore` 排除 tests、temp、业务数据、私钥和开发工具目录；暂存/备份扩展名不满足 Markdown 下载校验，且 temp 不在 SPA 静态目录。 |
+| 31 | 服务端解析漏洞 | HIGH | 不适用 | 项目没有 Nginx/Apache/PHP 脚本解析配置；媒体解码器的已知组件漏洞应归规则 27，不以本项声称已覆盖所有原生解码器漏洞。 |
+| 32 | FastCGI 解析漏洞 | HIGH | 不适用 | 不使用 PHP/FastCGI。 |
+| 33 | 高危应用服务对外暴露 | CRITICAL | 已修复通过（默认部署） | `docker-compose.yml:22` 默认绑定 `127.0.0.1`；Host 白名单限制浏览器请求。README 说明显式开放部署的可信访问前提，不能据配置可改写而声称公网多人安全。 |
+| 34 | 企业威胁情报 | MEDIUM | 通过（依赖来源与完整性范围） | 当前 uv/npm 锁文件保留版本与完整性信息，默认后端已由主代理完成最新漏洞扫描。没有据此保证不存在尚未披露的恶意包或供应链攻击；可选 extra 不外推为全部验证。 |
+| 35 | 其他 | MEDIUM | 通过（影响范围） | 请求 ID/文件名正则没有发现嵌套量词型回溯；检索与分页输入有界；SSE 使用 JSON 编码而非拼接执行；ANP 参数表达式不再执行。 |
+
+### 修复与验证证据
+
+- `tests/test_storage_regeneration.py`：26/26 通过。包括时间范围清理、标签保留、同笔记新旧产物整组保留、部分清理失败、文件/数据库删除失败恢复、生成阶段失败、降级拒绝覆盖、暂存写入与替换失败恢复、新产物回滚、取消期间一致性、删除与重生成互斥、正常/越界下载、ANP 参数不执行。
+- 使用真实临时 SQLite 验证全文索引事务：`refresh_note_search` 已写入新索引后模拟异常，笔记字段、索引及 Markdown 均回到旧版本；成功生成的新正文可以检索，旧摘要不再命中。
+- 文件提交先暂存全部新产物/备份，再替换和提交数据库；正常异常通过 rename 恢复原文件，避免回滚依赖再次写入原始全文。没有承诺进程断电或文件系统不可恢复故障的跨介质原子事务。
+- 无外部网络的 ASGI 检查：不可信 Origin + localhost 返回 403；不可信 Host + 伪同源 Origin 返回 400；可信 localhost 同源返回 200。任务创建已 mock，检查没有产生真实后台任务。
+- 下载同前缀 symlink：修复前无异常返回、回归失败；修复后返回 400/403，普通 Markdown/视频下载仍可用。
+- 本节不创建 `audit-record` 或 `passed` 私有回执；由主代理结合前端复验、依赖结果和剩余边界完成汇总。
+
+### 前端依赖交接（非本节独立前端全审）
+
+主代理提供的最新前端依赖复验结果为 2 个 moderate、0 个 high、0 个 critical，涉及现有 React Router 6 依赖链；本次未将其跨主版本升级到 React Router 7。这里记录的是当前已知结果与未实施的兼容性升级，不代表风险已由用户接受。前端 12 项规则及客户端源码结论应由前端代理复验结果另行追加，本节不凭后端阅读声称完成前端全量审核。
+
+## reliability-usability frontend 专项复验（2026-09-05）
+
+本节由前端代理追加，按 `ai-frontend-standard` 的 12 项前端安全规则复验本次 `web` 改动及关联调用链；不替代上方 API 审计，也不外推为公网多用户部署安全承诺。审查与测试未读取或使用真实 LLM 密钥，保留现有 React 19、Tailwind 4 及本地 UI 组件方案，未添加运行时或测试依赖。
+
+### 前端 12 项安全规则
+
+| # | 规则 | 风险级别 | 结论 | 源码依据与适用边界 |
+| --- | --- | --- | --- | --- |
+| 1 | XSS | HIGH | 通过（本次范围） | `web/src/components/MarkdownRenderer.tsx` 使用 ReactMarkdown/GFM，未启用原始 HTML；新会话列表、错误提示与任务状态使用普通 JSX。相关源码未发现 `innerHTML` 或 `dangerouslySetInnerHTML`。 |
+| 2 | 客户端代码执行 | CRITICAL | 不适用 | 相关前端源码未发现 `eval`、`new Function` 或字符串定时器；SSE 事件按 JSON 数据解析，不作为代码执行。 |
+| 3 | 硬编码敏感信息 | CRITICAL | 通过（本次代码范围） | 对 `web/src` 与 `web/index.html` 的凭证模式检查无命中；本次未加入、读取或输出真实凭证。此结论不代替整个发布仓库的脱敏扫描。 |
+| 4 | 敏感信息存储 | HIGH | 通过 | `web/src/utils/taskRecovery.ts` 仅读写格式受限的任务、批次及焦点 ID；恢复键为 `vinote.note.task-id`、`vinote.note.batch-id`、`vinote.note.focused-id`、`vinote.qa.task-id`，不保存来源 URL、正文、回答或 LLM 配置。存储被禁用/写入失败时不阻断业务，已有回归测试。 |
+| 5 | 开放重定向 | MEDIUM | 通过（当前调用方式） | `web/src/pages/VideoQA.tsx` 使用固定内部路由与编码后的 session ID；`web/src/api/client.ts` 从固定同源下载路径取得 Blob，文件名经 `web/src/utils/taskRecovery.ts` 的 basename/扩展名校验。未新增不可信目标跳转；React Router 依赖层面的已知问题单列于规则 8，并未修复。 |
+| 6 | postMessage 安全 | HIGH | 不适用 | 本次及关联前端源码没有跨窗口 `postMessage` 通信。 |
+| 7 | CSRF 客户端防护 | HIGH | 通过（现有同源契约） | `web/src/api/client.ts` 沿用同源请求，没有新增跨域凭证发送或自创认证协议；当前项目无登录 Cookie 模型。服务端 Host/Origin 校验及其实际请求证据见上方 API 审计，不以客户端禁用按钮充当 CSRF 防护。 |
+| 8 | 第三方依赖漏洞 | HIGH | 保留 2 项 moderate，未修复 | 实际执行 `npm audit --omit=dev --registry=https://registry.npmjs.org --json`，结果为 2 moderate、0 high、0 critical，涉及 `react-router-dom` / `react-router` 同一依赖链。现有 SPA 使用 BrowserRouter、固定内部导航且无 SSR，收窄直接触发面，但不能据此视作修复或用户接受。详见下方依赖边界。 |
+| 9 | CSV 注入 | MEDIUM | 不适用 | 本次导出为 Markdown/既有媒体下载，没有 CSV 或电子表格导出路径。 |
+| 10 | 第三方外部脚本 | MEDIUM | 通过 | `web/index.html` 的入口为本地 `/src/main.tsx`，生产由 Vite 打包；本次没有引入远程脚本或新的外部脚本信任边界。 |
+| 11 | 调试信息与源码映射泄露 | MEDIUM | 通过（本次构建） | 相关源码未发现 `debugger` 或敏感控制台输出；本次 `static-build` 中未检出 `.map` 文件。错误 UI 使用业务异常提示，不新增配置或凭证调试输出。 |
+| 12 | 仅前端权限控制 | HIGH | 不适用（单用户边界） | 项目没有用户/租户/角色模型；新增按钮禁用仅表达进行中状态，删除成功与否以服务端结果为准，失败保留会话。不能把本地单用户流程视作对非可信远程用户的授权隔离。 |
+
+### 依赖已知问题与未实施范围
+
+- React Router 开放重定向：[GHSA-wrjc-x8rr-h8h6](https://github.com/advisories/GHSA-wrjc-x8rr-h8h6)，涉及 Link/useNavigate 反斜杠输入路径。
+- React Router SSR hydration 反序列化构造器注入：[GHSA-337j-9hxr-rhxg](https://github.com/advisories/GHSA-337j-9hxr-rhxg)。当前前端不使用 SSR，但安装版本仍被审计标记。
+- 扫描器给出的修复升级包含 React Router 7 的跨主版本变更；本次未为消除告警直接引入该兼容性变更。上述 2 项 moderate 仍需后续升级及路由回归，不代表风险已由用户接受。
+
+### 质量门禁与业务验证证据
+
+- 前端代理实际执行 `npm test`：9/9 通过，覆盖真实/旧结果下载文件名、路径拒绝、ID 恢复与存储失败、下载成功/404、SSE 分片和 Unicode/CRLF/尾事件、取消后丢弃残余事件、SSE 断线转轮询、串行轮询与临时错误重试、404 停止重试及卸载后禁止状态更新。
+- 前端代理实际执行 `npm run lint`、`npm run build`、`git diff --check -- web`：均通过。Vite 仍有现有大 chunk 提示；本节不将构建成功等同于消除体积优化空间。
+- 主代理提供的实际全栈浏览器复验：8 个场景全部通过，未出现 `pageerror`。覆盖 fake LLM 问答晚段召回、SQLite 保存与继续会话、确认删除失败时保留/成功时移除、下载成功与 404 提示、任务 SSE 断线后状态轮询、页面刷新任务恢复、批次恢复、历史正文/摘要全文检索及 HTTP 分页边界。此处明确区分主代理的浏览器证据与前端代理的单元/构建证据；未据 fake LLM 测试宣称真实外部模型回答质量已完成验证。
+- 新任务恢复仅存 ID，临时网络中断不再直接标记业务失败；下载仅在 HTTP 成功并触发 Blob 下载后提示成功；会话切换/删除/离开页面取消旧串流，防止旧回答污染新会话。历史清理根据 `failed_note_ids` 显示部分失败并保留记录，不误报全部成功。
+
+结论：本次变更范围未发现未修复的 CRITICAL/HIGH 客户端问题；仍保留上述 2 项 moderate 依赖告警。安全结论受本地可信单用户部署边界约束，不构成零风险、全部依赖已修复或用户已接受剩余风险的声明。

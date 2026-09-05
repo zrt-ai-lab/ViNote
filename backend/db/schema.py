@@ -111,6 +111,9 @@ async def init_db():
                 "ALTER TABLE notes ADD COLUMN warnings_json TEXT NOT NULL DEFAULT '[]'"
             )
 
+        from backend.services.note_search import init_search_schema
+        await init_search_schema(db)
+
         # 兼容升级前已存在的 raw_*.md，不要求用户重新转录。
         cursor = await db.execute(
             "SELECT short_id FROM notes WHERE raw_transcript_file IS NULL"

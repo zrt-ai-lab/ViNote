@@ -68,3 +68,13 @@ backend/anp/client_did_keys/
 
 # uv 缓存
 .uv
+
+# 开发验证与本地工具上下文不进入运行镜像
+tests/
+web/tests/
+.github/
+.claude/
+.ai-frontend/
+.codex/
+.opencode/
+.githooks/

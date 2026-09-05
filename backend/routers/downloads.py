@@ -70,7 +70,12 @@ async def download_stream(download_id: str):
 async def get_download_file(download_id: str):
     try:
         file_path = get_video_download_service().get_file_path(download_id)
-        if not file_path or not Path(file_path).exists():
+        if not file_path:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        file_path = Path(file_path).resolve()
+        if file_path.parent != (TEMP_DIR / "downloads").resolve():
+            raise HTTPException(status_code=403, detail="访问被拒绝")
+        if not file_path.is_file():
             raise HTTPException(status_code=404, detail="文件不存在")
 
         filename = Path(file_path).name
@@ -121,7 +126,7 @@ async def download_file(filename: str):
         file_path = (TEMP_DIR / filename).resolve()
         temp_dir_resolved = TEMP_DIR.resolve()
 
-        if not str(file_path).startswith(str(temp_dir_resolved)):
+        if file_path.parent != temp_dir_resolved:
             logger.warning(f"路径遍历尝试: {filename} -> {file_path}")
             raise HTTPException(status_code=403, detail="访问被拒绝")
 

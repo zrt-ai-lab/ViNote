@@ -12,3 +12,16 @@
 | 无 LLM 本地视频 | 未配置 OpenAI，提交带内嵌字幕的本地视频 | 任务完成并生成非空原文、整理稿和摘要，返回固定降级提示 |
 | 完成状态回读 | 任务完成并从内存转入 SQLite 后，继续用完整任务 UUID 查询 | `warnings`、降级完成文案和 32 位笔记 ID 保持一致 |
 | 任务产物清理 | 删除刚完成的任务存储 | 仅删除该笔记的原文、整理稿、摘要和翻译，不影响其他记录 |
+
+## reliability-usability（本地隔离验收）
+
+当前执行结果与边界见 `features/reliability-usability/verification.md`；历史表格不作为本轮全部外部能力均已执行的证明。
+
+| 验收项 | 执行证据 | 预期 |
+| --- | --- | --- |
+| AC-1 / AC-4 | `test_text_quality.py`、`test_qa_retrieval.py` | 分段不丢字；摘要输入有界；多来源及尾部召回；卡片首中尾采样 |
+| AC-2 | `test_storage_regeneration.py` | 清理整条笔记；文件/数据库/全文索引异常恢复；同笔记操作串行化 |
+| AC-3 / AC-5 | `browser_smoke.py`、前端9条回归 | 实际文件名下载；失败明确；任务/批次恢复；持久会话继续及确认删除 |
+| AC-6 | `test_search_downloads.py`、`browser_smoke.py` | 标题/原文/摘要检索、旧数据回填、分页及兼容模式 |
+| AC-7 / AC-8 | `test_asr_config.py`、`test_launchers.py`、发布校验 | provider默认与目录优先；缓存正确失效；运行包排除测试与私人数据 |
+| 本地业务联调 | `media_smoke.py` | 合成字幕视频完成笔记、存储、索引与下载；未配置 LLM 时明确提示降级 |

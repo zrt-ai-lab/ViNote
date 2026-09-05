@@ -70,6 +70,7 @@ ViNoter · 超级视记Agent
 - **分类管理**: 17 个预置系统分类 + 自定义分类，笔记一目了然
 - **标签系统**: AI 自动打标签 + 手动编辑，灵活组织知识
 - **交叉筛选**: 按分类、标签、关键词多维度快速检索
+- **全文搜索**: 关键词可匹配标题、原始转录、整理笔记和摘要；旧笔记启动后自动建立索引
 
 ### 💾 SQLite 持久化存储
 - **可靠存储**: 已完成笔记存入 SQLite，告别 JSON 文件丢失风险
@@ -87,6 +88,8 @@ ViNoter · 超级视记Agent
 ### 🐳 方式一：Docker 部署（推荐）
 
 Docker 方式不需要在宿主机安装 Python、Node.js 或 FFmpeg。
+
+这是单用户工具，没有账号权限隔离。默认只监听本机；不要直接暴露到公网。需要可信局域网或反向代理访问时，可在 `.env` 设置 `APP_BIND_HOST=0.0.0.0`（Docker），把实际访问域名/IP加入 `ALLOWED_HOSTS`（默认 `localhost,127.0.0.1,::1`），并在入口配置访问控制；跨域前端需把准确来源加入 `CORS_ORIGINS`。
 
 ```bash
 git clone https://github.com/zrt-ai-lab/ViNote.git
@@ -122,11 +125,17 @@ ANP_SERVER_URL=http://host.docker.internal:8000/ad.json
 
 Linux Docker 需要把该地址配置为宿主机网关地址，或使用独立可访问的 ANP 服务。
 
+ANP 是可选高级集成，并非只填写服务地址即可完成配置。Docker 不会启动 ANP/DID 服务，也不会把本地客户端身份文件复制进镜像。需要先按下方 ANP Demo 完成初始化并启动外部服务，再取消 Compose 中 `client_did_keys` 的只读挂载注释。客户端 DID 文档地址还必须能由 ANP 服务端访问；示例中的 `localhost:9000` 仅适用于同机 Demo，跨机器部署需按实际可达地址配置。仅使用默认 `local` 搜索源无需这些步骤。
+
 ---
 
 ### 🛠️ 方式二：本地安装
 
 本地一键脚本会自动安装后端依赖、安装前端依赖、构建前端并启动服务。首次运行如果没有 `.env`，脚本会复制示例文件后停止，让你先完成配置。
+
+默认只安装 Whisper 所需依赖。选择 `ASR_PROVIDER=funasr`、`qwen3` 或启用 `anp` 时，启动脚本会自动安装对应扩展；切换配置后重新运行脚本即可。前端依赖、源代码和构建产物未变时，脚本跳过重复安装/构建。Docker Compose 同样按 `.env` 选择扩展，切换后执行 `docker compose up -d --build`。
+
+`ASR_MODEL` 留空时自动使用对应 provider 的默认模型。升级已有 `.env` 或切换 provider 时，请清空旧模型名（例如 Whisper 的 `base`），或同时填写目标 provider 支持的模型名。
 
 #### 前置要求
 
@@ -181,6 +190,10 @@ uv run uvicorn backend.main:app --host 127.0.0.1 --port 8999 --workers 1
 ```
 
 当前任务状态和 SSE 连接保存在单进程内存中，生产运行也保持 `--workers 1`。
+
+浏览器刷新或短暂断网可恢复任务进度，问答页面可直接打开最近会话。**服务端进程重启不会自动续跑未完成的转录任务**，这类任务会明确标记中断，需要重新提交；已完成笔记和问答历史不受影响。
+
+手动安装可选扩展时使用 `uv sync --frozen --extra funasr`、`--extra qwen3` 或 `--extra anp`（可组合），随后用 `uv run --no-sync uvicorn ...` 保留已选扩展。默认 `uv sync` 会回到基础依赖集合。
 
 启用本地 ANP Demo 时，在 `.env` 中设置：
 
@@ -299,7 +312,7 @@ B站结果：8 个视频
 | `OPENAI_BASE_URL` | OpenAI 兼容 API 地址 | `https://api.openai.com/v1` | 否 |
 | `OPENAI_MODEL` | 使用的 LLM 模型 | `gpt-4o` | 否 |
 | `ASR_PROVIDER` | ASR 引擎，可选 `whisper`、`funasr`、`qwen3` | `whisper` | 否 |
-| `ASR_MODEL` | ASR 模型 | `base` | 否 |
+| `ASR_MODEL` | ASR 模型；留空按 provider 选择 | 空（Whisper 默认 `base`） | 否 |
 | `ASR_MODEL_SOURCE` | 模型下载源，可选 `huggingface`、`modelscope` | `huggingface` | 否 |
 | `ASR_MODEL_DIR` | 本地模型目录；设置后优先使用本地模型 | 空 | 否 |
 | `ASR_DEVICE` | ASR 运行设备，例如 `cpu`、`cuda:0`、`mps` | `cpu` | 否 |
@@ -354,10 +367,10 @@ B站有反爬虫机制，需要登录凭证才能访问。如果遇到下载失�
 
 ```bash
 # 1. 使用项目环境中的 yt-dlp
-uv run yt-dlp --version
+uv run --no-sync yt-dlp --version
 
 # 2. 导出 B站 Cookies
-uv run yt-dlp --cookies-from-browser chrome --cookies bilibili_cookies.txt https://www.bilibili.com
+uv run --no-sync yt-dlp --cookies-from-browser chrome --cookies bilibili_cookies.txt https://www.bilibili.com
 
 # 注意：
 # - chrome 可替换为 firefox, edge, safari, brave 等
@@ -587,7 +600,7 @@ ANP（Agent Network Protocol）是一个基于DID（去中心化身份）的Agen
 
 ```bash
 cd backend/anp
-uv run python gen_did_keys.py
+uv run --extra anp python gen_did_keys.py
 ```
 
 这将生成服务端和客户端的DID文档及密钥。
@@ -597,19 +610,19 @@ uv run python gen_did_keys.py
 **终端 1 - 客户端DID服务器:**
 ```bash
 cd backend/anp
-uv run python client_did_server.py
+uv run --extra anp python client_did_server.py
 ```
 
 **终端 2 - 视频搜索服务端:**
 ```bash
 cd backend/anp
-uv run python search_server_agent.py
+uv run --extra anp python search_server_agent.py
 ```
 
 **终端 3 - 智能客户端:**
 ```bash
 cd backend/anp
-uv run python search_client_agent.py
+uv run --extra anp python search_client_agent.py
 ```
 
 #### 第三步：使用Demo
@@ -701,3 +714,20 @@ ANP_SERVER_URL=http://host.docker.internal:8000/ad.json
 Made with ❤️ by ViNote Team
 
 </div>
+
+## 开发验证
+
+建议使用 Python 3.12 和 Node.js 22.12+，在项目根目录执行：
+
+```bash
+uv sync --frozen --python 3.12
+uv run --no-sync python -m unittest discover -s tests -v
+uv run --no-sync python scripts/validate_release.py
+cd web
+npm ci
+npm test
+npm run lint
+npm run build
+```
+
+CI 配置为在 Ubuntu 和 Windows 上运行上述检查。回归测试使用临时数据与模拟模型，不需要 API 密钥；启动器缓存测试只操作临时项目副本。Windows 批处理的 `call npm` 使用静态检查，浏览器、真实 ASR/LLM 和完整启动流程需另行验证。

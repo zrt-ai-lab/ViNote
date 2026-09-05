@@ -16,6 +16,8 @@ export interface TaskStatus {
   transcript?: string;
   script_path?: string;
   summary_path?: string;
+  transcript_filename?: string;
+  summary_filename?: string;
   short_id?: string;
   safe_title?: string;
   detected_language?: string;
@@ -187,6 +189,15 @@ export interface QASession {
   updated_at: string;
   sources: QASource[];
   messages: QAMessage[];
+}
+
+export interface QASessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  source_count: number;
+  message_count: number;
 }
 
 // Category types

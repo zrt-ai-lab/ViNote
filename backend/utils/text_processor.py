@@ -96,6 +96,11 @@ def smart_chunk_text(
     Returns:
         文本块列表
     """
+    if max_chars_per_chunk <= 0:
+        raise ValueError("分块长度必须大于 0")
+    if not prefer_paragraphs:
+        return _force_split_chunk(text, max_chars_per_chunk)
+
     chunks = []
     
     if prefer_paragraphs:
@@ -109,22 +114,6 @@ def smart_chunk_text(
             if len(candidate) > max_chars_per_chunk and current_chunk:
                 chunks.append(current_chunk.strip())
                 current_chunk = para
-            else:
-                current_chunk = candidate
-        
-        if current_chunk.strip():
-            chunks.append(current_chunk.strip())
-    else:
-        # 按句子分割
-        sentences = re.split(r'[.!?。！？]\s+', text)
-        current_chunk = ""
-        
-        for sent in sentences:
-            candidate = (current_chunk + ". " + sent).strip() if current_chunk else sent
-            
-            if len(candidate) > max_chars_per_chunk and current_chunk:
-                chunks.append(current_chunk.strip())
-                current_chunk = sent
             else:
                 current_chunk = candidate
         
@@ -145,6 +134,8 @@ def smart_chunk_text(
 
 def _force_split_chunk(chunk: str, max_chars: int) -> List[str]:
     """强制分割超长块"""
+    if max_chars <= 0:
+        raise ValueError("分块长度必须大于 0")
     result = []
     pos = 0
     
@@ -168,6 +159,27 @@ def _force_split_chunk(chunk: str, max_chars: int) -> List[str]:
         pos = end
     
     return [r for r in result if r]
+
+
+def representative_excerpt(text: str, max_chars: int, samples: int = 9) -> str:
+    """在字符预算内均匀抽取全文节选，保留开头、中间和结尾。"""
+    if max_chars <= 0:
+        raise ValueError("节选长度必须大于 0")
+    text = text.strip()
+    if len(text) <= max_chars:
+        return text
+    count = min(max(2, samples), max(1, max_chars // 80))
+    if count == 1:
+        return text[:max_chars]
+    # 标签与分隔符也计入预算，预留足够空间后再计算每个窗口。
+    labels = [f"[全文节选 {i + 1}/{count}]\n" for i in range(count)]
+    available = max_chars - sum(map(len, labels)) - 2 * (count - 1)
+    window = available // count
+    sections = []
+    for index, label in enumerate(labels):
+        start = round(index * (len(text) - window) / (count - 1))
+        sections.append(label + text[start:start + window])
+    return "\n\n".join(sections)
 
 
 def format_markdown_paragraphs(text: str) -> str:
@@ -235,6 +247,8 @@ def enforce_paragraph_length(text: str, max_chars: int = 400) -> str:
     Returns:
         处理后的文本
     """
+    if max_chars <= 0:
+        raise ValueError("段落长度必须大于 0")
     if not text:
         return text
     
@@ -252,31 +266,5 @@ def enforce_paragraph_length(text: str, max_chars: int = 400) -> str:
 
 
 def _split_long_paragraph(para: str, max_chars: int) -> List[str]:
-    """分割超长段落"""
-    sentences = re.split(r'([.!?。！？]\s+)', para)
-    
-    # 重组句子（保留标点）
-    complete_sentences = []
-    for i in range(0, len(sentences) - 1, 2):
-        if i + 1 < len(sentences):
-            complete_sentences.append(sentences[i] + sentences[i + 1])
-        else:
-            complete_sentences.append(sentences[i])
-    
-    # 按长度限制组合
-    result = []
-    current = ""
-    
-    for sent in complete_sentences:
-        candidate = (current + " " + sent).strip() if current else sent
-        
-        if len(candidate) > max_chars and current:
-            result.append(current.strip())
-            current = sent
-        else:
-            current = candidate
-    
-    if current.strip():
-        result.append(current.strip())
-    
-    return result
+    """仅在原文边界切片；无标点、中文无空格及末句都必须保留。"""
+    return _force_split_chunk(para, max_chars)

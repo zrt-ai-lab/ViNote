@@ -2,11 +2,14 @@
 AI客户端单例管理
 确保全局只有一个ASR模型和OpenAI客户端实例
 """
-from typing import Optional
+from __future__ import annotations
+
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 import logging
 from openai import OpenAI, AsyncOpenAI
-from faster_whisper import WhisperModel
+if TYPE_CHECKING:
+    from faster_whisper import WhisperModel
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,6 +27,7 @@ class WhisperModelSingleton:
     @classmethod
     def get_instance(cls) -> WhisperModel:
         """获取Whisper模型实例（懒加载）"""
+        from faster_whisper import WhisperModel
         config = get_whisper_config()
         
         # 如果模型大小改变，重新加载
@@ -100,9 +104,10 @@ class ASRModelSingleton:
     def _load_model(config, source: str):
         provider = config.provider.lower()
         if provider == "whisper":
+            from faster_whisper import WhisperModel
             logger.info(f"加载Whisper模型: {config.model}")
             model = WhisperModel(
-                config.model,
+                config.model_dir or config.model,
                 device=config.device,
                 compute_type=config.compute_type
             )
@@ -110,7 +115,10 @@ class ASRModelSingleton:
             return model
         
         if provider == "funasr":
-            from funasr import AutoModel
+            try:
+                from funasr import AutoModel
+            except ImportError as exc:
+                raise RuntimeError("FunASR 依赖未安装，请运行 uv sync --extra funasr") from exc
             model_id = config.model_dir or _resolve_funasr_model_id(config.model, source)
             hub = "ms" if source == "modelscope" else "hf"
             
@@ -128,6 +136,10 @@ class ASRModelSingleton:
             return model
         
         if provider == "qwen3":
+            try:
+                from qwen_asr import Qwen3ASRModel
+            except ImportError as exc:
+                raise RuntimeError("Qwen3 ASR 依赖未安装，请运行 uv sync --extra qwen3") from exc
             # Monkey patch MAX_ASR_INPUT_SECONDS to avoid OOM on long audio
             try:
                 import qwen_asr.inference.utils
@@ -142,7 +154,6 @@ class ASRModelSingleton:
             except (ImportError, AttributeError) as e:
                 logger.warning(f"Failed to patch MAX_ASR_INPUT_SECONDS: {e}")
 
-            from qwen_asr import Qwen3ASRModel
             model_id = config.model_dir or _resolve_qwen_model_id(config.model)
             if config.model_dir:
                 model_path = model_id

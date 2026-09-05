@@ -11,6 +11,7 @@ from typing import AsyncGenerator, Optional
 
 from backend.config.ai_config import get_openai_config
 from backend.core.ai_client import get_openai_client
+from backend.utils.text_processor import representative_excerpt
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class CardGenerator:
                      "有效内容：课程笔记、技术文档、教程、科普文章、专业讲解、操作步骤等。\n"
                      "无效内容：纯闲聊、无意义字符、重复文字、纯表情、广告spam、过于笼统没有具体信息的文本。\n"
                      "只回复 YES 或 NO，不要解释。"},
-                    {"role": "user", "content": content[:2000]},
+                    {"role": "user", "content": representative_excerpt(content, 2000, samples=5)},
                 ],
                 max_tokens=3,
                 temperature=0,
@@ -151,9 +152,16 @@ class CardGenerator:
 - 不要用 markdown 代码块包裹
 - 使用中文"""
 
-        user_prompt = f"""{source_hint}，请提取 {count} 个核心知识点并生成知识卡片：
+        excerpt = representative_excerpt(content, 8000)
+        coverage_hint = (
+            "以下是从全文开头到结尾均匀抽取的节选，请兼顾不同位置的知识点；"
+            "只依据节选内容，不补写未提供的细节。"
+            if len(content) > 8000 else "请依据给定内容，不补写未提供的细节。"
+        )
+        user_prompt = f"""{source_hint}，请提取 {count} 个核心知识点并生成知识卡片。
+{coverage_hint}
 
-{content[:8000]}"""
+{excerpt}"""
 
         try:
             response = await asyncio.to_thread(

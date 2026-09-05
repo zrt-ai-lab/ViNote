@@ -35,6 +35,11 @@ class Settings:
     HOST: str = os.getenv("APP_HOST", "127.0.0.1")
     PORT: int = int(os.getenv("APP_PORT", "8999"))
     DEBUG: bool = os.getenv("APP_DEBUG", "false").lower() == "true"
+    ALLOWED_HOSTS: list = [
+        host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",") if host.strip()
+    ]
+    if HOST not in {"0.0.0.0", "::"} and HOST not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(HOST)
     
     # ========== CORS配置 ==========
     CORS_ORIGINS: list = [

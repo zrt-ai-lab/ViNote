@@ -1,0 +1,1 @@
+{"schema_version":1,"kind":"backend","owner":"build-project-docs","workspace":".","source_roots":["backend"],"units":[{"id":"core","source_paths":["backend"],"map_paths":[".claude/docs/core.md",".claude/docs/_external-capabilities.md"]}]}

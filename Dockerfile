@@ -31,7 +31,12 @@ COPY pyproject.toml uv.lock README.md VERSION ./
 COPY backend/__init__.py ./backend/__init__.py
 
 # 安装 Python 依赖（利用 Docker 层缓存）
-RUN uv sync --frozen --no-dev --no-editable
+ARG ASR_PROVIDER=whisper
+ARG VIDEO_SEARCH_PROVIDERS=local
+RUN set -eu; set --; \
+    case "$ASR_PROVIDER" in whisper) ;; funasr|qwen3) set -- --extra "$ASR_PROVIDER" ;; *) exit 1 ;; esac; \
+    case ",$VIDEO_SEARCH_PROVIDERS," in *,anp,*) set -- "$@" --extra anp ;; esac; \
+    uv sync --frozen --no-dev --no-editable "$@"
 
 # 复制后端代码（覆盖之前的最小结构）
 COPY backend/ ./backend/
@@ -57,4 +62,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8999/health || exit 1
 
 # 启动命令
-CMD ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8999", "--log-level", "warning"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8999", "--log-level", "warning"]

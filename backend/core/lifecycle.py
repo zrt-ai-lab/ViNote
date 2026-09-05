@@ -155,6 +155,9 @@ async def startup_event():
     # 修复历史数据中 short_id 不匹配导致的文件关联丢失
     await repair_note_file_links()
 
+    from backend.services.note_search import backfill_note_search
+    await backfill_note_search()
+
     interrupted = False
     for task_data in tasks.values():
         if task_data.get("status") in {"queued", "processing"}:
