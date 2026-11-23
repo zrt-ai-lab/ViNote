@@ -53,6 +53,22 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+日常启动可以使用仓库自带脚本：
+
+```bash
+# macOS / Linux
+./start.sh
+
+# Windows
+start.bat
+```
+
+本地调试时保持单个 Uvicorn worker，保证 SQLite 任务状态和模型实例由一个进程管理：
+
+```bash
+uv run --no-sync uvicorn backend.main:app --host 127.0.0.1 --port 8999 --workers 1
+```
+
 默认从本机访问。基础页面和健康检查不需要模型密钥；可参照 [配置示例](.env.example) 预先设置模型和 ASR，勿提交真实密钥。基础安装使用 Faster-Whisper；FunASR 和 Qwen3 仍是可选依赖。
 
 ## 许可证
