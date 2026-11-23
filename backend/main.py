@@ -41,10 +41,11 @@ app.add_middleware(
     allow_headers=settings.CORS_HEADERS,
 )
 
-from backend.routers import v2_assets, v2_dashboard, v2_ingestion, v2_knowledge
+from backend.routers import search_agent, v2_assets, v2_dashboard, v2_ingestion, v2_knowledge
 
 
 app.include_router(v2_assets.router)
+app.include_router(search_agent.router)
 app.include_router(v2_dashboard.router)
 app.include_router(v2_ingestion.router)
 app.include_router(v2_knowledge.router)

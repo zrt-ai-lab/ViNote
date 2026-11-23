@@ -105,6 +105,15 @@ CREATE TABLE IF NOT EXISTS flashcards (
     FOREIGN KEY (asset_id, segment_id) REFERENCES transcript_segments(asset_id, id)
 );
 
+CREATE TABLE IF NOT EXISTS search_agent_sessions (
+    session_id TEXT PRIMARY KEY,
+    runtime_session_id TEXT NOT NULL UNIQUE,
+    messages_json TEXT NOT NULL DEFAULT '[]',
+    videos_json TEXT NOT NULL DEFAULT '[]',
+    search_state_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_v2_jobs_asset ON processing_jobs(asset_id, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_v2_jobs_status ON processing_jobs(status, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_v2_events_job ON job_events(job_id, id);
@@ -112,6 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_v2_artifacts_job ON artifacts(asset_id, job_id);
 CREATE INDEX IF NOT EXISTS idx_v2_segments_timeline ON transcript_segments(asset_id, start_ms, end_ms, id);
 CREATE INDEX IF NOT EXISTS idx_v2_highlights_segment ON highlights(asset_id, segment_id);
 CREATE INDEX IF NOT EXISTS idx_v2_flashcards_segment ON flashcards(asset_id, segment_id);
+CREATE INDEX IF NOT EXISTS idx_v2_search_updated ON search_agent_sessions(updated_at);
 """
 
 

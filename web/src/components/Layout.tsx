@@ -1,10 +1,11 @@
 import clsx from 'clsx';
-import { Clapperboard, House, LibraryBig, Settings } from 'lucide-react';
+import { Clapperboard, House, LibraryBig, Search, Settings } from 'lucide-react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { to: '/', icon: House, label: '工作台' },
   { to: '/library', icon: LibraryBig, label: '知识库' },
+  { to: '/search', icon: Search, label: '视频智搜' },
   { to: '/assets', icon: Clapperboard, label: '资产详情' },
   { to: '/settings', icon: Settings, label: '设置' },
 ];
