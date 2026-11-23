@@ -179,12 +179,16 @@ class HarnessRuntime:
             self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
             temporary_home = tempfile.TemporaryDirectory(prefix='turn-', dir=self.home)
             home = Path(temporary_home.name)
+            plugin_patch = home / 'runtime.patch.yml'
+            template = (Path(__file__).parent / 'plugin' / 'runtime.patch.yml').read_text(encoding='utf-8')
+            plugin_url = (Path(__file__).parent / 'plugin' / 'index.mjs').resolve().as_uri()
+            plugin_patch.write_text(template.replace('__VINOTE_PLUGIN__', plugin_url), encoding='utf-8')
             bridge = ToolBridge(session_id, dispatch, timeout=self.timeout)
             config = self.config
             base_url = config.base_url.rstrip('/').removesuffix('/chat/completions')
             runtime = DeepSeekHarness(
                 dsh_home=str(home), cwd=str(home), profile='sdk',
-                patches=(str(Path(__file__).parent / 'plugin' / 'runtime.patch.yml'),),
+                patches=(str(plugin_patch),),
                 provider='vinote', model=config.model, max_tokens=4096,
                 initialize_timeout_seconds=min(30, self.timeout),
                 request_timeout_seconds=min(30, self.timeout),
