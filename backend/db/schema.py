@@ -106,11 +106,111 @@ CREATE INDEX IF NOT EXISTS idx_qa_sessions_updated_at ON qa_sessions(updated_at)
 CREATE INDEX IF NOT EXISTS idx_qa_messages_session ON qa_messages(session_id, sequence);
 """
 
+CREATE_V2_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS media_assets (
+    id TEXT PRIMARY KEY NOT NULL,
+    title TEXT NOT NULL,
+    source_type TEXT NOT NULL CHECK (source_type IN ('url', 'upload', 'local')),
+    source_uri TEXT,
+    platform TEXT,
+    platform_video_id TEXT,
+    content_hash TEXT,
+    duration_ms INTEGER CHECK (duration_ms >= 0),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS processing_jobs (
+    id TEXT PRIMARY KEY NOT NULL,
+    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN (
+        'queued', 'running', 'completed', 'partial_success', 'failed', 'cancel_requested', 'cancelled'
+    )),
+    stage TEXT,
+    error TEXT,
+    attempt INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (asset_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS job_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    stage TEXT,
+    error TEXT,
+    attempt INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS artifacts (
+    id TEXT PRIMARY KEY NOT NULL,
+    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+    job_id TEXT,
+    kind TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+    path TEXT NOT NULL,
+    content_hash TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (asset_id, kind, version),
+    FOREIGN KEY (asset_id, job_id) REFERENCES processing_jobs(asset_id, id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS transcript_segments (
+    id TEXT PRIMARY KEY NOT NULL,
+    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+    start_ms INTEGER NOT NULL CHECK (start_ms >= 0),
+    end_ms INTEGER NOT NULL CHECK (end_ms > start_ms),
+    text TEXT NOT NULL,
+    edited_text TEXT,
+    speaker TEXT,
+    language TEXT,
+    confidence REAL CHECK (confidence BETWEEN 0 AND 1),
+    UNIQUE (asset_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS highlights (
+    id TEXT PRIMARY KEY NOT NULL,
+    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+    segment_id TEXT,
+    start_ms INTEGER NOT NULL CHECK (start_ms >= 0),
+    end_ms INTEGER NOT NULL CHECK (end_ms > start_ms),
+    text_snapshot TEXT NOT NULL,
+    user_note TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (asset_id, segment_id) REFERENCES transcript_segments(asset_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS flashcards (
+    id TEXT PRIMARY KEY NOT NULL,
+    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+    segment_id TEXT,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    review_state TEXT NOT NULL DEFAULT 'new'
+        CHECK (review_state IN ('new', 'remembered', 'unsure', 'forgotten')),
+    next_review_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (asset_id, segment_id) REFERENCES transcript_segments(asset_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_v2_jobs_asset ON processing_jobs(asset_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_v2_jobs_status ON processing_jobs(status, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_v2_events_job ON job_events(job_id, id);
+CREATE INDEX IF NOT EXISTS idx_v2_artifacts_job ON artifacts(asset_id, job_id);
+CREATE INDEX IF NOT EXISTS idx_v2_segments_timeline ON transcript_segments(asset_id, start_ms, end_ms, id);
+CREATE INDEX IF NOT EXISTS idx_v2_highlights_segment ON highlights(asset_id, segment_id);
+CREATE INDEX IF NOT EXISTS idx_v2_flashcards_segment ON flashcards(asset_id, segment_id);
+"""
+
 
 async def init_db():
     """初始化数据库：建表 + 预置分类"""
     async with get_db() as db:
         await db.executescript(CREATE_TABLES_SQL)
+        await db.executescript(CREATE_V2_TABLES_SQL)
         cursor = await db.execute("PRAGMA table_info(search_agent_sessions)")
         if 'search_state_json' not in {row[1] for row in await cursor.fetchall()}:
             await db.execute("ALTER TABLE search_agent_sessions ADD COLUMN search_state_json TEXT NOT NULL DEFAULT '{}'")

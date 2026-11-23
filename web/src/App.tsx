@@ -1,29 +1,20 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
+import AssetDetail from './pages/AssetDetail';
 import Home from './pages/Home';
-import VideoNote from './pages/VideoNote';
-import VideoQA from './pages/VideoQA';
-import SearchAgent from './pages/SearchAgent';
-import DevTools from './pages/DevTools';
-import MindMap from './pages/MindMap';
-import KnowledgeCards from './pages/KnowledgeCards';
-import History from './pages/History';
-import TagManagement from './pages/TagManagement';
+import Library from './pages/Library';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/note" element={<VideoNote />} />
-          <Route path="/qa" element={<VideoQA />} />
-          <Route path="/mindmap" element={<MindMap />} />
-          <Route path="/cards" element={<KnowledgeCards />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/tags" element={<TagManagement />} />
-          <Route path="/search" element={<SearchAgent />} />
-          <Route path="/dev-tools" element={<DevTools />} />
+          <Route index element={<Home />} />
+          <Route path="library" element={<Library />} />
+          <Route path="assets/:assetId?" element={<AssetDetail />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

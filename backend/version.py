@@ -4,7 +4,7 @@ from importlib import metadata
 from pathlib import Path
 
 
-FALLBACK_VERSION = "1.4.0"
+FALLBACK_VERSION = "2.0.0"
 PACKAGE_NAME = "vinote"
 
 
