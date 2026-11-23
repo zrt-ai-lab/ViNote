@@ -2,7 +2,7 @@
 export const name = 'vinote-business-tools';
 export const inject = ['tools'];
 
-const TOOL_NAMES = ['generate_notes', 'video_search'];
+const TOOL_NAMES = ['import_video', 'video_search'];
 const MAX_RESPONSE_BYTES = 512 * 1024;
 
 function positiveInteger(value, fallback, ceiling) {
@@ -77,9 +77,6 @@ function validateArguments(tool, args) {
     if (args.max_results !== undefined && (!Number.isSafeInteger(args.max_results) || args.max_results < 1 || args.max_results > 20)) {
       throw new Error('Search result count must be between 1 and 20');
     }
-  } else if (!Number.isSafeInteger(args.video_index) || args.video_index < 0) {
-    throw new Error('Video index must be a non-negative integer');
-  }
 }
 
 export function apply(ctx) {
@@ -116,11 +113,19 @@ export function apply(ctx) {
       clearTimeout(timer);
     }
   }
+  else if (!Number.isSafeInteger(args.video_index) || args.video_index < 0) throw new Error('Video index must be a non-negative integer');
 
   const output = {
     schema: {type: 'object', additionalProperties: true},
     render: (_args, value) => [{type: 'text', text: JSON.stringify(value)}],
   };
+  ctx.tools.register({
+    name: 'import_video',
+    description: 'Import one previously returned video result into the ViNote knowledge library.',
+    parameters: {type: 'object', properties: {video_index: {type: 'integer'}}, required: ['video_index'], additionalProperties: false},
+    output,
+    execute: (args, exec) => invoke('import_video', args, exec),
+  });
   ctx.tools.register({
     name: 'video_search',
     description: 'Search videos on YouTube, Bilibili, or both (all). Use page+1 for more results; return at most max_results videos per platform.',
@@ -137,18 +142,6 @@ export function apply(ctx) {
     },
     output,
     execute: (args, exec) => invoke('video_search', args, exec),
-  });
-  ctx.tools.register({
-    name: 'generate_notes',
-    description: 'Generate real notes for one previously returned video. Requires a prior successful search; never invent a result.',
-    parameters: {
-      type: 'object',
-      properties: {video_index: {type: 'integer', description: '0-based index in the current session video list.'}},
-      required: ['video_index'],
-      additionalProperties: false,
-    },
-    output,
-    execute: (args, exec) => invoke('generate_notes', args, exec),
   });
 
   ctx.on('agent/pre-step', async (payload, next) => {

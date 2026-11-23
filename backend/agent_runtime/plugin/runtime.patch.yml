@@ -1,48 +1,16 @@
+---
+
 - id: user-questions
-  disabled: true
-- id: plan-mode
   disabled: true
 - id: tool-jobs
   disabled: true
-- id: tool-goal
-  disabled: true
 - id: tool-todo
   disabled: true
-- id: tool-web
+- id: tool-goal
   disabled: true
-# Only ViNote business tools are enabled. Runtime execution and persistence are
-# supplied by the pinned SDK; no package-manager or Node installation is needed.
-- id: tool-plugin-manager
+- id: plan-mode
   disabled: true
-- id: tool-working-directory
-  disabled: true
-- id: tool-bash
-  disabled: true
-- id: tool-fs
-  disabled: true
-- id: tool-fs-search
-  disabled: true
-- id: tool-skill
-  disabled: true
-- id: tool-agent-team
-  disabled: true
-- id: tool-subagent-control
-  disabled: true
-- id: tool-subagent
-  disabled: true
-- id: tool-subagent-fork
-  disabled: true
-- id: tool-workflow
-  disabled: true
-- id: tool-office
-  disabled: true
-- id: schedule
-  disabled: true
-- id: present
-  disabled: true
-- id: file-reference-local
-  disabled: true
-- id: agent-instructions
+- id: web
   disabled: true
 - id: system-prompt
   config:
@@ -54,6 +22,7 @@
     agents: []
     maxParallelToolCalls: 1
 - id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
   config:
     providers:
       vinote:
@@ -77,3 +46,73 @@
 - insert:
     - id: vinote-business-tools
       name: ./index.mjs
+- id: tool-bash
+  disabled: true
+- id: tool-pwsh
+  disabled: true
+- id: str-replace-editor
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: tool-fs-search
+  disabled: true
+- id: tool-skill
+  disabled: true
+- id: skill
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: tool-office
+  disabled: true
+- id: schedule
+  disabled: true
+- id: present
+  disabled: true
+- id: agent-instructions
+  disabled: true
+- id: commands
+  disabled: true
+- id: command-feedback
+  disabled: true
+- id: goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
+- id: command-goal
+  disabled: true
+- id: tool-ralph
+  disabled: true
+- id: web
+  disabled: true
+- id: web-search-deepseek
+  disabled: true
+- id: web-fetch-http
+  disabled: true
+- id: tool-web
+  disabled: true
+- id: mcp-resources
+  disabled: true
+- id: tool-plugin-manager
+  disabled: true
+- id: plugin-manager
+  disabled: true
+- id: jobs
+  disabled: true
+- id: tools
+  disabled: false
+- id: agent-team
+  disabled: true
+- id: working-directory
+  disabled: true
+- id: tool-working-directory
+  disabled: true
+- id: send-message
+  disabled: true
