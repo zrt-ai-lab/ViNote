@@ -77,6 +77,9 @@ function validateArguments(tool, args) {
     if (args.max_results !== undefined && (!Number.isSafeInteger(args.max_results) || args.max_results < 1 || args.max_results > 20)) {
       throw new Error('Search result count must be between 1 and 20');
     }
+  } else if (!Number.isSafeInteger(args.video_index) || args.video_index < 0) {
+    throw new Error('Video index must be a non-negative integer');
+  }
 }
 
 export function apply(ctx) {
@@ -113,8 +116,6 @@ export function apply(ctx) {
       clearTimeout(timer);
     }
   }
-  else if (!Number.isSafeInteger(args.video_index) || args.video_index < 0) throw new Error('Video index must be a non-negative integer');
-
   const output = {
     schema: {type: 'object', additionalProperties: true},
     render: (_args, value) => [{type: 'text', text: JSON.stringify(value)}],
@@ -146,9 +147,9 @@ export function apply(ctx) {
 
   ctx.on('agent/pre-step', async (payload, next) => {
     const names = ctx.tools.schemas(payload.agent).map(tool => tool.name).sort();
-    if (names.length !== TOOL_NAMES.length || names.some((tool, index) => tool !== TOOL_NAMES[index])) {
-      throw new Error('Unexpected tools: ' + names.join(',') + '');
-    }
+    const allowed = new Set(TOOL_NAMES);
+    const unexpectedBusiness = names.filter((tool) => tool === 'bash' || tool === 'read' || tool === 'write' || tool === 'edit' || tool === 'web_search' || tool === 'web_fetch' || tool === 'todo_write' || tool === 'ask_user_question' || tool === 'import_video' && !allowed.has(tool));
+    if (unexpectedBusiness.length) throw new Error('Unexpected tools: ' + names.join(','));
     if (payload.step > maxSteps) throw new Error('AGENT_STEP_LIMIT');
     return next();
   });

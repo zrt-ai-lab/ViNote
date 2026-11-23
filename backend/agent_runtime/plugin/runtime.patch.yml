@@ -2,6 +2,8 @@
 
 - id: user-questions
   disabled: true
+- id: tool-working-directory
+  disabled: true
 - id: tool-jobs
   disabled: true
 - id: tool-todo
@@ -45,7 +47,7 @@
           maxTokensField: max_tokens
 - insert:
     - id: vinote-business-tools
-      name: ./index.mjs
+      name: "file:///Users/zhairuitao/AlienLab/zhai/ViNote/backend/agent_runtime/plugin/index.mjs"
 - id: tool-bash
   disabled: true
 - id: tool-pwsh
@@ -111,8 +113,8 @@
 - id: agent-team
   disabled: true
 - id: working-directory
-  disabled: true
+  disabled: false
 - id: tool-working-directory
-  disabled: true
+  disabled: false
 - id: send-message
   disabled: true
