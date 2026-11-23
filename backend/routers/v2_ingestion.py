@@ -1,7 +1,11 @@
 """2.0 source import and transcription job endpoints."""
+import asyncio
+import json
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from backend.repositories import assets, content
+from backend.domain import JobStatus
+from backend.repositories import jobs
 from backend.services import v2_ingestion
 
 router = APIRouter(prefix="/api/v2", tags=["v2 ingestion"])
@@ -13,7 +17,27 @@ async def upload_asset(file: UploadFile = File(...)):
         asset, job = await v2_ingestion.create_upload_asset(file)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if (file.filename or '').lower().endswith(('.srt', '.vtt')):
+        await _process_subtitle_job(job["id"], asset["id"], saved_path=asset["source_uri"])
     return {"asset": asset, "job": job}
+
+
+async def _process_subtitle_job(job_id: str, asset_id: str, *, saved_path: str | None):
+    try:
+        claimed = await jobs.transition(job_id, JobStatus.QUEUED, JobStatus.RUNNING, stage="parsing")
+        if claimed is None or not saved_path:
+            return
+        rows = v2_ingestion.parse_subtitle_file(saved_path)
+        for row in rows:
+            await content.create_segment(asset_id, **row)
+        artifact_path = v2_ingestion.UPLOAD_DIR / f"{asset_id}.transcript.json"
+        artifact_path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        await content.create_artifact(asset_id, "transcript", path=str(artifact_path), job_id=job_id)
+        await jobs.transition(job_id, JobStatus.RUNNING, JobStatus.COMPLETED, stage="persisted")
+    except Exception as exc:
+        current = await jobs.get(job_id)
+        if current and current["status"] == JobStatus.RUNNING.value:
+            await jobs.transition(job_id, JobStatus.RUNNING, JobStatus.FAILED, error=str(exc))
 
 
 @router.post("/assets/{asset_id}/jobs", status_code=201)

@@ -32,5 +32,7 @@ _JOB_TRANSITIONS = {
 
 
 def validate_job_transition(expected: JobStatus, target: JobStatus) -> None:
+    if expected == target == JobStatus.RUNNING:
+        return
     if target not in _JOB_TRANSITIONS.get(expected, ()):
         raise ValueError(f"Invalid job transition: {expected.value} → {target.value}")

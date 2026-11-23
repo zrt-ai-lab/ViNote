@@ -1,5 +1,7 @@
 """Controlled source ingestion for the ViNote 2.0 asset workflow."""
 import hashlib
+import re
+import uuid
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -21,7 +23,7 @@ async def save_upload(upload: UploadFile) -> dict:
     digest = hashlib.sha256()
     size = 0
     target = UPLOAD_DIR / f"{digest.hexdigest()}{suffix}"
-    temp = UPLOAD_DIR / f".upload-{digest.hexdigest()}.part"
+    temp = UPLOAD_DIR / f".upload-{uuid.uuid4().hex}.part"
     try:
         with temp.open("wb") as output:
             while chunk := await upload.read(1024 * 1024):
@@ -42,6 +44,27 @@ async def create_upload_asset(upload: UploadFile) -> tuple[dict, dict]:
     asset = await assets.create(upload.filename or "Uploaded media", "upload", source_uri=saved["path"], content_hash=saved["content_hash"])
     job = await jobs.create(asset["id"], "transcribe")
     return asset, job
+
+
+def parse_subtitle_file(path: str) -> list[dict]:
+    """Parse common SRT/VTT blocks into timestamped transcript rows."""
+    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    rows: list[dict] = []
+    pattern = re.compile(r"(?P<start>\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(?P<end>\d{2}:\d{2}:\d{2}[,.]\d{3})")
+    blocks = re.split(r"\n\s*\n", text.replace("\r\n", "\n"))
+    def ms(value: str) -> int:
+        h, m, rest = value.replace(',', '.').split(':')
+        s, fraction = rest.split('.')
+        return (int(h) * 3600 + int(m) * 60 + int(s)) * 1000 + int(fraction.ljust(3, '0')[:3])
+    for block in blocks:
+        match = pattern.search(block)
+        if not match:
+            continue
+        lines = block[match.end():].strip().splitlines()
+        cleaned = " ".join(line.strip() for line in lines if line.strip() and not line.strip().startswith(('WEBVTT', 'NOTE')))
+        if cleaned:
+            rows.append({"start_ms": ms(match.group('start')), "end_ms": ms(match.group('end')), "text": cleaned})
+    return rows
 
 
 async def create_transcription_job(asset_id: str) -> dict:

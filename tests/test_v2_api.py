@@ -7,11 +7,14 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from io import BytesIO
+import time
 
 from backend.db import connection, schema
 from backend.domain import JobStatus
 from backend.repositories import content, jobs
 from backend.routers.v2_assets import router
+from backend.routers.v2_ingestion import router as ingestion_router
 
 
 class V2AssetAPITests(unittest.TestCase):
@@ -25,6 +28,7 @@ class V2AssetAPITests(unittest.TestCase):
         asyncio.run(schema.init_db())
         app = FastAPI()
         app.include_router(router)
+        app.include_router(ingestion_router)
         self.client = resources.enter_context(TestClient(app))
 
     def create_asset(self):
@@ -106,3 +110,20 @@ class V2AssetAPITests(unittest.TestCase):
         ):
             with self.subTest(method=method, path=path):
                 self.assertEqual(self.client.request(method, f"/api/v2/{path}").status_code, 404)
+
+    def test_subtitle_upload_creates_asset_and_persists_segments(self):
+        subtitle = b"1\n00:00:01,000 --> 00:00:02,500\nHello world\n"
+        response = self.client.post("/api/v2/assets/upload", files={"file": ("lesson.srt", BytesIO(subtitle), "application/x-subrip")})
+        self.assertEqual(response.status_code, 201, response.text)
+        asset = response.json()["asset"]
+        self.assertEqual(response.json()["job"]["kind"], "transcribe")
+        deadline = time.time() + 2
+        segments = []
+        while time.time() < deadline:
+            segments = self.client.get(f"/api/v2/assets/{asset['id']}/segments").json()
+            if segments:
+                break
+            time.sleep(0.02)
+        self.assertEqual(segments[0]["start_ms"], 1000)
+        self.assertEqual(segments[0]["end_ms"], 2500)
+        self.assertEqual(segments[0]["text"], "Hello world")
