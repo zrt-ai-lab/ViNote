@@ -69,17 +69,7 @@ def get_video_search_agent():
     return _video_search_agent
 
 
-# ── 任务持久化 ────────────────────────────────────────
-def load_tasks() -> Dict:
-    try:
-        if TASKS_FILE.exists():
-            with open(TASKS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {}
-
-
+# ── 旧路由模块的显式写入；2.0 启动和 API 不调用 ──
 _last_backup_time: datetime | None = None
 
 
@@ -172,10 +162,6 @@ def validate_download_filename(filename: str) -> bool:
         return False
 
     return True
-
-
-# ── 启动时加载 ────────────────────────────────────────
-tasks.update(load_tasks())
 
 
 # ── SQLite 持久化（已完成任务） ────────────────────────

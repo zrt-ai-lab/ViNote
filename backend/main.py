@@ -5,7 +5,6 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from backend.config.settings import get_settings
 from backend.version import VERSION
@@ -25,12 +24,10 @@ logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    from backend.core.lifecycle import shutdown_event, startup_event
+    from backend.core.lifecycle import startup_event
+
     await startup_event()
-    try:
-        yield
-    finally:
-        await shutdown_event()
+    yield
 
 
 settings = get_settings()
@@ -45,50 +42,30 @@ app.add_middleware(
 )
 
 from backend.core.middleware import BrowserRequestMiddleware, RateLimitMiddleware
+from backend.routers import v2_assets
+
 app.add_middleware(RateLimitMiddleware, calls=100, period=60)
 app.add_middleware(BrowserRequestMiddleware, allowed_origins=settings.CORS_ORIGINS, allowed_hosts=settings.ALLOWED_HOSTS)
 
-SPA_DIR = PROJECT_ROOT / "static-build"
-if SPA_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(SPA_DIR / "assets")), name="spa-assets")
-
-from backend.routers import (
-    cards, dev_tools, downloads, mindmap, note_actions, playlists, preview,
-    proxy, qa, search_agent, storage, tags, tasks,
-)
-
-app.include_router(tasks.router)
-app.include_router(downloads.router)
-app.include_router(preview.router)
-app.include_router(qa.router)
-app.include_router(search_agent.router)
-app.include_router(proxy.router)
-app.include_router(dev_tools.router)
-app.include_router(mindmap.router)
-app.include_router(cards.router)
-app.include_router(storage.router)
-app.include_router(tags.router)
-app.include_router(playlists.router)
-app.include_router(note_actions.router)
+app.include_router(v2_assets.router)
 
 
 @app.get("/health")
 async def health_check():
-    from backend.core.state import tasks, active_tasks
-    from backend.core.ai_client import is_openai_available
+    from backend.config.ai_config import get_openai_config
+
     return {
         "status": "ok",
-        "active_tasks": len(active_tasks),
-        "total_tasks": len(tasks),
-        "openai_configured": is_openai_available(),
+        "openai_configured": get_openai_config().is_configured,
     }
 
 
-@app.get("/")
-@app.get("/{path:path}")
+@app.get("/", include_in_schema=False)
+@app.get("/{path:path}", include_in_schema=False)
 async def serve_spa(path: str = ""):
     if path == "api" or path.startswith("api/"):
         raise HTTPException(status_code=404, detail="API endpoint not found")
+    # Vite files and /assets/:assetId share a prefix. Serve existing files first.
     spa_dir = PROJECT_ROOT / "static-build"
     requested_file = (spa_dir / path).resolve()
     if path and requested_file.is_relative_to(spa_dir.resolve()) and requested_file.is_file():
