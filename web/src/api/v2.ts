@@ -25,3 +25,8 @@ export const listAssets = () => request<Asset[]>('/api/v2/assets');
 export const getAsset = (id: string) => request<AssetDetail>('/api/v2/assets/' + encodeURIComponent(id));
 export const createAsset = (payload: Pick<Asset, 'title' | 'source_type' | 'source_uri'>) => request<Asset>('/api/v2/assets', { method: 'POST', body: JSON.stringify(payload) });
 export const uploadAsset = (file: File) => { const data = new FormData(); data.append('file', file); return request<{ asset: Asset; job: Job }>('/api/v2/assets/upload', { method: 'POST', body: data }); };
+export const askAsset = (id: string, question: string) => request<{ answer: string; citations: { segment_id: string; start_ms: number; end_ms: number; quote: string }[] }>('/api/v2/assets/' + encodeURIComponent(id) + '/questions', { method: 'POST', body: JSON.stringify({ question }) });
+export const createHighlight = (id: string, body: { start_ms: number; end_ms: number; text_snapshot: string; segment_id?: string; user_note?: string }) => request<Record<string, unknown>>('/api/v2/assets/' + encodeURIComponent(id) + '/highlights', { method: 'POST', body: JSON.stringify(body) });
+export const createFlashcard = (id: string, body: { question: string; answer: string; segment_id?: string }) => request<Record<string, unknown>>('/api/v2/assets/' + encodeURIComponent(id) + '/flashcards', { method: 'POST', body: JSON.stringify(body) });
+export const getHealth = () => request<{ status: string; openai_configured: boolean }>('/health');
+export const getDashboard = () => request<{ recent_assets: Asset[]; failed_jobs: number; due_cards: number }>('/api/v2/dashboard');

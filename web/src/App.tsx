@@ -12,7 +12,8 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="library" element={<Library />} />
-          <Route path="assets/:assetId?" element={<AssetDetail />} />
+          <Route path="assets" element={<Navigate to="/library" replace />} />
+          <Route path="assets/:assetId" element={<AssetDetail />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

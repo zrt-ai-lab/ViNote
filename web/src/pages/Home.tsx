@@ -1,7 +1,8 @@
 import { ArrowRight, AudioLines, Captions, Link2, Upload, Video } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useRef, useState } from 'react';
-import { createAsset, uploadAsset } from '../api/v2';
+import { useEffect, useRef, useState } from 'react';
+import { createAsset, getDashboard, uploadAsset } from '../api/v2';
+import type { Asset } from '../api/v2';
 
 const SOURCES = [
   { label: '视频链接', icon: Link2 },
@@ -14,7 +15,11 @@ export default function Home() {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [recent, setRecent] = useState<Asset[]>([]);
+  const [failedJobs, setFailedJobs] = useState(0);
+  const [dueCards, setDueCards] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { getDashboard().then((data) => { setRecent(data.recent_assets); setFailedJobs(data.failed_jobs); setDueCards(data.due_cards); }).catch(() => undefined); }, []);
   const submitUrl = async () => {
     if (!url.trim()) return;
     setBusy(true); setError('');
@@ -61,18 +66,18 @@ export default function Home() {
       <div className="grid gap-3 sm:grid-cols-3">
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
           <h2 className="font-semibold">最近资产</h2>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">暂无资产可查看。</p>
+          {recent.length === 0 ? <p className="mt-2 text-sm text-[var(--color-text-secondary)]">暂无资产可查看。</p> : <div className="mt-3 space-y-2">{recent.map((asset) => <Link key={asset.id} to={'/assets/' + asset.id} className="block truncate text-sm underline underline-offset-4">{asset.title}</Link>)}</div>}
           <Link to="/library" className="mt-3 inline-flex items-center gap-2 text-sm font-medium underline underline-offset-4">
             打开知识库 <ArrowRight size={15} aria-hidden="true" />
           </Link>
         </section>
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
           <h2 className="font-semibold">失败任务</h2>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">接入处理任务后，可在这里查看失败原因和重试入口。</p>
+          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{failedJobs ? String(failedJobs) + ' 个任务失败，可在资产详情查看原因。' : '暂无失败任务。'}</p>
         </section>
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
           <h2 className="font-semibold">待复习</h2>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">到期的复习卡片将在这里显示。</p>
+          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{dueCards ? String(dueCards) + ' 张卡片待复习。' : '暂无待复习卡片。'}</p>
         </section>
       </div>
     </div>

@@ -1,27 +1,19 @@
-const SECTIONS = [
-  { title: '模型', description: '选择生成摘要、问答等内容时使用的模型。' },
-  { title: '语音转录', description: '选择转录引擎和模型。' },
-  { title: '存储', description: '查看资产、生成产物和缓存的存储位置。' },
-  { title: '导入目录', description: '查看允许从本地导入媒体的目录。' },
-  { title: '高级诊断', description: '查看转录引擎、模型连接和存储状态。' },
-];
+import { useEffect, useState } from 'react';
+import { getHealth } from '../api/v2';
 
 export default function Settings() {
+  const [health, setHealth] = useState<{ status: string; openai_configured: boolean } | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => { getHealth().then(setHealth).catch((err) => setError(err instanceof Error ? err.message : '健康检查失败')); }, []);
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-8 sm:py-12">
       <header>
         <h1 className="text-3xl font-bold tracking-tight">设置</h1>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">以下是设置分区预览，暂不能查看或修改实际配置。</p>
+        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">当前运行配置来自本地环境变量，核心状态在这里可核对。</p>
       </header>
 
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {SECTIONS.map(({ title, description }) => (
-          <li key={title} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-            <h2 className="font-semibold">{title}</h2>
-            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{description}</p>
-          </li>
-        ))}
-      </ul>
+      <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><h2 className="font-semibold">运行诊断</h2>{error ? <p role="alert" className="mt-2 text-sm text-red-600">{error}</p> : <dl className="mt-3 space-y-2 text-sm"><div className="flex justify-between"><dt>API 状态</dt><dd>{health?.status || '检查中…'}</dd></div><div className="flex justify-between"><dt>大模型配置</dt><dd>{health ? (health.openai_configured ? '已配置' : '未配置') : '检查中…'}</dd></div><div className="flex justify-between"><dt>版本</dt><dd>2.0.0</dd></div></dl>}</section>
+      <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><h2 className="font-semibold">转录</h2><p className="mt-2 text-sm text-[var(--color-text-secondary)]">默认使用本地 Faster-Whisper，模型和设备由环境变量控制。</p></div><div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><h2 className="font-semibold">存储</h2><p className="mt-2 text-sm text-[var(--color-text-secondary)]">资产、任务和产物元数据保存在 SQLite，上传文件位于受控 temp 目录。</p></div></section>
     </div>
   );
 }
