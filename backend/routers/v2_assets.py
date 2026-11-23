@@ -31,7 +31,16 @@ async def list_assets(include_deleted: bool = False):
 @router.post("/assets", status_code=201)
 async def create_asset(payload: AssetCreate):
     # The source URI is metadata. Registration never fetches or opens it.
-    return await assets.create(**payload.model_dump())
+    asset = await assets.create(**payload.model_dump())
+    from urllib.parse import urlparse
+    supported_url = payload.source_type == "url" and urlparse(payload.source_uri or "").hostname in {"youtube.com", "www.youtube.com", "youtu.be", "bilibili.com", "www.bilibili.com", "b23.tv"}
+    if payload.source_uri and (payload.source_type != "url" or supported_url):
+        import asyncio
+        from backend.repositories import jobs
+        from backend.services.v2_ingestion import process_media_job
+        job = await jobs.create(asset["id"], "transcribe")
+        asyncio.create_task(process_media_job(job["id"], asset["id"], payload.source_uri, is_url=payload.source_type == "url"))
+    return asset
 
 
 @router.get("/assets/{asset_id}")

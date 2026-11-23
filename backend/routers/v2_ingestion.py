@@ -19,6 +19,9 @@ async def upload_asset(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if (file.filename or '').lower().endswith(('.srt', '.vtt')):
         await _process_subtitle_job(job["id"], asset["id"], saved_path=asset["source_uri"])
+    elif (file.filename or '').lower().endswith(('.mp3', '.wav', '.m4a', '.mp4', '.mov', '.mkv', '.webm')):
+        import asyncio
+        asyncio.create_task(v2_ingestion.process_media_job(job["id"], asset["id"], asset["source_uri"] or ""))
     return {"asset": asset, "job": job}
 
 

@@ -2,12 +2,15 @@
 import hashlib
 import re
 import uuid
+import asyncio
+import os
 from pathlib import Path
 
 from fastapi import UploadFile
 
 from backend.config.settings import PROJECT_ROOT
 from backend.repositories import assets, content, jobs
+from backend.domain import JobStatus
 
 UPLOAD_DIR = PROJECT_ROOT / "temp" / "uploads"
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".mkv", ".webm", ".srt", ".vtt", ".txt"}
@@ -72,3 +75,33 @@ async def create_transcription_job(asset_id: str) -> dict:
     if segments:
         raise ValueError("Transcript already exists for this asset")
     return await jobs.create(asset_id, "transcribe")
+
+
+async def process_media_job(job_id: str, asset_id: str, source: str, *, is_url: bool = False) -> None:
+    claimed = await jobs.transition(job_id, JobStatus.QUEUED, JobStatus.RUNNING, stage="transcribing")
+    if claimed is None: return
+    audio_path = source; temporary_audio = False
+    try:
+        if is_url:
+            import yt_dlp
+            output = UPLOAD_DIR / f"{asset_id}.%(ext)s"
+            options = {"format": "bestaudio/best", "outtmpl": str(output), "noplaylist": True, "quiet": True, "no_warnings": True, "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}]}
+            await asyncio.to_thread(lambda: yt_dlp.YoutubeDL(options).download([source]))
+            candidates = sorted(UPLOAD_DIR.glob(f"{asset_id}.*"))
+            if not candidates: raise RuntimeError("media download produced no audio file")
+            audio_path = str(candidates[0]); temporary_audio = True
+        from backend.services.audio_transcriber import AudioTranscriber
+        from backend.core.ai_client import get_asr_model
+        segments, info = await asyncio.to_thread(AudioTranscriber()._do_whisper_transcribe, get_asr_model(), audio_path, None)
+        rows = [{"start_ms": int(s.start * 1000), "end_ms": int(s.end * 1000), "text": s.text.strip(), "language": getattr(info, "language", None)} for s in segments if getattr(s, "text", "").strip() and s.end > s.start]
+        if not rows: raise RuntimeError("transcriber returned no segments")
+        for row in rows: await content.create_segment(asset_id, **row)
+        artifact_path = UPLOAD_DIR / f"{asset_id}.transcript.json"
+        artifact_path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        await content.create_artifact(asset_id, "transcript", path=str(artifact_path), job_id=job_id)
+        await jobs.transition(job_id, JobStatus.RUNNING, JobStatus.COMPLETED, stage="persisted")
+    except Exception as exc: await jobs.transition(job_id, JobStatus.RUNNING, JobStatus.FAILED, error=str(exc))
+    finally:
+        if temporary_audio:
+            try: os.unlink(audio_path)
+            except OSError: pass
