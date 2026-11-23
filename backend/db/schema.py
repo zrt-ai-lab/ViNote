@@ -4,7 +4,6 @@
 import logging
 
 from backend.db.connection import get_db, DB_PATH
-from backend.core.state import TEMP_DIR
 
 logger = logging.getLogger(__name__)
 

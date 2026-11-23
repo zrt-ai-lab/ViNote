@@ -24,7 +24,6 @@ class V2AssetAPITests(unittest.TestCase):
         root = Path(resources.enter_context(TemporaryDirectory()))
         resources.enter_context(patch.object(connection, "DB_PATH", root / "vinote.db"))
         resources.enter_context(patch.object(schema, "DB_PATH", root / "vinote.db"))
-        resources.enter_context(patch.object(schema, "TEMP_DIR", root))
         asyncio.run(schema.init_db())
         app = FastAPI()
         app.include_router(router)

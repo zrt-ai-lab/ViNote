@@ -720,29 +720,6 @@ wheels = [
 ]
 
 [[package]]
-name = "deepseek-harness-runtime-bin"
-version = "0.1.2rc1"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/91/be83a7f28b3f09c128913a6f331d3c7b35dd60b2a59e76ab3efe58b43db5/deepseek_harness_runtime_bin-0.1.2rc1-py3-none-macosx_14_0_arm64.whl", hash = "sha256:2cac2256cdebfda726c3378e24f4be31c0847aece7f2a7eb5a8523559f6b5894", size = 72523836 },
-    { url = "https://files.pythonhosted.org/packages/95/63/56e9467299c01274143db7c5b122d5f6a5b5bfeb1d19d7f4f55f8d5716b3/deepseek_harness_runtime_bin-0.1.2rc1-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:5052ca9fea2304e28d82a71012a32e7d2399322e1884a065cb08cf5bc57f017f", size = 77218739 },
-    { url = "https://files.pythonhosted.org/packages/46/e3/7fdfffff5a5925e52d9726b6e90d489af87090847db54814aa3b14334cb3/deepseek_harness_runtime_bin-0.1.2rc1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:670d8af06845cc2fc16738f1b030375321f3f8268837152aa3100e14a7b9887d", size = 77713295 },
-    { url = "https://files.pythonhosted.org/packages/e7/63/16b5733796e85f5df2d5985f0c78fdf582cd002f687d7e985f16d19d9cb3/deepseek_harness_runtime_bin-0.1.2rc1-py3-none-win_amd64.whl", hash = "sha256:390bd8cd5f8700fc609c58e1ccb78091d5c8c6e11c21656e284e0f68da0e148f", size = 69024367 },
-]
-
-[[package]]
-name = "deepseek-harness-sdk"
-version = "0.1.2rc1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "deepseek-harness-runtime-bin" },
-    { name = "pydantic" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/38/0220769bc89ca29318a8f09c30390095aaa071ae2116f677e8398763390e/deepseek_harness_sdk-0.1.2rc1-py3-none-any.whl", hash = "sha256:24689eec01e95233feb75ca08a0fe748b491e71682f80d2c04e6f9485f20488a", size = 13692 },
-]
-
-[[package]]
 name = "deno"
 version = "2.9.6"
 source = { registry = "https://pypi.org/simple" }
@@ -4052,7 +4029,6 @@ source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "aiosqlite" },
-    { name = "deepseek-harness-sdk" },
     { name = "fastapi" },
     { name = "faster-whisper" },
     { name = "httpx" },
@@ -4085,7 +4061,6 @@ qwen3 = [
 requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "aiosqlite", specifier = ">=0.20.0" },
-    { name = "deepseek-harness-sdk", specifier = "==0.1.2rc1" },
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "faster-whisper", specifier = ">=1.1.0" },
     { name = "funasr", marker = "extra == 'funasr'", specifier = ">=1.0.0" },

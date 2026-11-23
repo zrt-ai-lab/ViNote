@@ -6,11 +6,11 @@ from contextlib import asynccontextmanager
 
 import aiosqlite
 
-from backend.core.state import TEMP_DIR
+from backend.config.settings import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = TEMP_DIR / "vinote.db"
+DB_PATH = PROJECT_ROOT / "temp" / "vinote.db"
 
 
 @asynccontextmanager

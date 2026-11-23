@@ -16,7 +16,7 @@ class V2KnowledgeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
         root = Path(self.tmp.name)
-        self.patches = [patch.object(connection, "DB_PATH", root / "vinote.db"), patch.object(schema, "DB_PATH", root / "vinote.db"), patch.object(schema, "TEMP_DIR", root)]
+        self.patches = [patch.object(connection, "DB_PATH", root / "vinote.db"), patch.object(schema, "DB_PATH", root / "vinote.db")]
         for item in self.patches: item.start()
         self.addCleanup(self._cleanup)
         asyncio.run(schema.init_db())

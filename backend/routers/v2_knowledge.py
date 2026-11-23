@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.core.state import TEMP_DIR
+from backend.config.settings import PROJECT_ROOT
 from backend.repositories import assets, content, jobs
 from backend.domain import JobStatus, ReviewState
 
@@ -74,7 +74,7 @@ async def create_summary(asset_id: str):
     rows = await content.list_segments(asset_id)
     if not rows:
         raise HTTPException(status_code=409, detail="Transcript is not ready")
-    output_dir = TEMP_DIR / "artifacts" / asset_id
+    output_dir = PROJECT_ROOT / "temp" / "artifacts" / asset_id
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "summary-v1.md"
     body = "# " + asset["title"] + "\n\n" + "\n\n".join(f"- [{row['start_ms']}ms] {row['text']}" for row in rows[:20])

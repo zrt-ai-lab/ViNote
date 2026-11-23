@@ -41,11 +41,8 @@ app.add_middleware(
     allow_headers=settings.CORS_HEADERS,
 )
 
-from backend.core.middleware import BrowserRequestMiddleware, RateLimitMiddleware
 from backend.routers import v2_assets, v2_ingestion, v2_knowledge
 
-app.add_middleware(RateLimitMiddleware, calls=100, period=60)
-app.add_middleware(BrowserRequestMiddleware, allowed_origins=settings.CORS_ORIGINS, allowed_hosts=settings.ALLOWED_HOSTS)
 
 app.include_router(v2_assets.router)
 app.include_router(v2_ingestion.router)

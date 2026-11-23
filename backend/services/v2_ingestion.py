@@ -6,10 +6,10 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-from backend.core.state import TEMP_DIR
+from backend.config.settings import PROJECT_ROOT
 from backend.repositories import assets, content, jobs
 
-UPLOAD_DIR = TEMP_DIR / "uploads"
+UPLOAD_DIR = PROJECT_ROOT / "temp" / "uploads"
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".mkv", ".webm", ".srt", ".vtt", ".txt"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 

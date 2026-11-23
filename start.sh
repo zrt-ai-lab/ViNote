@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 VERSION="$(tr -d '[:space:]' < VERSION 2>/dev/null || true)"
-VERSION="${VERSION:-1.4.0}"
+VERSION="${VERSION:-2.0.0}"
 
 PIDS=()
 

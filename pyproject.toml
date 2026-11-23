@@ -15,7 +15,6 @@ dependencies = [
     "faster-whisper>=1.1.0",
     # AI & NLP
     "openai>=2.6.1",
-    "deepseek-harness-sdk==0.1.2rc1",
     "pydantic>=2.7.0",
     # Utilities
     "aiosqlite>=0.20.0",

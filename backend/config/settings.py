@@ -25,7 +25,6 @@ class Settings:
     BACKUPS_DIR: Path = TEMP_DIR / "backups"
     
     # 任务持久化文件
-    TASKS_FILE: Path = TEMP_DIR / "tasks.json"
     
     # ========== 应用配置 ==========
     APP_TITLE: str = "ViNote API"
