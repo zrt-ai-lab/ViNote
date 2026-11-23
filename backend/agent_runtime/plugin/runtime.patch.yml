@@ -47,7 +47,7 @@
           maxTokensField: max_tokens
 - insert:
     - id: vinote-business-tools
-      name: "file:///Users/zhairuitao/AlienLab/zhai/ViNote/backend/agent_runtime/plugin/index.mjs"
+      name: ./backend/agent_runtime/plugin
 - id: tool-bash
   disabled: true
 - id: tool-pwsh

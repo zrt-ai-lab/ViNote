@@ -196,7 +196,6 @@ class HarnessRuntime:
                     'VINOTE_AGENT_SYSTEM_PROMPT': self.system_prompt,
                     'VINOTE_AGENT_BRIDGE_URL': bridge.url,
                     'VINOTE_AGENT_BRIDGE_TOKEN': bridge.token,
-                    'VINOTE_AGENT_PLUGIN': str(Path(__file__).parent / 'plugin'),
                     'VINOTE_AGENT_MAX_STEPS': str(self.max_steps),
                     'VINOTE_AGENT_TOOL_TIMEOUT_MS': str(max(1, int(self.timeout * 1000))),
                 },
