@@ -1,57 +1,27 @@
-import { Play } from 'lucide-react';
+import { Activity, Download, Layers3, MessageCircle, Network, Play } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getAsset } from '../api/v2';
-import { askAsset, createFlashcard, createHighlight } from '../api/v2';
+import { askAsset, createFlashcard, createHighlight, getAsset } from '../api/v2';
 import type { AssetDetail as AssetDetailData } from '../api/v2';
 
-const ARTIFACTS = ['摘要', '问答', '高亮与批注', '复习卡片', '思维导图', '导出'];
+type Tab = 'overview' | 'chat' | 'cards' | 'mindmap' | 'export';
 
 export default function AssetDetail() {
   const { assetId } = useParams();
   const [asset, setAsset] = useState<AssetDetailData | null>(null);
   const [error, setError] = useState('');
-  const refresh = () => { if (assetId) void getAsset(assetId).then(setAsset).catch(() => undefined); };
+  const [tab, setTab] = useState<Tab>('overview');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<{ answer: string; citations: { start_ms: number; end_ms: number; quote: string }[] } | null>(null);
-  const [actionMessage, setActionMessage] = useState('');
-  useEffect(() => { if (assetId) getAsset(assetId).then(setAsset).catch((err) => setError(err instanceof Error ? err.message : '加载失败')); }, [assetId]);
+  const [message, setMessage] = useState('');
+  const refresh = () => { if (assetId) void getAsset(assetId).then(setAsset).catch(() => undefined); };
+  useEffect(() => { if (assetId) void getAsset(assetId).then(setAsset).catch((err) => setError(err instanceof Error ? err.message : '加载失败')); }, [assetId]);
 
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-8 sm:py-12">
-      <header>
-        <Link to="/library" className="text-sm text-[var(--color-text-secondary)] underline underline-offset-4">返回知识库</Link>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight">{asset?.title || '资产详情'}</h1>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-          {error || (assetId ? (asset ? asset.source_type + ' · ' + asset.jobs.length + ' 个处理任务' : '加载中…') : '暂未选择资产。')}
-        </p>
-      </header>
+  if (!asset && !error) return <div className="p-10 text-sm text-[var(--color-text-secondary)]">加载资产中…</div>;
+  if (error) return <div className="p-10 text-sm text-red-600">{error}</div>;
+  if (!asset) return null;
+  const first = asset.segments[0];
+  const tabs: [Tab, string, typeof Activity][] = [['overview', '概览', Activity], ['chat', '视频对话', MessageCircle], ['cards', '知识卡片', Layers3], ['mindmap', '思维导图', Network], ['export', '导出', Download]];
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h2 className="font-semibold">播放器</h2>
-          <div className="mt-4 flex aspect-video flex-col items-center justify-center gap-2 rounded-lg bg-[var(--color-bg)] text-sm text-[var(--color-text-secondary)]">
-            <Play size={24} aria-hidden="true" />
-            暂无可播放媒体
-          </div>
-        </section>
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h2 className="font-semibold">时间轴原文</h2>
-          {asset?.segments.length === 0 && <p className="mt-3 text-sm text-[var(--color-text-secondary)]">暂无转录片段。处理任务完成后，带时间戳的原文将在这里显示。</p>}
-          {asset?.segments.map((segment) => <div key={segment.id} className="mt-3 rounded-lg border border-[var(--color-border)] p-3 text-sm"><span className="mr-2 text-xs text-[var(--color-text-secondary)]">{Math.floor(segment.start_ms / 60000)}:{String(Math.floor(segment.start_ms / 1000) % 60).padStart(2, '0')}</span>{segment.edited_text || segment.text}</div>)}
-        </section>
-      </div>
-
-      <section aria-labelledby="artifacts-heading" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h2 id="artifacts-heading" className="font-semibold">知识产物</h2>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{asset ? asset.artifacts.length + ' 个产物，' + asset.highlights.length + ' 条高亮，' + asset.flashcards.length + ' 张卡片' : '产物生成和导出尚未接入。'}</p>
-        <ul className="mt-4 flex flex-wrap gap-2">
-          {ARTIFACTS.map((item) => (
-            <li key={item} className="rounded-full border border-[var(--color-border)] px-3 py-1 text-sm">{item}</li>
-          ))}
-        </ul>
-      </section>
-      {asset && <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><h2 className="font-semibold">基于原文提问</h2><div className="mt-3 flex gap-2"><input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && question.trim()) void askAsset(asset.id, question).then(setAnswer).catch((err) => setActionMessage(err instanceof Error ? err.message : '提问失败')); }} placeholder="问这个视频里的一个问题" className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm" /><button disabled={!question.trim()} onClick={() => void askAsset(asset.id, question).then(setAnswer).catch((err) => setActionMessage(err instanceof Error ? err.message : '提问失败'))} className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm text-white disabled:opacity-50">提问</button></div>{answer && <div className="mt-4 space-y-3 text-sm"><p>{answer.answer}</p>{answer.citations.map((citation) => <blockquote key={citation.start_ms} className="border-l-2 border-[var(--color-accent)] pl-3 text-[var(--color-text-secondary)]">[{Math.floor(citation.start_ms / 60000)}:{String(Math.floor(citation.start_ms / 1000) % 60).padStart(2, '0')}] {citation.quote}</blockquote>)}</div>}{actionMessage && <p role="alert" className="mt-3 text-sm text-red-600">{actionMessage}</p>}<div className="mt-4 flex gap-2"><button disabled={!asset.segments.length} onClick={() => { const segment = asset.segments[0]; void createHighlight(asset.id, { start_ms: segment.start_ms, end_ms: segment.end_ms, text_snapshot: segment.text, segment_id: segment.id }).then(() => { setActionMessage('已保存第一条高亮'); refresh(); }).catch((err) => setActionMessage(err instanceof Error ? err.message : '保存高亮失败')); }} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs disabled:opacity-50">保存当前片段为高亮</button><button disabled={!asset.segments.length} onClick={() => { const segment = asset.segments[0]; void createFlashcard(asset.id, { question: '这段内容讲了什么？', answer: segment.text, segment_id: segment.id }).then(() => { setActionMessage('已创建复习卡片'); refresh(); }).catch((err) => setActionMessage(err instanceof Error ? err.message : '创建卡片失败')); }} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs disabled:opacity-50">从第一段创建卡片</button></div></section>}
-    </div>
-  );
+  return <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-8 sm:py-8"><header className="flex items-start justify-between gap-4"><div><Link to="/library" className="text-sm text-[var(--color-text-secondary)] underline underline-offset-4">返回知识库</Link><h1 className="mt-3 text-3xl font-bold tracking-tight">{asset.title}</h1><p className="mt-2 text-sm text-[var(--color-text-secondary)]">{asset.source_type} · {asset.jobs.length} 个任务 · {asset.segments.length} 个转录片段</p></div><a href={asset.source_uri || '#'} target="_blank" rel="noreferrer" className="text-sm text-[var(--color-accent)] underline">打开来源</a></header><div className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-3" role="tablist">{tabs.map(([key, label, Icon]) => <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm ' + (tab === key ? 'bg-[var(--color-accent)] text-white' : 'border border-[var(--color-border)] text-[var(--color-text-secondary)]')}><Icon size={15}/>{label}</button>)}</div><div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm"><span className="flex items-center gap-2"><Activity size={15} className="text-[var(--color-accent)]"/>处理任务</span><span className="text-[var(--color-text-secondary)]">{asset.jobs.map((job) => job.status + (job.stage ? ' · ' + job.stage : '')).join(' / ') || '暂无任务'}</span></div>{tab === 'overview' && <div className="grid gap-4 lg:grid-cols-2"><section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><h2 className="font-semibold">播放器</h2><div className="mt-4 flex aspect-video items-center justify-center rounded-lg bg-[var(--color-bg)] text-sm text-[var(--color-text-secondary)]"><Play size={24}/><span className="ml-2">媒体播放入口</span></div></section><section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><h2 className="font-semibold">时间轴原文</h2><div className="mt-3 space-y-2">{asset.segments.length ? asset.segments.slice(0, 12).map((segment) => <div key={segment.id} className="rounded-lg border border-[var(--color-border)] p-3 text-sm"><span className="mr-2 text-xs text-[var(--color-text-secondary)]">{Math.floor(segment.start_ms / 60000)}:{String(Math.floor(segment.start_ms / 1000) % 60).padStart(2, '0')}</span>{segment.edited_text || segment.text}</div>) : <p className="text-sm text-[var(--color-text-secondary)]">暂无转录片段。</p>}</div></section></div>}{tab === 'chat' && <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"><h2 className="text-lg font-semibold">基于原文提问</h2><div className="mt-4 flex gap-2"><input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && question.trim()) void askAsset(asset.id, question).then(setAnswer).catch((err) => setMessage(err instanceof Error ? err.message : '提问失败')); }} placeholder="问这个视频里的问题" className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm"/><button disabled={!question.trim()} onClick={() => void askAsset(asset.id, question).then(setAnswer).catch((err) => setMessage(err instanceof Error ? err.message : '提问失败'))} className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm text-white disabled:opacity-50">提问</button></div>{answer && <div className="mt-5 space-y-3 text-sm"><p>{answer.answer}</p>{answer.citations.map((citation) => <blockquote key={citation.start_ms} className="border-l-2 border-[var(--color-accent)] pl-3 text-[var(--color-text-secondary)]">[{Math.floor(citation.start_ms / 60000)}:{String(Math.floor(citation.start_ms / 1000) % 60).padStart(2, '0')}] {citation.quote}</blockquote>)}</div>}{message && <p role="alert" className="mt-3 text-sm text-red-600">{message}</p>}{first && <div className="mt-5 flex gap-2"><button onClick={() => void createHighlight(asset.id, {start_ms: first.start_ms, end_ms: first.end_ms, text_snapshot: first.text, segment_id: first.id}).then(() => {setMessage('已保存高亮'); refresh();})} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs">保存首段高亮</button><button onClick={() => void createFlashcard(asset.id, {question: '这段内容讲了什么？', answer: first.text, segment_id: first.id}).then(() => {setMessage('已创建卡片'); refresh();})} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs">从首段创建卡片</button></div>}</section>}{tab === 'cards' && <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"><h2 className="text-lg font-semibold">知识卡片</h2><div className="mt-4 space-y-3">{asset.flashcards.length ? asset.flashcards.map((card) => <article key={String(card.id)} className="rounded-lg border border-[var(--color-border)] p-4 text-sm"><strong>{String(card.question)}</strong><p className="mt-2 text-[var(--color-text-secondary)]">{String(card.answer)}</p></article>) : <p className="text-sm text-[var(--color-text-secondary)]">暂无卡片，切换到视频对话即可从转录片段创建。</p>}</div></section>}{tab === 'mindmap' && <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"><h2 className="text-lg font-semibold">思维导图</h2><p className="mt-3 text-sm text-[var(--color-text-secondary)]">思维导图作为当前资产的产物保存，生成后会显示在这里。当前产物数：{asset.artifacts.length}。</p></section>}{tab === 'export' && <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"><h2 className="text-lg font-semibold">导出</h2><p className="mt-3 text-sm text-[var(--color-text-secondary)]">导出会携带来源、时间轴和引用信息。</p><div className="mt-4 flex flex-wrap gap-2">{['Markdown', 'JSON', 'SRT / VTT'].map((format) => <button key={format} onClick={() => setMessage(format + ' 导出准备中')} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm hover:border-[var(--color-accent)]">导出 {format}</button>)}</div>{message && <p className="mt-3 text-sm text-[var(--color-text-secondary)]">{message}</p>}</section>}</div>;
 }
