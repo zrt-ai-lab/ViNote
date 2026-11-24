@@ -1,0 +1,3 @@
+import { Layers3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+export default function KnowledgeCards() { return <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-8 sm:py-12"><header><h1 className="text-3xl font-bold tracking-tight">知识卡片</h1><p className="mt-2 text-sm text-[var(--color-text-secondary)]">卡片属于视频资产，打开资产详情即可从时间轴片段创建并复习。</p></header><div className="rounded-2xl border border-dashed border-[var(--color-border)] p-12 text-center"><Layers3 className="mx-auto text-[var(--color-accent)]" size={32}/><p className="mt-3 text-sm text-[var(--color-text-secondary)]">请从知识库进入资产详情管理卡片。</p><Link to="/library" className="mt-5 inline-block underline">打开知识库</Link></div></div>; }

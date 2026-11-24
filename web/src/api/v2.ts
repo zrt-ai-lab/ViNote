@@ -30,3 +30,4 @@ export const createHighlight = (id: string, body: { start_ms: number; end_ms: nu
 export const createFlashcard = (id: string, body: { question: string; answer: string; segment_id?: string }) => request<Record<string, unknown>>('/api/v2/assets/' + encodeURIComponent(id) + '/flashcards', { method: 'POST', body: JSON.stringify(body) });
 export const getHealth = () => request<{ status: string; openai_configured: boolean }>('/health');
 export const getDashboard = () => request<{ recent_assets: Asset[]; failed_jobs: number; due_cards: number }>('/api/v2/dashboard');
+export const listTasks = () => request<Job[]>('/api/v2/tasks');

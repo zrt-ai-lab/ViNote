@@ -1,0 +1,4 @@
+import { MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+export default function VideoQA() { return <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-8 sm:py-12"><header><h1 className="text-3xl font-bold tracking-tight">视频对话</h1><p className="mt-2 text-sm text-[var(--color-text-secondary)]">打开一个资产，在原文、时间轴和引用的基础上继续提问。</p></header><div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center"><MessageCircle className="mx-auto text-[var(--color-accent)]" size={32}/><h2 className="mt-4 text-lg font-semibold">从知识库选择视频开始对话</h2><p className="mt-2 text-sm text-[var(--color-text-secondary)]">问答已经绑定资产详情页，回答会返回可回查的原文片段。</p><Link to="/library" className="mt-5 inline-block rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm text-white">打开知识库</Link></div></div>; }

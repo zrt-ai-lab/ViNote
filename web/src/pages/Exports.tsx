@@ -1,0 +1,3 @@
+import { Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
+export default function Exports() { return <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-8 sm:py-12"><header><h1 className="text-3xl font-bold tracking-tight">导出中心</h1><p className="mt-2 text-sm text-[var(--color-text-secondary)]">导出入口按资产组织，保留原文时间戳、引用和来源链接。</p></header><div className="rounded-2xl border border-dashed border-[var(--color-border)] p-12 text-center"><Download className="mx-auto text-[var(--color-accent)]" size={32}/><p className="mt-3 text-sm text-[var(--color-text-secondary)]">请从知识库选择资产后导出。</p><Link to="/library" className="mt-5 inline-block underline">打开知识库</Link></div></div>; }
